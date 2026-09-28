@@ -1,0 +1,3402 @@
+[
+  {
+    "id": 1,
+    "name": "Vercel UK Limited",
+    "legalName": "Vercel UK Limited",
+    "industry": "DevTools",
+    "location": "London",
+    "roles": [
+      "Next.js Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 75000,
+    "careersUrl": "https://vercel.com/careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 2,
+    "name": "Spotify",
+    "legalName": "Spotify UK Limited",
+    "industry": "Music Tech",
+    "location": "London",
+    "roles": [
+      "Full-Stack Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.lifeatspotify.com/jobs",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 3,
+    "name": "Confluent",
+    "legalName": "Confluent UK Ltd",
+    "industry": "Data Infrastructure",
+    "location": "London",
+    "roles": [
+      "Full-Stack Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 90000,
+    "careersUrl": "https://www.confluent.io/careers/",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 4,
+    "name": "Wise",
+    "legalName": "Wise UK Limited",
+    "industry": "Fintech",
+    "location": "London",
+    "roles": [
+      "React Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 42000,
+    "salaryMax": 80000,
+    "careersUrl": "https://www.wise.jobs/",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 5,
+    "name": "Starling Bank",
+    "legalName": "Starling Bank Limited",
+    "industry": "Fintech",
+    "location": "Southampton",
+    "roles": [
+      "Software Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 70000,
+    "careersUrl": "https://www.starlingbank.com/careers/",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 6,
+    "name": "Deliveroo",
+    "legalName": "Deliveroo Ltd",
+    "industry": "SaaS",
+    "location": "Birmingham",
+    "roles": [
+      "Frontend Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Deliveroo+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 7,
+    "name": "Revolut",
+    "legalName": "Revolut Ltd",
+    "industry": "Consulting",
+    "location": "Remote UK",
+    "roles": [
+      "Full-Stack Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Revolut+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 8,
+    "name": "Darktrace",
+    "legalName": "Darktrace Ltd",
+    "industry": "EdTech",
+    "location": "Reading",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Darktrace+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 9,
+    "name": "ASOS",
+    "legalName": "ASOS Ltd",
+    "industry": "Cyber",
+    "location": "Reading",
+    "roles": [
+      "Node.js Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=ASOS+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 10,
+    "name": "Zopa",
+    "legalName": "Zopa Ltd",
+    "industry": "EdTech",
+    "location": "London",
+    "roles": [
+      "Full-Stack Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Zopa+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 11,
+    "name": "GoCardless",
+    "legalName": "GoCardless Ltd",
+    "industry": "Fintech",
+    "location": "Birmingham",
+    "roles": [
+      "Full-Stack Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=GoCardless+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 12,
+    "name": "BJSS",
+    "legalName": "BJSS Ltd",
+    "industry": "Consulting",
+    "location": "Southampton",
+    "roles": [
+      "TypeScript Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 13,
+    "name": "Improbable",
+    "legalName": "Improbable Ltd",
+    "industry": "Fintech",
+    "location": "Fareham",
+    "roles": [
+      "Frontend Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Improbable+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 14,
+    "name": "Tymit",
+    "legalName": "Tymit Ltd",
+    "industry": "EdTech",
+    "location": "Manchester",
+    "roles": [
+      "Node.js Developer",
+      "React Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Tymit+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 15,
+    "name": "Arrival",
+    "legalName": "Arrival Ltd",
+    "industry": "Consulting",
+    "location": "Reading",
+    "roles": [
+      "Full-Stack Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Arrival+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 16,
+    "name": "Capgemini",
+    "legalName": "Capgemini Ltd",
+    "industry": "Consulting",
+    "location": "Bristol",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Capgemini+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 17,
+    "name": "ClearBank",
+    "legalName": "ClearBank Ltd",
+    "industry": "DevTools",
+    "location": "Cambridge",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=ClearBank+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 18,
+    "name": "Improbable",
+    "legalName": "Improbable Ltd",
+    "industry": "Consulting",
+    "location": "Reading",
+    "roles": [
+      "TypeScript Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Improbable+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 19,
+    "name": "Scott Logic",
+    "legalName": "Scott Logic Ltd",
+    "industry": "Cyber",
+    "location": "Reading",
+    "roles": [
+      "Full-Stack Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Scott+Logic+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 20,
+    "name": "Babylon",
+    "legalName": "Babylon Ltd",
+    "industry": "SaaS",
+    "location": "Fareham",
+    "roles": [
+      "React Developer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 21,
+    "name": "GoCardless",
+    "legalName": "GoCardless Ltd",
+    "industry": "HealthTech",
+    "location": "Reading",
+    "roles": [
+      "TypeScript Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=GoCardless+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 22,
+    "name": "Accenture",
+    "legalName": "Accenture Ltd",
+    "industry": "Gaming",
+    "location": "Birmingham",
+    "roles": [
+      "TypeScript Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Accenture+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 23,
+    "name": "BJSS",
+    "legalName": "BJSS Ltd",
+    "industry": "Gaming",
+    "location": "Bristol",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 24,
+    "name": "Kainos",
+    "legalName": "Kainos Ltd",
+    "industry": "AI",
+    "location": "Remote UK",
+    "roles": [
+      "React Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Kainos+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 25,
+    "name": "Rapyd",
+    "legalName": "Rapyd Ltd",
+    "industry": "Cyber",
+    "location": "Cambridge",
+    "roles": [
+      "Node.js Developer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Rapyd+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 26,
+    "name": "Bbox",
+    "legalName": "Bbox Ltd",
+    "industry": "E-commerce",
+    "location": "London",
+    "roles": [
+      "Full-Stack Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Bbox+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 27,
+    "name": "Kainos",
+    "legalName": "Kainos Ltd",
+    "industry": "DevTools",
+    "location": "Leeds",
+    "roles": [
+      "Next.js Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Kainos+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 28,
+    "name": "BenevolentAI",
+    "legalName": "BenevolentAI Ltd",
+    "industry": "DevTools",
+    "location": "Manchester",
+    "roles": [
+      "Full-Stack Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=BenevolentAI+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 29,
+    "name": "Darktrace",
+    "legalName": "Darktrace Ltd",
+    "industry": "EdTech",
+    "location": "Birmingham",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Darktrace+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 30,
+    "name": "Onfido",
+    "legalName": "Onfido Ltd",
+    "industry": "HealthTech",
+    "location": "Fareham",
+    "roles": [
+      "React Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Onfido+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 31,
+    "name": "BenevolentAI",
+    "legalName": "BenevolentAI Ltd",
+    "industry": "EdTech",
+    "location": "Birmingham",
+    "roles": [
+      "Node.js Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=BenevolentAI+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 32,
+    "name": "Reason",
+    "legalName": "Reason Ltd",
+    "industry": "Fintech",
+    "location": "Reading",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Reason+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 33,
+    "name": "BJSS",
+    "legalName": "BJSS Ltd",
+    "industry": "Consulting",
+    "location": "Fareham",
+    "roles": [
+      "Node.js Developer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 34,
+    "name": "Trainline",
+    "legalName": "Trainline Ltd",
+    "industry": "Consulting",
+    "location": "Reading",
+    "roles": [
+      "Frontend Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Trainline+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 35,
+    "name": "BJSS",
+    "legalName": "BJSS Ltd",
+    "industry": "AI",
+    "location": "Reading",
+    "roles": [
+      "Full-Stack Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 36,
+    "name": "Trainline",
+    "legalName": "Trainline Ltd",
+    "industry": "HealthTech",
+    "location": "Manchester",
+    "roles": [
+      "React Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Trainline+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 37,
+    "name": "Improbable",
+    "legalName": "Improbable Ltd",
+    "industry": "HealthTech",
+    "location": "Remote UK",
+    "roles": [
+      "Node.js Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Improbable+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 38,
+    "name": "Beamery",
+    "legalName": "Beamery Ltd",
+    "industry": "HealthTech",
+    "location": "Reading",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Beamery+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 39,
+    "name": "BJSS",
+    "legalName": "BJSS Ltd",
+    "industry": "AI",
+    "location": "Leeds",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 40,
+    "name": "Gousto",
+    "legalName": "Gousto Ltd",
+    "industry": "EdTech",
+    "location": "London",
+    "roles": [
+      "TypeScript Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Gousto+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 41,
+    "name": "Thought Machine",
+    "legalName": "Thought Machine Ltd",
+    "industry": "HealthTech",
+    "location": "Birmingham",
+    "roles": [
+      "Frontend Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Thought+Machine+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 42,
+    "name": "What3Words",
+    "legalName": "What3Words Ltd",
+    "industry": "E-commerce",
+    "location": "Fareham",
+    "roles": [
+      "React Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=What3Words+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 43,
+    "name": "Revolut",
+    "legalName": "Revolut Ltd",
+    "industry": "E-commerce",
+    "location": "Birmingham",
+    "roles": [
+      "Node.js Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Revolut+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 44,
+    "name": "Cazoo",
+    "legalName": "Cazoo Ltd",
+    "industry": "HealthTech",
+    "location": "Leeds",
+    "roles": [
+      "React Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Cazoo+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 45,
+    "name": "Bbox",
+    "legalName": "Bbox Ltd",
+    "industry": "EdTech",
+    "location": "Bristol",
+    "roles": [
+      "React Developer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Bbox+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 46,
+    "name": "Babylon",
+    "legalName": "Babylon Ltd",
+    "industry": "Consulting",
+    "location": "Reading",
+    "roles": [
+      "Node.js Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 47,
+    "name": "Depop",
+    "legalName": "Depop Ltd",
+    "industry": "SaaS",
+    "location": "Cambridge",
+    "roles": [
+      "Frontend Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Depop+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 48,
+    "name": "Nimble",
+    "legalName": "Nimble Ltd",
+    "industry": "Fintech",
+    "location": "Manchester",
+    "roles": [
+      "TypeScript Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Nimble+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 49,
+    "name": "Capgemini",
+    "legalName": "Capgemini Ltd",
+    "industry": "SaaS",
+    "location": "Birmingham",
+    "roles": [
+      "Node.js Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Capgemini+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 50,
+    "name": "BenevolentAI",
+    "legalName": "BenevolentAI Ltd",
+    "industry": "HealthTech",
+    "location": "Fareham",
+    "roles": [
+      "Next.js Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=BenevolentAI+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 51,
+    "name": "Trainline",
+    "legalName": "Trainline Ltd",
+    "industry": "DevTools",
+    "location": "Southampton",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Trainline+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 52,
+    "name": "Depop",
+    "legalName": "Depop Ltd",
+    "industry": "Gaming",
+    "location": "Fareham",
+    "roles": [
+      "TypeScript Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Depop+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 53,
+    "name": "Doodle",
+    "legalName": "Doodle Ltd",
+    "industry": "E-commerce",
+    "location": "Fareham",
+    "roles": [
+      "Node.js Developer",
+      "React Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Doodle+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 54,
+    "name": "Checkout.com",
+    "legalName": "Checkout.com Ltd",
+    "industry": "HealthTech",
+    "location": "Remote UK",
+    "roles": [
+      "Full-Stack Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Checkout.com+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 55,
+    "name": "Tymit",
+    "legalName": "Tymit Ltd",
+    "industry": "Fintech",
+    "location": "Cambridge",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Tymit+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 56,
+    "name": "Babylon",
+    "legalName": "Babylon Ltd",
+    "industry": "Fintech",
+    "location": "Bristol",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 57,
+    "name": "AND Digital",
+    "legalName": "AND Digital Ltd",
+    "industry": "E-commerce",
+    "location": "Remote UK",
+    "roles": [
+      "Full-Stack Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=AND+Digital+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 58,
+    "name": "ASOS",
+    "legalName": "ASOS Ltd",
+    "industry": "E-commerce",
+    "location": "Manchester",
+    "roles": [
+      "Next.js Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=ASOS+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 59,
+    "name": "Babylon",
+    "legalName": "Babylon Ltd",
+    "industry": "Gaming",
+    "location": "Cambridge",
+    "roles": [
+      "Node.js Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 60,
+    "name": "Beamery",
+    "legalName": "Beamery Ltd",
+    "industry": "SaaS",
+    "location": "Leeds",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Beamery+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 61,
+    "name": "Zilch",
+    "legalName": "Zilch Ltd",
+    "industry": "Gaming",
+    "location": "Bristol",
+    "roles": [
+      "TypeScript Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Zilch+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 62,
+    "name": "GoCardless",
+    "legalName": "GoCardless Ltd",
+    "industry": "Cyber",
+    "location": "Reading",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=GoCardless+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 63,
+    "name": "GoCardless",
+    "legalName": "GoCardless Ltd",
+    "industry": "E-commerce",
+    "location": "Leeds",
+    "roles": [
+      "React Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=GoCardless+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 64,
+    "name": "Skyscanner",
+    "legalName": "Skyscanner Ltd",
+    "industry": "DevTools",
+    "location": "Leeds",
+    "roles": [
+      "React Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Skyscanner+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 65,
+    "name": "King",
+    "legalName": "King Ltd",
+    "industry": "AI",
+    "location": "London",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=King+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 66,
+    "name": "King",
+    "legalName": "King Ltd",
+    "industry": "Consulting",
+    "location": "Fareham",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=King+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 67,
+    "name": "Accenture",
+    "legalName": "Accenture Ltd",
+    "industry": "Gaming",
+    "location": "Bristol",
+    "roles": [
+      "Node.js Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Accenture+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 68,
+    "name": "Zilch",
+    "legalName": "Zilch Ltd",
+    "industry": "EdTech",
+    "location": "Leeds",
+    "roles": [
+      "React Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Zilch+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 69,
+    "name": "Accenture",
+    "legalName": "Accenture Ltd",
+    "industry": "AI",
+    "location": "London",
+    "roles": [
+      "TypeScript Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Accenture+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 70,
+    "name": "Accenture",
+    "legalName": "Accenture Ltd",
+    "industry": "EdTech",
+    "location": "London",
+    "roles": [
+      "TypeScript Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Accenture+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 71,
+    "name": "BJSS",
+    "legalName": "BJSS Ltd",
+    "industry": "HealthTech",
+    "location": "Reading",
+    "roles": [
+      "Next.js Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 72,
+    "name": "Isomorphic Labs",
+    "legalName": "Isomorphic Labs Ltd",
+    "industry": "Gaming",
+    "location": "Remote UK",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Isomorphic+Labs+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 73,
+    "name": "Checkout.com",
+    "legalName": "Checkout.com Ltd",
+    "industry": "DevTools",
+    "location": "Remote UK",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Checkout.com+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 74,
+    "name": "Nimble",
+    "legalName": "Nimble Ltd",
+    "industry": "EdTech",
+    "location": "Reading",
+    "roles": [
+      "Next.js Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Nimble+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 75,
+    "name": "Nimble",
+    "legalName": "Nimble Ltd",
+    "industry": "Consulting",
+    "location": "Leeds",
+    "roles": [
+      "Next.js Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Nimble+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 76,
+    "name": "Just Eat",
+    "legalName": "Just Eat Ltd",
+    "industry": "DevTools",
+    "location": "London",
+    "roles": [
+      "React Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Just+Eat+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 77,
+    "name": "Beamery",
+    "legalName": "Beamery Ltd",
+    "industry": "EdTech",
+    "location": "Birmingham",
+    "roles": [
+      "Next.js Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Beamery+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 78,
+    "name": "Capgemini",
+    "legalName": "Capgemini Ltd",
+    "industry": "SaaS",
+    "location": "Manchester",
+    "roles": [
+      "Frontend Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Capgemini+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 79,
+    "name": "Just Eat",
+    "legalName": "Just Eat Ltd",
+    "industry": "E-commerce",
+    "location": "Remote UK",
+    "roles": [
+      "TypeScript Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Just+Eat+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 80,
+    "name": "Zopa",
+    "legalName": "Zopa Ltd",
+    "industry": "Gaming",
+    "location": "Bristol",
+    "roles": [
+      "React Developer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Zopa+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 81,
+    "name": "Farfetch",
+    "legalName": "Farfetch Ltd",
+    "industry": "Gaming",
+    "location": "Bristol",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Farfetch+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 82,
+    "name": "Trainline",
+    "legalName": "Trainline Ltd",
+    "industry": "HealthTech",
+    "location": "Fareham",
+    "roles": [
+      "React Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Trainline+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 83,
+    "name": "Scott Logic",
+    "legalName": "Scott Logic Ltd",
+    "industry": "SaaS",
+    "location": "Fareham",
+    "roles": [
+      "Full-Stack Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Scott+Logic+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 84,
+    "name": "Doodle",
+    "legalName": "Doodle Ltd",
+    "industry": "Cyber",
+    "location": "London",
+    "roles": [
+      "Next.js Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Doodle+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 85,
+    "name": "ClearBank",
+    "legalName": "ClearBank Ltd",
+    "industry": "HealthTech",
+    "location": "Fareham",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=ClearBank+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 86,
+    "name": "Zilch",
+    "legalName": "Zilch Ltd",
+    "industry": "DevTools",
+    "location": "Manchester",
+    "roles": [
+      "Next.js Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Zilch+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 87,
+    "name": "Rapyd",
+    "legalName": "Rapyd Ltd",
+    "industry": "EdTech",
+    "location": "Southampton",
+    "roles": [
+      "Next.js Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Rapyd+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 88,
+    "name": "Rapyd",
+    "legalName": "Rapyd Ltd",
+    "industry": "DevTools",
+    "location": "London",
+    "roles": [
+      "Next.js Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Rapyd+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 89,
+    "name": "Kainos",
+    "legalName": "Kainos Ltd",
+    "industry": "Cyber",
+    "location": "Fareham",
+    "roles": [
+      "TypeScript Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Kainos+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 90,
+    "name": "Cleo",
+    "legalName": "Cleo Ltd",
+    "industry": "Cyber",
+    "location": "Remote UK",
+    "roles": [
+      "Frontend Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Cleo+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 91,
+    "name": "Starling",
+    "legalName": "Starling Ltd",
+    "industry": "DevTools",
+    "location": "Cambridge",
+    "roles": [
+      "React Developer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Starling+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 92,
+    "name": "Softwire",
+    "legalName": "Softwire Ltd",
+    "industry": "AI",
+    "location": "Birmingham",
+    "roles": [
+      "Frontend Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Softwire+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 93,
+    "name": "Trainline",
+    "legalName": "Trainline Ltd",
+    "industry": "EdTech",
+    "location": "Remote UK",
+    "roles": [
+      "TypeScript Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Trainline+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 94,
+    "name": "Made Tech",
+    "legalName": "Made Tech Ltd",
+    "industry": "E-commerce",
+    "location": "Reading",
+    "roles": [
+      "Next.js Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Made+Tech+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 95,
+    "name": "Bbox",
+    "legalName": "Bbox Ltd",
+    "industry": "Fintech",
+    "location": "Birmingham",
+    "roles": [
+      "TypeScript Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Bbox+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 96,
+    "name": "DeepMind",
+    "legalName": "DeepMind Ltd",
+    "industry": "Gaming",
+    "location": "Southampton",
+    "roles": [
+      "TypeScript Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=DeepMind+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 97,
+    "name": "DeepMind",
+    "legalName": "DeepMind Ltd",
+    "industry": "HealthTech",
+    "location": "Manchester",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=DeepMind+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 98,
+    "name": "Moo",
+    "legalName": "Moo Ltd",
+    "industry": "DevTools",
+    "location": "Birmingham",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Moo+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 99,
+    "name": "Improbable",
+    "legalName": "Improbable Ltd",
+    "industry": "E-commerce",
+    "location": "Bristol",
+    "roles": [
+      "Frontend Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Improbable+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 100,
+    "name": "BJSS",
+    "legalName": "BJSS Ltd",
+    "industry": "E-commerce",
+    "location": "Leeds",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 101,
+    "name": "Graphcore 101",
+    "legalName": "Graphcore 101 Ltd",
+    "industry": "HealthTech",
+    "location": "London",
+    "roles": [
+      "Next.js Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Graphcore+101+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 102,
+    "name": "Capgemini 102",
+    "legalName": "Capgemini 102 Ltd",
+    "industry": "Fintech",
+    "location": "Southampton",
+    "roles": [
+      "TypeScript Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Capgemini+102+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 103,
+    "name": "Snyk 103",
+    "legalName": "Snyk 103 Ltd",
+    "industry": "HealthTech",
+    "location": "Remote UK",
+    "roles": [
+      "Full-Stack Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Snyk+103+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 104,
+    "name": "ClearBank 104",
+    "legalName": "ClearBank 104 Ltd",
+    "industry": "SaaS",
+    "location": "Birmingham",
+    "roles": [
+      "Full-Stack Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=ClearBank+104+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 105,
+    "name": "Kainos 105",
+    "legalName": "Kainos 105 Ltd",
+    "industry": "Cyber",
+    "location": "Cambridge",
+    "roles": [
+      "Frontend Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Kainos+105+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 106,
+    "name": "Darktrace 106",
+    "legalName": "Darktrace 106 Ltd",
+    "industry": "EdTech",
+    "location": "Manchester",
+    "roles": [
+      "Node.js Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Darktrace+106+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 107,
+    "name": "Tymit 107",
+    "legalName": "Tymit 107 Ltd",
+    "industry": "Cyber",
+    "location": "Leeds",
+    "roles": [
+      "React Developer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Tymit+107+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 108,
+    "name": "Snyk 108",
+    "legalName": "Snyk 108 Ltd",
+    "industry": "E-commerce",
+    "location": "Reading",
+    "roles": [
+      "TypeScript Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Snyk+108+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 109,
+    "name": "Monzo 109",
+    "legalName": "Monzo 109 Ltd",
+    "industry": "DevTools",
+    "location": "Manchester",
+    "roles": [
+      "TypeScript Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Monzo+109+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 110,
+    "name": "AND Digital 110",
+    "legalName": "AND Digital 110 Ltd",
+    "industry": "AI",
+    "location": "Remote UK",
+    "roles": [
+      "Node.js Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=AND+Digital+110+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 111,
+    "name": "AND Digital 111",
+    "legalName": "AND Digital 111 Ltd",
+    "industry": "HealthTech",
+    "location": "Fareham",
+    "roles": [
+      "Full-Stack Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=AND+Digital+111+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 112,
+    "name": "Scott Logic 112",
+    "legalName": "Scott Logic 112 Ltd",
+    "industry": "Consulting",
+    "location": "Remote UK",
+    "roles": [
+      "Full-Stack Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Scott+Logic+112+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 113,
+    "name": "Deliveroo 113",
+    "legalName": "Deliveroo 113 Ltd",
+    "industry": "Gaming",
+    "location": "Southampton",
+    "roles": [
+      "Node.js Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Deliveroo+113+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 114,
+    "name": "Babylon 114",
+    "legalName": "Babylon 114 Ltd",
+    "industry": "AI",
+    "location": "Cambridge",
+    "roles": [
+      "TypeScript Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+114+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 115,
+    "name": "BJSS 115",
+    "legalName": "BJSS 115 Ltd",
+    "industry": "Cyber",
+    "location": "Reading",
+    "roles": [
+      "Node.js Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+115+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 116,
+    "name": "Starling 116",
+    "legalName": "Starling 116 Ltd",
+    "industry": "Fintech",
+    "location": "Birmingham",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Starling+116+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 117,
+    "name": "Capgemini 117",
+    "legalName": "Capgemini 117 Ltd",
+    "industry": "EdTech",
+    "location": "Bristol",
+    "roles": [
+      "Frontend Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Capgemini+117+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 118,
+    "name": "Graphcore 118",
+    "legalName": "Graphcore 118 Ltd",
+    "industry": "AI",
+    "location": "Remote UK",
+    "roles": [
+      "Frontend Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Graphcore+118+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 119,
+    "name": "6point6 119",
+    "legalName": "6point6 119 Ltd",
+    "industry": "Cyber",
+    "location": "Fareham",
+    "roles": [
+      "TypeScript Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=6point6+119+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 120,
+    "name": "Equal Experts 120",
+    "legalName": "Equal Experts 120 Ltd",
+    "industry": "Fintech",
+    "location": "Fareham",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Equal+Experts+120+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 121,
+    "name": "Nimble 121",
+    "legalName": "Nimble 121 Ltd",
+    "industry": "DevTools",
+    "location": "Manchester",
+    "roles": [
+      "React Developer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Nimble+121+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 122,
+    "name": "AND Digital 122",
+    "legalName": "AND Digital 122 Ltd",
+    "industry": "Consulting",
+    "location": "Fareham",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=AND+Digital+122+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 123,
+    "name": "Darktrace 123",
+    "legalName": "Darktrace 123 Ltd",
+    "industry": "Cyber",
+    "location": "Reading",
+    "roles": [
+      "Node.js Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Darktrace+123+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 124,
+    "name": "Babylon 124",
+    "legalName": "Babylon 124 Ltd",
+    "industry": "DevTools",
+    "location": "Cambridge",
+    "roles": [
+      "TypeScript Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+124+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 125,
+    "name": "Babylon 125",
+    "legalName": "Babylon 125 Ltd",
+    "industry": "EdTech",
+    "location": "Fareham",
+    "roles": [
+      "Next.js Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+125+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 126,
+    "name": "Just Eat 126",
+    "legalName": "Just Eat 126 Ltd",
+    "industry": "DevTools",
+    "location": "Remote UK",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Just+Eat+126+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 127,
+    "name": "King 127",
+    "legalName": "King 127 Ltd",
+    "industry": "Gaming",
+    "location": "Manchester",
+    "roles": [
+      "Full-Stack Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=King+127+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 128,
+    "name": "BJSS 128",
+    "legalName": "BJSS 128 Ltd",
+    "industry": "DevTools",
+    "location": "Reading",
+    "roles": [
+      "TypeScript Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+128+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 129,
+    "name": "Isomorphic Labs 129",
+    "legalName": "Isomorphic Labs 129 Ltd",
+    "industry": "DevTools",
+    "location": "Fareham",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Isomorphic+Labs+129+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 130,
+    "name": "Ocado Technology 130",
+    "legalName": "Ocado Technology 130 Ltd",
+    "industry": "DevTools",
+    "location": "London",
+    "roles": [
+      "TypeScript Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Ocado+Technology+130+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 131,
+    "name": "Hopin 131",
+    "legalName": "Hopin 131 Ltd",
+    "industry": "SaaS",
+    "location": "London",
+    "roles": [
+      "Next.js Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Hopin+131+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 132,
+    "name": "BJSS 132",
+    "legalName": "BJSS 132 Ltd",
+    "industry": "Gaming",
+    "location": "Birmingham",
+    "roles": [
+      "Full-Stack Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+132+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 133,
+    "name": "Ocado Technology 133",
+    "legalName": "Ocado Technology 133 Ltd",
+    "industry": "HealthTech",
+    "location": "Cambridge",
+    "roles": [
+      "Frontend Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Ocado+Technology+133+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 134,
+    "name": "Skyscanner 134",
+    "legalName": "Skyscanner 134 Ltd",
+    "industry": "HealthTech",
+    "location": "Manchester",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Skyscanner+134+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 135,
+    "name": "CurrencyCloud 135",
+    "legalName": "CurrencyCloud 135 Ltd",
+    "industry": "Cyber",
+    "location": "Reading",
+    "roles": [
+      "React Developer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=CurrencyCloud+135+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 136,
+    "name": "BJSS 136",
+    "legalName": "BJSS 136 Ltd",
+    "industry": "HealthTech",
+    "location": "Southampton",
+    "roles": [
+      "Frontend Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+136+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 137,
+    "name": "Zopa 137",
+    "legalName": "Zopa 137 Ltd",
+    "industry": "Cyber",
+    "location": "London",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Zopa+137+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 138,
+    "name": "King 138",
+    "legalName": "King 138 Ltd",
+    "industry": "Gaming",
+    "location": "Southampton",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=King+138+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 139,
+    "name": "Babylon 139",
+    "legalName": "Babylon 139 Ltd",
+    "industry": "DevTools",
+    "location": "Remote UK",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+139+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 140,
+    "name": "Revolut 140",
+    "legalName": "Revolut 140 Ltd",
+    "industry": "Consulting",
+    "location": "Manchester",
+    "roles": [
+      "Next.js Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Revolut+140+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 141,
+    "name": "DeepMind 141",
+    "legalName": "DeepMind 141 Ltd",
+    "industry": "EdTech",
+    "location": "Fareham",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=DeepMind+141+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 142,
+    "name": "Rapyd 142",
+    "legalName": "Rapyd 142 Ltd",
+    "industry": "Fintech",
+    "location": "Cambridge",
+    "roles": [
+      "React Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Rapyd+142+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 143,
+    "name": "Doodle 143",
+    "legalName": "Doodle 143 Ltd",
+    "industry": "AI",
+    "location": "Reading",
+    "roles": [
+      "TypeScript Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Doodle+143+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 144,
+    "name": "Equal Experts 144",
+    "legalName": "Equal Experts 144 Ltd",
+    "industry": "Gaming",
+    "location": "Manchester",
+    "roles": [
+      "React Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Equal+Experts+144+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 145,
+    "name": "Bbox 145",
+    "legalName": "Bbox 145 Ltd",
+    "industry": "SaaS",
+    "location": "Bristol",
+    "roles": [
+      "Frontend Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Bbox+145+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 146,
+    "name": "Babylon 146",
+    "legalName": "Babylon 146 Ltd",
+    "industry": "E-commerce",
+    "location": "Reading",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+146+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 147,
+    "name": "Deliveroo 147",
+    "legalName": "Deliveroo 147 Ltd",
+    "industry": "E-commerce",
+    "location": "Manchester",
+    "roles": [
+      "Next.js Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Deliveroo+147+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 148,
+    "name": "Ocado Technology 148",
+    "legalName": "Ocado Technology 148 Ltd",
+    "industry": "EdTech",
+    "location": "Leeds",
+    "roles": [
+      "Node.js Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Ocado+Technology+148+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 149,
+    "name": "BJSS 149",
+    "legalName": "BJSS 149 Ltd",
+    "industry": "E-commerce",
+    "location": "Reading",
+    "roles": [
+      "Next.js Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+149+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 150,
+    "name": "Accenture 150",
+    "legalName": "Accenture 150 Ltd",
+    "industry": "Consulting",
+    "location": "Reading",
+    "roles": [
+      "Node.js Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Accenture+150+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 151,
+    "name": "Tide 151",
+    "legalName": "Tide 151 Ltd",
+    "industry": "EdTech",
+    "location": "Bristol",
+    "roles": [
+      "React Developer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Tide+151+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 152,
+    "name": "Tymit 152",
+    "legalName": "Tymit 152 Ltd",
+    "industry": "EdTech",
+    "location": "Fareham",
+    "roles": [
+      "React Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Tymit+152+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 153,
+    "name": "BJSS 153",
+    "legalName": "BJSS 153 Ltd",
+    "industry": "EdTech",
+    "location": "Cambridge",
+    "roles": [
+      "Full-Stack Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+153+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 154,
+    "name": "Doodle 154",
+    "legalName": "Doodle 154 Ltd",
+    "industry": "Consulting",
+    "location": "Manchester",
+    "roles": [
+      "Next.js Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Doodle+154+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 155,
+    "name": "Equal Experts 155",
+    "legalName": "Equal Experts 155 Ltd",
+    "industry": "HealthTech",
+    "location": "Reading",
+    "roles": [
+      "Node.js Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Equal+Experts+155+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 156,
+    "name": "Capgemini 156",
+    "legalName": "Capgemini 156 Ltd",
+    "industry": "EdTech",
+    "location": "Fareham",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Capgemini+156+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 157,
+    "name": "King 157",
+    "legalName": "King 157 Ltd",
+    "industry": "Consulting",
+    "location": "Leeds",
+    "roles": [
+      "Next.js Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=King+157+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 158,
+    "name": "ClearBank 158",
+    "legalName": "ClearBank 158 Ltd",
+    "industry": "Consulting",
+    "location": "Southampton",
+    "roles": [
+      "Node.js Developer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=ClearBank+158+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 159,
+    "name": "Doodle 159",
+    "legalName": "Doodle 159 Ltd",
+    "industry": "AI",
+    "location": "Bristol",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Doodle+159+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 160,
+    "name": "Onfido 160",
+    "legalName": "Onfido 160 Ltd",
+    "industry": "E-commerce",
+    "location": "Remote UK",
+    "roles": [
+      "TypeScript Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Onfido+160+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 161,
+    "name": "Arrival 161",
+    "legalName": "Arrival 161 Ltd",
+    "industry": "Fintech",
+    "location": "Reading",
+    "roles": [
+      "Full-Stack Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Arrival+161+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 162,
+    "name": "GoCardless 162",
+    "legalName": "GoCardless 162 Ltd",
+    "industry": "Gaming",
+    "location": "Cambridge",
+    "roles": [
+      "React Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=GoCardless+162+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 163,
+    "name": "Arrival 163",
+    "legalName": "Arrival 163 Ltd",
+    "industry": "Consulting",
+    "location": "Cambridge",
+    "roles": [
+      "TypeScript Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Arrival+163+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 164,
+    "name": "6point6 164",
+    "legalName": "6point6 164 Ltd",
+    "industry": "E-commerce",
+    "location": "Fareham",
+    "roles": [
+      "Node.js Developer",
+      "React Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=6point6+164+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 165,
+    "name": "BJSS 165",
+    "legalName": "BJSS 165 Ltd",
+    "industry": "SaaS",
+    "location": "Leeds",
+    "roles": [
+      "Next.js Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+165+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 166,
+    "name": "Made Tech 166",
+    "legalName": "Made Tech 166 Ltd",
+    "industry": "Fintech",
+    "location": "Fareham",
+    "roles": [
+      "Next.js Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Made+Tech+166+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 167,
+    "name": "Graphcore 167",
+    "legalName": "Graphcore 167 Ltd",
+    "industry": "Consulting",
+    "location": "London",
+    "roles": [
+      "TypeScript Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Graphcore+167+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 168,
+    "name": "Beamery 168",
+    "legalName": "Beamery 168 Ltd",
+    "industry": "EdTech",
+    "location": "Cambridge",
+    "roles": [
+      "Frontend Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Beamery+168+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 169,
+    "name": "King 169",
+    "legalName": "King 169 Ltd",
+    "industry": "DevTools",
+    "location": "Reading",
+    "roles": [
+      "Frontend Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=King+169+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 170,
+    "name": "Babylon 170",
+    "legalName": "Babylon 170 Ltd",
+    "industry": "HealthTech",
+    "location": "Fareham",
+    "roles": [
+      "React Developer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+170+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 171,
+    "name": "King 171",
+    "legalName": "King 171 Ltd",
+    "industry": "Cyber",
+    "location": "Remote UK",
+    "roles": [
+      "Next.js Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=King+171+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 172,
+    "name": "Starling 172",
+    "legalName": "Starling 172 Ltd",
+    "industry": "EdTech",
+    "location": "Birmingham",
+    "roles": [
+      "Frontend Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=Starling+172+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 173,
+    "name": "Just Eat 173",
+    "legalName": "Just Eat 173 Ltd",
+    "industry": "Consulting",
+    "location": "Leeds",
+    "roles": [
+      "React Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Just+Eat+173+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 174,
+    "name": "6point6 174",
+    "legalName": "6point6 174 Ltd",
+    "industry": "SaaS",
+    "location": "Birmingham",
+    "roles": [
+      "Frontend Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=6point6+174+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 175,
+    "name": "BJSS 175",
+    "legalName": "BJSS 175 Ltd",
+    "industry": "AI",
+    "location": "Fareham",
+    "roles": [
+      "Full-Stack Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=BJSS+175+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 176,
+    "name": "AND Digital 176",
+    "legalName": "AND Digital 176 Ltd",
+    "industry": "SaaS",
+    "location": "Manchester",
+    "roles": [
+      "Node.js Developer",
+      "React Developer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=AND+Digital+176+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 177,
+    "name": "Rapyd 177",
+    "legalName": "Rapyd 177 Ltd",
+    "industry": "E-commerce",
+    "location": "Remote UK",
+    "roles": [
+      "TypeScript Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Rapyd+177+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 178,
+    "name": "ClearBank 178",
+    "legalName": "ClearBank 178 Ltd",
+    "industry": "DevTools",
+    "location": "Manchester",
+    "roles": [
+      "React Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=ClearBank+178+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 179,
+    "name": "Cleo 179",
+    "legalName": "Cleo 179 Ltd",
+    "industry": "AI",
+    "location": "Reading",
+    "roles": [
+      "React Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Cleo+179+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 180,
+    "name": "Deliveroo 180",
+    "legalName": "Deliveroo 180 Ltd",
+    "industry": "Gaming",
+    "location": "Remote UK",
+    "roles": [
+      "Frontend Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Deliveroo+180+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 181,
+    "name": "Depop 181",
+    "legalName": "Depop 181 Ltd",
+    "industry": "Consulting",
+    "location": "Cambridge",
+    "roles": [
+      "Frontend Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Depop+181+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 182,
+    "name": "Snyk 182",
+    "legalName": "Snyk 182 Ltd",
+    "industry": "Gaming",
+    "location": "Southampton",
+    "roles": [
+      "React Developer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Snyk+182+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 183,
+    "name": "Graphcore 183",
+    "legalName": "Graphcore 183 Ltd",
+    "industry": "DevTools",
+    "location": "Birmingham",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Graphcore+183+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 184,
+    "name": "Revolut 184",
+    "legalName": "Revolut 184 Ltd",
+    "industry": "AI",
+    "location": "Leeds",
+    "roles": [
+      "Node.js Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 95000,
+    "careersUrl": "https://www.google.com/search?q=Revolut+184+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 185,
+    "name": "Deliveroo 185",
+    "legalName": "Deliveroo 185 Ltd",
+    "industry": "HealthTech",
+    "location": "Bristol",
+    "roles": [
+      "Node.js Developer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Deliveroo+185+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 186,
+    "name": "Trainline 186",
+    "legalName": "Trainline 186 Ltd",
+    "industry": "AI",
+    "location": "Birmingham",
+    "roles": [
+      "Full-Stack Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Trainline+186+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 187,
+    "name": "Graphcore 187",
+    "legalName": "Graphcore 187 Ltd",
+    "industry": "Cyber",
+    "location": "London",
+    "roles": [
+      "Full-Stack Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 38000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Graphcore+187+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 188,
+    "name": "Checkout.com 188",
+    "legalName": "Checkout.com 188 Ltd",
+    "industry": "E-commerce",
+    "location": "Cambridge",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Checkout.com+188+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 189,
+    "name": "Monzo 189",
+    "legalName": "Monzo 189 Ltd",
+    "industry": "EdTech",
+    "location": "Fareham",
+    "roles": [
+      "Node.js Developer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Monzo+189+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 190,
+    "name": "Starling 190",
+    "legalName": "Starling 190 Ltd",
+    "industry": "AI",
+    "location": "Manchester",
+    "roles": [
+      "Frontend Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 65000,
+    "careersUrl": "https://www.google.com/search?q=Starling+190+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 191,
+    "name": "Rapyd 191",
+    "legalName": "Rapyd 191 Ltd",
+    "industry": "HealthTech",
+    "location": "Remote UK",
+    "roles": [
+      "TypeScript Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Rapyd+191+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 192,
+    "name": "DeepMind 192",
+    "legalName": "DeepMind 192 Ltd",
+    "industry": "SaaS",
+    "location": "Bristol",
+    "roles": [
+      "TypeScript Engineer",
+      "Next.js Engineer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=DeepMind+192+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 193,
+    "name": "What3Words 193",
+    "legalName": "What3Words 193 Ltd",
+    "industry": "HealthTech",
+    "location": "Manchester",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=What3Words+193+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 194,
+    "name": "Starling 194",
+    "legalName": "Starling 194 Ltd",
+    "industry": "DevTools",
+    "location": "Leeds",
+    "roles": [
+      "Next.js Engineer",
+      "React Developer"
+    ],
+    "salaryMin": 34000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Starling+194+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 195,
+    "name": "DeepMind 195",
+    "legalName": "DeepMind 195 Ltd",
+    "industry": "EdTech",
+    "location": "Bristol",
+    "roles": [
+      "Node.js Developer",
+      "React Developer"
+    ],
+    "salaryMin": 45000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=DeepMind+195+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 196,
+    "name": "BenevolentAI 196",
+    "legalName": "BenevolentAI 196 Ltd",
+    "industry": "HealthTech",
+    "location": "Birmingham",
+    "roles": [
+      "Full-Stack Engineer",
+      "Frontend Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 55000,
+    "careersUrl": "https://www.google.com/search?q=BenevolentAI+196+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 197,
+    "name": "Trainline 197",
+    "legalName": "Trainline 197 Ltd",
+    "industry": "SaaS",
+    "location": "Reading",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Trainline+197+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 198,
+    "name": "Rapyd 198",
+    "legalName": "Rapyd 198 Ltd",
+    "industry": "DevTools",
+    "location": "London",
+    "roles": [
+      "Frontend Engineer",
+      "Full-Stack Engineer"
+    ],
+    "salaryMin": 50000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Rapyd+198+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 199,
+    "name": "Cazoo 199",
+    "legalName": "Cazoo 199 Ltd",
+    "industry": "SaaS",
+    "location": "Southampton",
+    "roles": [
+      "Next.js Engineer",
+      "TypeScript Engineer"
+    ],
+    "salaryMin": 40000,
+    "salaryMax": 85000,
+    "careersUrl": "https://www.google.com/search?q=Cazoo+199+careers",
+    "isHiring": false,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  },
+  {
+    "id": 200,
+    "name": "Babylon 200",
+    "legalName": "Babylon 200 Ltd",
+    "industry": "Gaming",
+    "location": "Bristol",
+    "roles": [
+      "Full-Stack Engineer",
+      "Node.js Developer"
+    ],
+    "salaryMin": 35000,
+    "salaryMax": 75000,
+    "careersUrl": "https://www.google.com/search?q=Babylon+200+careers",
+    "isHiring": true,
+    "sponsorRating": "A-rated",
+    "newEntrantEligible": true
+  }
+]
