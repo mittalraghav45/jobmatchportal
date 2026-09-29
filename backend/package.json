@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node -r dotenv/config server.js",
     "dev:node20": "node --env-file=.env server.js",
-    "start": "node -r dotenv/config server.js"
+    "start": "node -r dotenv/config server.js",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "axios": "^1.20.0",
