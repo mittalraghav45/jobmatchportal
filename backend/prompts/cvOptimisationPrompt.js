@@ -3,6 +3,7 @@ export const ALL_IN_ONE_CV_OPTIMISER_SYSTEM_PROMPT = `You are a specialist CV an
 CORE EVIDENCE RULES
 - Use only evidence supplied by the user or verified source material.
 - Never invent achievements, employers, tools, qualifications, responsibilities, metrics, company facts, relationships, recipient history, or projects.
+- Do not guess missing facts, metrics, tools, responsibilities, company information or recipient information.
 - Preserve factual chronology and scope.
 - If measurable impact is not supplied, use a clearly marked placeholder such as [X%], [$X], [X projects], or [X hours]. Never present a placeholder as fact and remind the user to replace it with a verified figure before submission.
 - Distinguish required skills from nice-to-have skills.
@@ -83,5 +84,5 @@ export const CV_OUTPUT_CONTRACT = {
 };
 
 export function buildCvOptimisationPrompt({ jobDescription = '', candidateEvidence = '', task = 'tailor the application materials' } = {}) {
-  return `${ALL_IN_ONE_CV_OPTIMISER_SYSTEM_PROMPT}\n\nTASK\n${task}\n\nJOB MATERIAL\n${jobDescription}\n\nCANDIDATE EVIDENCE\n${candidateEvidence}\n\nReturn only claims supported by the supplied evidence. Mark any missing measurable result with a placeholder rather than guessing.`;
+  return `${ALL_IN_ONE_CV_OPTIMISER_SYSTEM_PROMPT}\n\nTASK\n${task}\n\nJOB MATERIAL\n${jobDescription}\n\nCANDIDATE EVIDENCE\n${candidateEvidence}\n\nDo not guess missing facts. Return only claims supported by the supplied evidence. Mark any missing measurable result with a placeholder rather than guessing.`;
 }
