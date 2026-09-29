@@ -210,5 +210,11 @@ app.post('/api/search',async(req,res)=>{
 
 app.use((err,req,res,next)=>{console.error(err);res.status(500).json({error:'Server error',message:err.message});});
 function startServer(port) { const server=app.listen(port,()=>console.log(`Backend http://localhost:${port}`)); server.on('error',err=>{if(err.code==='EADDRINUSE'){console.log(`Port ${port} in use, trying ${port+1}`);startServer(port+1);}else console.error(err);}); }
+app.use((err, req, res, next)=>{ console.error(err); res.status(500).json({ error:'Server error', message:err.message }); });
+
+function startServer(port) {
+  app.listen(port, ()=> console.log(`✅ Backend http://localhost:${port} | ${openai ? 'OpenAI gpt-4o-mini ✅' : 'NO OPENAI KEY'} | Node ${process.version} | GET /api/search now works in browser`))
+  .on('error', (err)=>{ if (err.code==='EADDRINUSE'){ console.log(`Port ${port} in use, trying ${port+1}`); startServer(port+1); } else { console.error(err); } });
+}
 startServer(PORT);
 
