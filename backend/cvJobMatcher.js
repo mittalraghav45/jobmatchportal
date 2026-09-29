@@ -1,143 +1,100 @@
-// cvJobMatcher.js - CV Match %, Recommendation, Dates, Live Listings
-// Own logic > Perplexity for live dates. Perplexity only fallback.
+// cvJobMatcher.js - deterministic CV/job matching and application generation
 
-// cvJobMatcher.js - Full UK version - Raghav Mittal - MSc Southampton - 2+ years React/TS/Node
 export const TECH_STACK_KEYWORDS = [
-  'react','react.js','next.js','nextjs','node.js','nodejs','typescript','javascript','python',
-  'java','aws','azure','gcp','docker','kubernetes','graphql','rest','rest api','sql','mongodb',
-  'postgres','postgresql','redis','tailwind','tailwind css','redux','vue','angular','php',
-  'elasticsearch','kibana','rabbitmq','kafka','jest','playwright','git','github actions','ci/cd',
-  'openai','gpt api','firebase','material ui','json server','tmdb api','nextjs','express',
-  'spring boot','django','flask','laravel','symfony'
+  'react', 'react.js', 'next.js', 'nextjs', 'node.js', 'nodejs', 'typescript', 'javascript',
+  'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'graphql', 'rest', 'rest api', 'sql', 'mongodb',
+  'postgres', 'postgresql', 'redis', 'tailwind', 'tailwind css', 'redux', 'vue', 'angular', 'php',
+  'elasticsearch', 'kibana', 'rabbitmq', 'kafka', 'jest', 'playwright', 'git', 'github actions',
+  'ci/cd', 'openai', 'gpt api', 'express', 'spring boot', 'django', 'flask', 'laravel', 'symfony'
 ];
 
+const NORMALISATIONS = new Map([
+  ['react.js', 'react'], ['reactjs', 'react'], ['node.js', 'node'], ['nodejs', 'node'],
+  ['next.js', 'next.js'], ['nextjs', 'next.js'], ['typescript', 'typescript'], ['javascript', 'javascript'],
+  ['postgres', 'postgresql'], ['rest api', 'rest'], ['github actions', 'github actions']
+]);
+
+function normaliseSkill(skill) {
+  const value = String(skill || '').toLowerCase().trim();
+  return NORMALISATIONS.get(value) || value;
+}
+
+function containsTerm(text, term) {
+  const source = String(text || '').toLowerCase();
+  const t = normaliseSkill(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9+#])${t}(?=$|[^a-z0-9+#])`, 'i').test(source);
+}
+
 export function parseCV(cvText) {
-  const lower = (cvText||'').toLowerCase();
-  const skills = TECH_STACK_KEYWORDS.filter(k => lower.includes(k));
-  const expMatch = lower.match(/(\d+)\+?\s*years?/);
-  const years = expMatch ? parseInt(expMatch[1]) : 2;
-  return { 
-    skills: [...new Set(skills.length ? skills : ['react','next.js','typescript','node.js','javascript','mongodb','aws','python'])], 
-    years, 
-    raw: cvText,
+  const raw = String(cvText || '');
+  const skills = TECH_STACK_KEYWORDS.filter(skill => containsTerm(raw, skill));
+  const experienceMatches = [...raw.matchAll(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)/gi)].map(m => Number(m[1])).filter(Number.isFinite);
+  const years = experienceMatches.length ? Math.max(...experienceMatches) : 0;
+  const roleMatch = raw.match(/(?:software|full[- ]stack|frontend|front[- ]end|backend|back[- ]end)[^\n|]{0,50}(?:engineer|developer)/i);
+
+  return {
+    skills: [...new Set(skills)],
+    years,
+    raw,
     name: 'Raghav Mittal',
-    role: 'Full-Stack Engineer'
+    role: roleMatch?.[0]?.trim() || 'Software Engineer'
   };
 }
 
-export function calculateMatchPercent(cvSkills, jobDescription, jobTitle) {
-  if (!jobDescription && !jobTitle) return 0;
-  const jdLower = ((jobDescription||'') + ' ' + (jobTitle||'')).toLowerCase();
-  let matched = 0;
-  const total = cvSkills.length || 1;
-  cvSkills.forEach(skill => {
-    if (jdLower.includes(skill.toLowerCase())) matched++;
-  });
-  let bonus = 0;
-  if (jdLower.includes('react') && cvSkills.some(s=> s.includes('react'))) bonus += 10;
-  if (jdLower.includes('node') && cvSkills.some(s=> s.includes('node'))) bonus += 10;
-  if (jdLower.includes('typescript') && cvSkills.some(s=> s.includes('typescript'))) bonus += 5;
-  return Math.min(100, Math.round((matched / total) * 100 + bonus));
+export function calculateMatchPercent(cvSkills = [], jobDescription = '', jobTitle = '') {
+  const skills = [...new Set((cvSkills || []).map(normaliseSkill).filter(Boolean))];
+  const text = `${jobTitle || ''} ${jobDescription || ''}`;
+  if (!skills.length || !text.trim()) return 0;
+
+  const matched = skills.filter(skill => containsTerm(text, skill));
+  const skillScore = (matched.length / skills.length) * 70;
+  const titleScore = /software engineer|software developer|full.?stack|frontend|front.?end|backend|back.?end|web developer|developer/i.test(jobTitle || '') ? 20 : 0;
+  const techSignal = /react|typescript|javascript|node|aws|graphql|mongodb|postgres|elasticsearch|kafka|rabbitmq/i.test(text) ? 10 : 0;
+  return Math.min(100, Math.round(skillScore + titleScore + techSignal));
 }
 
-export function getRecommendation(matchPercent, isHiring, closingDate, visaSponsors = true) {
-  const now = new Date();
+export function getMatchBreakdown(cvSkills = [], jobDescription = '', jobTitle = '') {
+  const skills = [...new Set((cvSkills || []).map(normaliseSkill).filter(Boolean))];
+  const text = `${jobTitle || ''} ${jobDescription || ''}`;
+  const matched = skills.filter(skill => containsTerm(text, skill));
+  const missing = skills.filter(skill => !containsTerm(text, skill));
+  return {
+    matchedSkills: matched,
+    missingFromJob: missing,
+    skillCoverage: skills.length ? Math.round((matched.length / skills.length) * 100) : 0,
+    roleAlignment: /software engineer|software developer|full.?stack|frontend|front.?end|backend|back.?end|web developer|developer/i.test(jobTitle || ''),
+    score: calculateMatchPercent(skills, jobDescription, jobTitle)
+  };
+}
+
+export function getRecommendation(matchPercent, isHiring = true, closingDate = null, visaSponsors = null) {
+  const now = Date.now();
   const close = closingDate ? new Date(closingDate) : null;
-  if (close && close < now) return { shouldApply: false, reason: `Closed on ${close.toLocaleDateString()}`, priority: 'Closed', label: 'Closed', color: 'bg-red-900 text-red-300' };
-  if (matchPercent >= 80) return { shouldApply: true, reason: `Excellent ${matchPercent}% - Apply now!`, priority: 'High', label: 'Apply now - Excellent', color: 'bg-green-600 text-white' };
-  if (matchPercent >= 60) return { shouldApply: true, reason: `Good ${matchPercent}% - Worth applying`, priority: 'Medium', label: 'Apply - Good match', color: 'bg-yellow-600 text-white' };
-  if (matchPercent >= 40) return { shouldApply: true, reason: `Partial ${matchPercent}%`, priority: 'Low', label: 'Consider', color: 'bg-zinc-600 text-white' };
-  return { shouldApply: false, reason: `Low match ${matchPercent}%`, priority: 'Low', label: `Low match ${matchPercent}%`, color: 'bg-zinc-700 text-zinc-400' };
+  if (close && !Number.isNaN(close.getTime()) && close.getTime() < now) {
+    return { shouldApply: false, reason: `Closed on ${close.toLocaleDateString('en-GB')}`, priority: 'Closed', label: 'Closed', color: 'bg-red-900 text-red-300' };
+  }
+  if (isHiring === false) return { shouldApply: false, reason: 'Job is not currently marked as hiring', priority: 'Unavailable', label: 'Not hiring', color: 'bg-zinc-700 text-zinc-300' };
+  if (visaSponsors === false) return { shouldApply: false, reason: 'Employer is not marked as a sponsor', priority: 'Sponsorship', label: 'No sponsor licence', color: 'bg-zinc-700 text-zinc-300' };
+  if (matchPercent >= 80) return { shouldApply: true, reason: `High match (${matchPercent}%)`, priority: 'High', label: 'High match', color: 'bg-green-600 text-white' };
+  if (matchPercent >= 60) return { shouldApply: true, reason: `Good match (${matchPercent}%)`, priority: 'Medium', label: 'Good match', color: 'bg-yellow-600 text-white' };
+  if (matchPercent >= 40) return { shouldApply: true, reason: `Partial match (${matchPercent}%)`, priority: 'Low', label: 'Partial match', color: 'bg-zinc-600 text-white' };
+  return { shouldApply: false, reason: `Low match (${matchPercent}%)`, priority: 'Low', label: 'Low match', color: 'bg-zinc-700 text-zinc-400' };
 }
 
-export function generateLatexCV({ companyName, role, jobDescription, cvSkills }) {
-  const matched = (cvSkills||[]).filter(s => (jobDescription||'').toLowerCase().includes(s.toLowerCase()));
-  const skillsStr = matched.length ? matched.join(' \\skillsep ') : (cvSkills||[]).slice(0,10).join(' \\skillsep ');
-  return `%-------------------------
-% Jake's Resume - Tailored for ${companyName} - ${role}
-% Match: ${matched.length}/${(cvSkills||[]).length}
-%------------------------
-\\documentclass[letterpaper,11pt]{article}
-\\usepackage{latexsym}
-\\usepackage[margin=0.5in]{geometry}
-\\usepackage{titlesec}
-\\usepackage[usenames,dvipsnames]{color}
-\\usepackage{enumitem}
-\\usepackage[hidelinks]{hyperref}
-\\usepackage{fancyhdr}
-\\usepackage[english]{babel}
-\\usepackage{tabularx}
-\\input{glyphtounicode}
-\\pagestyle{fancy}\\fancyhf{}\\renewcommand{\\headrulewidth}{0pt}
-\\addtolength{\\oddsidemargin}{-0.5in}\\addtolength{\\textwidth}{1in}
-\\addtolength{\\topmargin}{-.5in}\\addtolength{\\textheight}{1.0in}
-\\titleformat{\\section}{\\vspace{-4pt}\\scshape\\raggedright\\large}{}{0em}{}[\\color{black}\\titlerule \\vspace{-5pt}]
-\\pdfgentounicode=1
-\\newcommand{\\resumeItem}[1]{\\item\\small{{#1 \\vspace{-2pt}}}}
-\\newcommand{\\resumeSubheading}[4]{\\vspace{-2pt}\\item\\begin{tabular*}{0.97\\textwidth}[t]{l@{\\extracolsep{\\fill}}r}\\textbf{#1} & #2 \\\\ \\textit{\\small#3} & \\textit{\\small #4} \\\\ \\end{tabular*}\\vspace{-7pt}}
-\\newcommand{\\resumeSubHeadingListStart}{\\begin{itemize}[leftmargin=0.15in, label={}]}
-\\newcommand{\\resumeSubHeadingListEnd}{\\end{itemize}}
-\\newcommand{\\resumeItemListStart}{\\begin{itemize}}
-\\newcommand{\\resumeItemListEnd}{\\end{itemize}\\vspace{-5pt}}
-\\newcommand{\\skillsep}{\\hspace{2pt}\\textbar{}\\hspace{2pt}\\allowbreak}
-\\begin{document}
-\\begin{center}
-\\textbf{\\Huge \\scshape Raghav Mittal} \\\\ \\vspace{4pt}
-\\small ${role} | ${companyName} Tailored | UK \\\\
-\\small +44 7741910196 $|$ mittalraghav45@gmail.com $|$ linkedin.com/in/raghav-mittal-dev $|$ github.com/mittalraghav45
-\\end{center}
-\\section{Summary}
-\\small Analytical professional with 2+ years building platforms for 8M+ users, tailored for ${role} at ${companyName}. MSc Computer Science Southampton. Strong match on ${matched.join(', ') || (cvSkills||[]).slice(0,5).join(', ')}.
-\\section{Technical Skills}
-\\begin{itemize}[leftmargin=0in, label={}, itemsep=6pt]
-\\small
-\\item{\\textbf{Matched for this role:} ${skillsStr}}
-\\item{\\textbf{Full Stack:} React.js \\skillsep Next.js \\skillsep Node.js \\skillsep TypeScript \\skillsep JavaScript \\skillsep Python \\skillsep SQL \\skillsep MongoDB \\skillsep PostgreSQL \\skillsep Elasticsearch \\skillsep AWS \\skillsep Docker}
-\\end{itemize}
-\\section{Experience}
-\\resumeSubHeadingListStart
-\\resumeSubheading{Software Engineer}{Jun 2021 -- Aug 2023}{IndiaMART InterMESH Ltd}{}
-\\resumeItemListStart
-\\resumeItem{Scaled Seller Academy to 100k monthly users using Node.js, React, Next.js, MongoDB - relevant to ${companyName}}
-\\resumeItem{Enhanced Tender Platform with ${matched.join(', ') || 'React, Node.js'} - 15\\% transaction increase}
-\\resumeItem{Reduced infra costs 15\\% via duplicate-detection, Kibana, cron optimization}
-\\resumeItemListEnd
-\\resumeSubHeadingListEnd
-\\section{Projects}
-\\resumeSubHeadingListStart
-\\resumeSubheading{MovieFlix -- AI-Powered}{React, Redux, OpenAI GPT API}{}
-\\resumeSubheading{Cloud Surgery -- Healthcare Portal}{React, Material UI}{}
-\\resumeSubHeadingListEnd
-\\section{EDUCATION}
-\\resumeSubHeadingListStart
-\\resumeSubheading{University of Southampton -- MSc Computer Science -- Merit}{Sep 2023 -- Dec 2024}{Southampton, UK}{}
-\\resumeSubHeadingListEnd
-\\end{document}
-`;
+function latexEscape(value = '') {
+  return String(value).replace(/[&%$#_{}]/g, ch => `\\${ch}`).replace(/\\/g, '\\textbackslash{}');
 }
 
-export function generateCoverLetter({ companyName, role, location, jobDescription, hiringManager = 'Hiring Team' }) {
-  return `Raghav M
-Front-end Software Engineer | React | TypeScript | Next.js
-London, UK | linkedin.com/in/raghav-mittal-dev | github.com/mittalraghav45
+export function generateLatexCV({ companyName, role, jobDescription, cvSkills = [] }) {
+  const breakdown = getMatchBreakdown(cvSkills, jobDescription, role);
+  const matched = breakdown.matchedSkills.length ? breakdown.matchedSkills : cvSkills.slice(0, 8).map(normaliseSkill);
+  const skillsStr = matched.join(' \\skillsep ');
+  const safeCompany = latexEscape(companyName);
+  const safeRole = latexEscape(role);
 
-Dear ${hiringManager},
+  return `% Tailored CV generated for ${safeCompany} - ${safeRole}\n\\documentclass[letterpaper,11pt]{article}\n\\usepackage[margin=0.5in]{geometry}\n\\usepackage{enumitem}\n\\usepackage[hidelinks]{hyperref}\n\\usepackage[english]{babel}\n\\pagestyle{empty}\n\\newcommand{\\skillsep}{\\hspace{2pt}\\textbar{}\\hspace{2pt}\\allowbreak}\n\\begin{document}\n\\begin{center}\n{\\LARGE \\textbf{Raghav Mittal}}\\\\\n\\small Software Engineer | React | TypeScript | Node.js\\\\\n\\small Southampton, UK | mittalraghav45@gmail.com | raghavmittal.co.uk\\n\\end{center}\n\\section*{Summary}\nSoftware Engineer with 2+ years of professional web-development experience and an MSc Computer Science from the University of Southampton. Experience across React, TypeScript, Node.js, REST APIs, databases, AWS and automated testing.\\n\\section*{Technical Skills}\n\\textbf{Relevant to this vacancy:} ${skillsStr || 'React \\skillsep TypeScript \\skillsep Node.js'}\\\\\n\\textbf{Core:} React.js \\skillsep TypeScript \\skillsep JavaScript \\skillsep Node.js \\skillsep PHP \\skillsep PostgreSQL \\skillsep MongoDB \\skillsep Elasticsearch \\skillsep AWS \\skillsep Jest \\skillsep Playwright \\skillsep Git\\n\\section*{Experience}\n\\textbf{Software Engineer -- IndiaMART InterMESH Ltd}\\hfill 2021--2023\\n\\begin{itemize}[leftmargin=*]\n\\item Designed and improved web-platform workflows using JavaScript, React, Node.js and backend APIs.\\n\\item Architected the Tender Upload Process, including duplicate detection and parallel-upload handling.\\n\\item Revamped Latest Tender search and homepage experiences with location and category filtering.\\n\\item Migrated scheduled scripts to AWS and improved application and backend performance.\\n\\end{itemize}\n\\section*{Education}\n\\textbf{University of Southampton} -- MSc Computer Science, Merit\\hfill 2023--2024\\n\\end{document}`;
+}
 
-I am writing to express my interest in the ${role} role at ${companyName}${location ? ` in ${location}` : ''}. With 2+ years building scalable platforms using Node.js, TypeScript, JavaScript and React serving 100k+ users, I am excited to contribute to ${companyName}.
-
-In my previous role at IndiaMART, I developed enterprise platforms supporting 100k monthly users, contributing to 15% transaction increase and 15% lower CMS costs.
-
-I have read the job description${jobDescription ? ` (${jobDescription.slice(0,150)}...)` : ''} and believe my experience aligns with:
-
-1. Node.js and scalable development: Seller Academy using Node.js, React, Next.js, MongoDB scaling to 100k users.
-2. Robust engineering: Re-engineered tender uploads with duplicate detection, RabbitMQ, reducing costs 15%, CI/CD GitHub Actions, Jest, Playwright.
-3. AI and API integration: MovieFlix AI app integrating OpenAI GPT API and TMDB REST API.
-4. Agile delivery: Agile teams, code reviews, collaboration with Marketing.
-
-With MSc Computer Science Southampton, I bring hands-on experience across backend, frontend, cloud, CI/CD and AI applications. I would welcome opportunity to contribute to ${companyName}${location ? ` in ${location}` : ''}.
-
-Best regards,
-Raghav M
-+44 7741910196 | mittalraghav45@gmail.com
-`;
+export function generateCoverLetter({ companyName, role, location }) {
+  return `Dear Hiring Team,\n\nI am writing to apply for the ${role} position at ${companyName}${location ? ` in ${location}` : ''}. I am a Software Engineer with over two years of professional web-development experience and an MSc in Computer Science from the University of Southampton.\n\nAt IndiaMART InterMESH, I worked across frontend and backend development, including React, JavaScript, Node.js, APIs, databases, AWS and automated testing. I contributed to the architecture of the Tender Upload Process, improved search and filtering experiences, and migrated scheduled workloads to AWS.\n\nI am particularly interested in this opportunity because it aligns with my experience building production web applications and working across the full development lifecycle. I would welcome the opportunity to discuss how my experience could contribute to ${companyName}.\n\nKind regards,\nRaghav Mittal\nSouthampton, UK\nmittalraghav45@gmail.com\nraghavmittal.co.uk\n`;
 }
