@@ -49,7 +49,7 @@ export function evaluateSponsorship(record = {}, options = {}) {
       return {
         eligibleForFiltering: false,
         decision: 'unknown',
-        reason: 'Sponsorship is marked verified but has no verification timestamp.',
+        reason: 'Sponsorship is marked verified but has no verification timestamp; it remains unverified for current filtering.',
         sponsor
       };
     }
@@ -58,7 +58,7 @@ export function evaluateSponsorship(record = {}, options = {}) {
       return {
         eligibleForFiltering: false,
         decision: 'unknown',
-        reason: 'The supplied sponsorship evidence has expired.',
+        reason: 'The supplied sponsorship evidence has expired and is therefore unverified for current filtering.',
         sponsor
       };
     }
@@ -83,7 +83,7 @@ export function evaluateSponsorship(record = {}, options = {}) {
   return {
     eligibleForFiltering: false,
     decision: 'unknown',
-    reason: 'No sufficiently verified sponsorship evidence is available.',
+    reason: 'No sufficiently verified sponsorship evidence is available; sponsorship remains unverified.',
     sponsor
   };
 }
