@@ -1,10 +1,9 @@
 /**
  * NHS / Public Sector application optimisation rules.
  *
- * This is deliberately separate from the commercial CV optimiser. It is used
- * for NHS, DWP, Civil Service, universities, councils and comparable UK
- * public-sector applications where person specifications, essential criteria
- * and supporting statements are commonly central to assessment.
+ * Deliberately separate from the commercial CV optimiser because NHS, DWP,
+ * Civil Service, universities and councils often assess against explicit
+ * person specifications, essential criteria and application questions.
  */
 
 export const PUBLIC_SECTOR_TYPES = [
@@ -53,9 +52,8 @@ patient-facing experience, safeguarding experience or healthcare governance
 experience unless the supplied evidence supports the claim.
 
 For Civil Service/DWP applications, identify stated behaviours, strengths,
-experience requirements, technical criteria and success-profile-style evidence
-when present. Do not assume a particular grade or framework unless the vacancy
-states it.
+experience requirements, technical criteria and Success Profiles-style evidence
+when present. Do not assume a grade or framework unless the vacancy states it.
 
 For universities, councils and other public bodies, follow the actual person
 specification, competency framework, values and application questions supplied
@@ -76,13 +74,8 @@ what information the candidate should add rather than fabricating it.
 
 export function classifyPublicSectorOrganisation(text = '') {
   const value = String(text || '').toLowerCase();
-  const matches = PUBLIC_SECTOR_TYPES.filter(type =>
-    value.includes(type.toLowerCase())
-  );
-  return {
-    isPublicSector: matches.length > 0,
-    matchedTypes: matches
-  };
+  const matches = PUBLIC_SECTOR_TYPES.filter(type => value.includes(type.toLowerCase()));
+  return { isPublicSector: matches.length > 0, matchedTypes: matches };
 }
 
 export function extractCriteria(text = '') {
@@ -111,15 +104,59 @@ export function extractCriteria(text = '') {
   return { essential, desirable };
 }
 
+// Generic words add almost no evidential value. Matching only one of these
+// caused false positives such as "Experience with Python" matching a CV that
+// merely contained the word "experience".
+const GENERIC_CRITERIA_WORDS = new Set([
+  'experience', 'experienced', 'working', 'worked', 'work', 'ability',
+  'knowledge', 'understanding', 'skills', 'skill', 'capable', 'demonstrated',
+  'demonstrate', 'proven', 'strong', 'good', 'excellent', 'effective',
+  'relevant', 'including', 'using', 'use', 'with', 'and', 'the', 'for',
+  'within', 'across', 'through', 'have', 'having'
+]);
+
+function normaliseEvidenceText(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9+#.]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function meaningfulTokens(criterion) {
+  return normaliseEvidenceText(criterion)
+    .split(' ')
+    .map(token => token.trim())
+    .filter(token => token.length >= 4 && !GENERIC_CRITERIA_WORDS.has(token));
+}
+
 export function buildEvidenceMatrix(criteria = [], candidateText = '') {
-  const evidence = String(candidateText || '').toLowerCase();
-  return criteria.map(criterion => ({
-    criterion,
-    supported: criterion
-      .toLowerCase()
-      .split(/[^a-z0-9+#.]+/i)
-      .filter(token => token.length >= 5)
-      .some(token => evidence.includes(token)),
-    note: 'Review manually and replace/add evidence where required.'
-  }));
+  const evidence = normaliseEvidenceText(candidateText);
+  const evidenceTokens = new Set(evidence.split(' ').filter(Boolean));
+
+  return criteria.map(criterion => {
+    const criterionText = normaliseEvidenceText(criterion);
+    const tokens = meaningfulTokens(criterion);
+
+    // Prefer an exact phrase match when the criterion is specific enough.
+    const phraseMatch = criterionText.length >= 8 && evidence.includes(criterionText);
+    const tokenMatches = tokens.filter(token => evidenceTokens.has(token));
+
+    // A single meaningful token is enough for concrete technologies,
+    // qualifications and domain terms. For generic business criteria, require
+    // two meaningful tokens so broad words do not create false positives.
+    const concreteToken = tokens.some(token =>
+      /^(react|reactjs|typescript|javascript|node|nodejs|python|java|\.net|csharp|php|sql|mongodb|postgresql|aws|azure|gcp|docker|kubernetes|graphql|kafka|rabbitmq|html|css|redux|jest|playwright|git|linux|api|apis|agile|scrum|wcag|accessibility|security|cybersecurity|healthcare|nhs|dwp|civil|service|university|higher|education|stakeholders?)$/.test(token)
+    );
+    const supported = phraseMatch || (concreteToken && tokenMatches.length >= 1) || (!concreteToken && tokenMatches.length >= 2);
+
+    return {
+      criterion,
+      supported,
+      matchedTerms: tokenMatches,
+      note: supported
+        ? 'Supported by supplied candidate evidence; review the exact wording before submission.'
+        : 'No sufficiently specific supplied evidence was found. Add verified evidence rather than assuming it.'
+    };
+  });
 }
