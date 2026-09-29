@@ -9,6 +9,7 @@ dotenv.config();
 
 import { calculateMatchPercent, getRecommendation, parseCV, generateLatexCV, generateCoverLetter, getMatchBreakdown } from './cvJobMatcher.js';
 import { fetchAllATS, enrichWithDates } from './liveJobsScraper_new.js';
+import { buildStructuredApplicationMessages } from './applicationEngine.js';
 import OpenAI from 'openai';
 
 const app = express();
@@ -92,6 +93,46 @@ app.post('/api/generate-cover-letter',(req,res)=>{
   const {companyName,role,location,jobDescription}=req.body;
   if (!companyName||!role) return res.status(400).json({error:'companyName and role required'});
   res.json({letter:generateCoverLetter({companyName,role,location,jobDescription}),filename:`Cover_Letter_${companyName.replace(/\s+/g,'_')}_${role.replace(/\s+/g,'_')}.txt`});
+});
+
+app.post('/api/optimise-application', async (req,res)=>{
+  const {companyName, role, jobDescription, candidateEvidence, task} = req.body || {};
+  if (!companyName || !role || !jobDescription || !candidateEvidence) {
+    return res.status(400).json({error:'companyName, role, jobDescription and candidateEvidence are required'});
+  }
+  if (!openai) return res.status(503).json({error:'OpenAI is required for application optimisation',hasOpenAIKey:false});
+
+  const {classification, keywords, messages} = buildStructuredApplicationMessages({
+    companyName, role, jobDescription, candidateEvidence,
+    task: task || 'Tailor the candidate application materials to this vacancy.'
+  });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      temperature: 0.1,
+      response_format: {type:'json_object'}
+    }, {signal: controller.signal});
+    const content = completion.choices?.[0]?.message?.content || '{}';
+    let parsed;
+    try { parsed = JSON.parse(content); } catch { parsed = null; }
+    return res.json({
+      classification,
+      extractedKeywords: keywords,
+      result: parsed,
+      raw: content,
+      source: 'openai',
+      usage: completion.usage || null
+    });
+  } catch (e) {
+    console.error('Application optimisation error:', e.message);
+    return res.status(e.name === 'AbortError' ? 504 : 502).json({error:'Application optimisation failed',message:e.message});
+  } finally {
+    clearTimeout(timeout);
+  }
 });
 
 app.post('/api/search',async(req,res)=>{
