@@ -1,47 +1,23 @@
-const STATUS = new Set(['verified', 'not-verified', 'not-sponsor', 'unknown']);
+// Backwards-compatible sponsorship API.
+// Canonical implementation lives in sponsorRegistry.js.
 
-export function normaliseSponsorshipRecord(record = {}) {
-  const rawStatus = String(record.status || '').toLowerCase().trim();
-  const status = STATUS.has(rawStatus) ? rawStatus : 'unknown';
-  const source = record.source ? String(record.source).trim() : null;
-  const checkedAt = record.checkedAt ? new Date(record.checkedAt) : null;
+export {
+  normaliseSponsorRecord as normaliseSponsorshipRecord,
+  evaluateSponsorship,
+  canRecommendForSponsorship,
+  mergeSponsorEvidence,
+  SPONSOR_STATUSES as SPONSORSHIP_STATUSES,
+  SPONSOR_SOURCES as SPONSORSHIP_SOURCES
+} from './sponsorRegistry.js';
 
-  return {
-    status,
-    sponsorLicenceNumber: record.sponsorLicenceNumber || null,
-    organisationName: record.organisationName || record.name || null,
-    source,
-    sourceUrl: record.sourceUrl || null,
-    checkedAt: checkedAt && !Number.isNaN(checkedAt.getTime()) ? checkedAt.toISOString() : null,
-    evidence: record.evidence || null,
-    confidence: status === 'verified' || status === 'not-sponsor' ? 'verified' : 'unknown'
-  };
-}
+import { evaluateSponsorship } from './sponsorRegistry.js';
 
 export function sponsorshipDecision(record = {}) {
-  const sponsorship = normaliseSponsorshipRecord(record);
-  if (sponsorship.status === 'not-sponsor') {
-    return {
-      status: sponsorship.status,
-      shouldBlock: true,
-      reason: 'Employer is verified as not holding the required sponsor status.',
-      sponsorship
-    };
-  }
-  if (sponsorship.status === 'verified') {
-    return {
-      status: sponsorship.status,
-      shouldBlock: false,
-      reason: 'Employer sponsorship status is verified.',
-      sponsorship
-    };
-  }
+  const result = evaluateSponsorship(record);
   return {
-    status: sponsorship.status,
-    shouldBlock: false,
-    reason: 'Sponsorship status is unverified; do not infer eligibility.',
-    sponsorship
+    status: result.decision,
+    shouldBlock: result.decision === 'not-sponsor',
+    reason: result.reason,
+    sponsorship: result.sponsor
   };
 }
-
-export { STATUS as SPONSORSHIP_STATUSES };
