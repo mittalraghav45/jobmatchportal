@@ -11,6 +11,7 @@ import { calculateMatchPercent, getRecommendation, parseCV, generateLatexCV, gen
 import { fetchAllATS, enrichWithDates } from './liveJobsScraper_new.js';
 import { buildStructuredApplicationMessages } from './applicationEngine.js';
 import { evaluateSponsorship } from './sponsorRegistry.js';
+import { analyseJob, scoreCandidateAgainstJob } from './jobIntelligence.js';
 import OpenAI from 'openai';
 
 const app = express();
@@ -39,18 +40,31 @@ function getSponsorshipRecord(value) {
   try { return JSON.parse(value); } catch { return { status: String(value) }; }
 }
 
-function enrichJobs(jobs, skills, sponsorshipRecord = {}) {
+function enrichJobs(jobs, skills, sponsorshipRecord = {}, cvText = '', yearsExperience = 0) {
   const sponsorship = evaluateSponsorship(sponsorshipRecord);
   const visaSponsors = sponsorship.decision === 'not-sponsor' ? false : sponsorship.decision === 'verified' ? true : null;
 
   return enrichWithDates(jobs).map(job => {
-    const matchPercent = calculateMatchPercent(skills, job.description, job.title);
+    const analysis = analyseJob({
+      title: job.title,
+      description: job.description || '',
+      location: job.location,
+      employmentType: job.employment_type || job.employmentType,
+      source: job.source,
+      ats: job.ats,
+      postedAt: job.posted_date || job.postedAt,
+      closingAt: job.closing_date || job.closingAt
+    });
+    const candidateScore = scoreCandidateAgainstJob({ cvSkills: skills, cvText, yearsExperience, job: analysis });
+    const matchPercent = cvText || yearsExperience ? candidateScore.score : calculateMatchPercent(skills, job.description, job.title);
     const breakdown = getMatchBreakdown(skills, job.description, job.title);
     const rec = getRecommendation(matchPercent, job.isLive, job.closing_date, visaSponsors);
     return {
       ...job,
+      jobIntelligence: analysis,
       matchPercent,
       matchBreakdown:breakdown,
+      candidateScore,
       sponsorship:sponsorship.sponsor,
       sponsorshipDecision:sponsorship.decision,
       recommendation:rec,
@@ -63,6 +77,14 @@ function enrichJobs(jobs, skills, sponsorshipRecord = {}) {
 app.post('/api/sponsorship/evaluate',(req,res)=>{
   const result = evaluateSponsorship(req.body?.sponsorship || req.body || {});
   res.json(result);
+});
+
+app.post('/api/job-intelligence/analyse',(req,res)=>{
+  const {title, description, location, employmentType, source, ats, postedAt, closingAt, cvSkills, cvText, yearsExperience} = req.body || {};
+  if (!title || !description) return res.status(400).json({error:'title and description are required'});
+  const analysis = analyseJob({title, description, location, employmentType, source, ats, postedAt, closingAt});
+  const candidateScore = scoreCandidateAgainstJob({cvSkills:Array.isArray(cvSkills) ? cvSkills : [], cvText:cvText || '', yearsExperience:Number(yearsExperience || 0), job:analysis});
+  res.json({analysis, candidateScore});
 });
 
 app.get('/api/live-jobs/:company', async (req,res)=>{
@@ -81,7 +103,7 @@ app.get('/api/live-jobs/:company', async (req,res)=>{
 });
 
 app.post('/api/live-jobs/batch', async (req,res)=>{
-  const { companies, cvSkills } = req.body;
+  const { companies, cvSkills, cvText, yearsExperience } = req.body;
   if (!Array.isArray(companies)) return res.status(400).json({error:'companies array required'});
   if (companies.length > 50) return res.status(400).json({error:'Max 50 per batch'});
   const skills = Array.isArray(cvSkills) && cvSkills.length ? cvSkills : ['react','typescript','node.js'];
@@ -93,7 +115,7 @@ app.post('/api/live-jobs/batch', async (req,res)=>{
     if (/google\.com\/search/i.test(careersUrl)) careersUrl='';
     try {
       const jobs=await fetchAllATS(slug,comp.name,careersUrl);
-      const enriched=enrichJobs(jobs,skills,comp.sponsorship || {}).slice(0,20);
+      const enriched=enrichJobs(jobs,skills,comp.sponsorship || {},cvText || '',Number(yearsExperience || 0)).slice(0,20);
       results.push({company:slug,name:comp.name,jobs:enriched,count:enriched.length,ats:[...new Set(enriched.map(j=>j.ats))]});
       await new Promise(r=>setTimeout(r,500));
     } catch(e) { results.push({company:slug,name:comp.name,jobs:[],count:0,error:e.message}); }
@@ -169,7 +191,7 @@ app.post('/api/search',async(req,res)=>{
       const completion=await openai.chat.completions.create({model:'gpt-4o-mini',messages:[
         {role:'system',content:'Return only JSON: {"companies":[{"name":string,"location":string,"industry":string,"roles":[string],"salaryMin":number|null,"salaryMax":number|null,"careersUrl":string,"isHiring":boolean}]}. Do not invent live vacancies, sponsorship status, salary or URLs. If uncertain, use null/false.'},
         {role:'user',content:query}
-      ],temperature:0.1,response_format:{type:'json_object'}},{signal:controller.signal});
+      ],temperature:0.1,response_format:{type:'json_object'}} ,{signal:controller.signal});
       clearTimeout(timeout);
       const content=completion.choices[0].message.content||'{}';
       let parsed=null; try { parsed=JSON.parse(content); } catch {}
