@@ -1,8 +1,11 @@
-company_id,company_name,enabled,priority,careers_url
-amazon,Amazon,true,high,
-monzo,Monzo,true,high,
-wise,Wise,true,high,
-deliveroo,Deliveroo,true,high,
-revolut,Revolut,true,high,
+company_id,company_name,enabled,priority,ats,ats_slug,careers_url
+amazon,Amazon,true,high,,,https://www.amazon.jobs/en/
+monzo,Monzo,true,high,,,https://monzo.com/careers
+wise,Wise,true,high,,,https://wise.jobs/
+deliveroo,Deliveroo,true,high,,,https://careers.deliveroo.co.uk/
+revolut,Revolut,true,high,,,https://www.revolut.com/careers/
 
 # Add/remove companies here. Keep company_id stable. Set enabled=false instead of deleting a company when historical discovery data must be retained.
+# ats: greenhouse|lever|ashby|workday|smartrecruiters|workable|teamtailor|pinpoint|recruitee|bamboohr|nhs|auto
+# ats_slug: the ATS-specific board/account slug. Leave blank only when the configured ATS does not require one.
+# careers_url: use a real company/ATS careers URL; do not use Google search URLs.
