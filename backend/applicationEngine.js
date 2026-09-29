@@ -34,7 +34,6 @@ export function classifyApplication({ companyName = '', role = '', jobDescriptio
 export function extractJobKeywords(jobDescription = '', limit = 15) {
   const text = String(jobDescription || '');
   const counts = new Map();
-
   const add = phrase => {
     const cleaned = cleanPhrase(phrase).toLowerCase();
     if (cleaned.length < 3 || cleaned.length > 70) return;
@@ -46,9 +45,7 @@ export function extractJobKeywords(jobDescription = '', limit = 15) {
       if (match[1]) {
         const phrase = cleanPhrase(match[1]).split(/\b(?:and|or|plus|including|such as)\b/i)[0];
         add(phrase);
-      } else if (match[0]) {
-        add(match[0]);
-      }
+      } else if (match[0]) add(match[0]);
     }
   }
 
@@ -64,9 +61,7 @@ export function extractJobKeywords(jobDescription = '', limit = 15) {
 
 export function buildOptimisationRequest({ companyName = '', role = '', jobDescription = '', candidateEvidence = '', task = 'tailor the application materials' } = {}) {
   const classification = classifyApplication({ companyName, role, jobDescription });
-  const systemPrompt = classification.isPublicSector
-    ? PUBLIC_SECTOR_RULES
-    : ALL_IN_ONE_CV_OPTIMISER_SYSTEM_PROMPT;
+  const systemPrompt = classification.isPublicSector ? PUBLIC_SECTOR_RULES : ALL_IN_ONE_CV_OPTIMISER_SYSTEM_PROMPT;
   const userPrompt = [
     `TASK\n${task}`,
     `ROLE\n${role}`,
@@ -87,7 +82,10 @@ export function buildOptimisationRequest({ companyName = '', role = '', jobDescr
 
 export function buildStructuredApplicationMessages(input = {}) {
   const request = buildOptimisationRequest(input);
-  const outputInstruction = `Return JSON with these keys only: classification, keywords, skills, experienceBullets, projects, summary, coverLetter, evidenceGaps. Cover letter must be <= ${CV_OUTPUT_CONTRACT.maxCoverLetterWords} words. Keywords should contain exactly ${CV_OUTPUT_CONTRACT.keywordCount} items when the job material contains enough explicit requirements; otherwise return the available verified keywords. Never invent evidence. Use [X%], [X users] or another explicit placeholder when a metric is missing.`;
+  const publicOutput = request.classification.isPublicSector
+    ? 'For public-sector applications also return supportingStatement and evidenceMatrix, using the supplied criteria/word limit.'
+    : 'For commercial applications, return supportingStatement as an empty string and evidenceMatrix as an empty array.';
+  const outputInstruction = `Return JSON with these keys only: classification, keywords, skills, experienceBullets, projects, summary, coverLetter, supportingStatement, evidenceMatrix, evidenceGaps. ${publicOutput} Cover letter must be <= ${CV_OUTPUT_CONTRACT.maxCoverLetterWords} words. Keywords should contain exactly ${CV_OUTPUT_CONTRACT.keywordCount} items when the job material contains enough explicit requirements; otherwise return the available verified keywords. Never invent evidence. Use [X%], [X users] or another explicit placeholder when a metric is missing.`;
 
   return {
     classification: request.classification,
