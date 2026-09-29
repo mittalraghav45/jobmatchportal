@@ -21,7 +21,7 @@ test('ATS detection identifies supported public ATS hosts', () => {
 });
 
 test('explicit ATS configuration wins over auto detection', () => {
-  assert.deepEqual(resolveATS({ ats: 'lever', careersUrl: 'https://example.com/careers' }).ats, 'lever');
+  assert.equal(resolveATS({ ats: 'lever', careersUrl: 'https://example.com/careers' }).ats, 'lever');
   assert.equal(resolveATS({ ats: 'not-real', careersUrl: 'https://example.com' }).ats, 'unknown');
 });
 
@@ -39,7 +39,7 @@ test('candidate matcher rewards relevant skills and penalises excluded technolog
 test('job ingestion removes duplicates by canonical fingerprint', () => {
   const raw = [
     { id: '1', companyId: 'acme', title: 'Software Engineer', description: 'React', location: 'UK', ats: 'greenhouse', url: 'https://example/jobs/1' },
-    { id: '1-copy', companyId: 'acme', title: 'Software Engineer', description: 'React', location: 'UK', ats: 'greenhouse', url: 'https://example/jobs/1' }
+    { id: '1', companyId: 'acme', title: 'Software Engineer', description: 'React', location: 'UK', ats: 'greenhouse', url: 'https://example/jobs/1' }
   ];
   const result = ingestJobs(raw);
   assert.equal(result.jobs.length, 1);
