@@ -1,0 +1,15 @@
+export const candidateProfile = {
+  schemaVersion: '1.0',
+  candidate: {
+    name: 'Raghav Mittal',
+    experienceYears: 2.5,
+    targetRoles: ['Software Engineer', 'Frontend Developer', 'Full Stack Developer'],
+    preferredTechnologies: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'PHP', 'AWS', 'MongoDB', 'PostgreSQL', 'REST APIs'],
+    excludedTechnologies: ['Java', '.NET', 'React Native'],
+    locations: ['United Kingdom', 'Remote UK', 'Southampton', 'London'],
+    requiresSponsorship: true,
+    minimumMatchPercent: 60,
+    preferredEmploymentTypes: ['full-time', 'permanent'],
+    profileText: 'Software engineer with 2.5 years of full-stack web development experience across JavaScript, TypeScript, React, Node.js, PHP/Yii2, AWS and databases.'
+  }
+};
