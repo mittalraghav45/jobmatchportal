@@ -10,8 +10,7 @@ export const TECH_STACK_KEYWORDS = [
 
 const NORMALISATIONS = new Map([
   ['react.js', 'react'], ['reactjs', 'react'], ['node.js', 'node'], ['nodejs', 'node'],
-  ['next.js', 'next.js'], ['nextjs', 'next.js'], ['typescript', 'typescript'], ['javascript', 'javascript'],
-  ['postgres', 'postgresql'], ['rest api', 'rest'], ['github actions', 'github actions']
+  ['next.js', 'next.js'], ['nextjs', 'next.js'], ['postgres', 'postgresql'], ['rest api', 'rest']
 ]);
 
 function normaliseSkill(skill) {
@@ -21,31 +20,24 @@ function normaliseSkill(skill) {
 
 function containsTerm(text, term) {
   const source = String(text || '').toLowerCase();
-  const t = normaliseSkill(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^a-z0-9+#])${t}(?=$|[^a-z0-9+#])`, 'i').test(source);
+  const escaped = normaliseSkill(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9+#])${escaped}(?=$|[^a-z0-9+#])`, 'i').test(source);
 }
 
 export function parseCV(cvText) {
   const raw = String(cvText || '');
   const skills = TECH_STACK_KEYWORDS.filter(skill => containsTerm(raw, skill));
-  const experienceMatches = [...raw.matchAll(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)/gi)].map(m => Number(m[1])).filter(Number.isFinite);
+  const experienceMatches = [...raw.matchAll(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)/gi)]
+    .map(m => Number(m[1])).filter(Number.isFinite);
   const years = experienceMatches.length ? Math.max(...experienceMatches) : 0;
   const roleMatch = raw.match(/(?:software|full[- ]stack|frontend|front[- ]end|backend|back[- ]end)[^\n|]{0,50}(?:engineer|developer)/i);
-
-  return {
-    skills: [...new Set(skills)],
-    years,
-    raw,
-    name: 'Raghav Mittal',
-    role: roleMatch?.[0]?.trim() || 'Software Engineer'
-  };
+  return { skills: [...new Set(skills)], years, raw, name: 'Raghav Mittal', role: roleMatch?.[0]?.trim() || 'Software Engineer' };
 }
 
 export function calculateMatchPercent(cvSkills = [], jobDescription = '', jobTitle = '') {
   const skills = [...new Set((cvSkills || []).map(normaliseSkill).filter(Boolean))];
   const text = `${jobTitle || ''} ${jobDescription || ''}`;
   if (!skills.length || !text.trim()) return 0;
-
   const matched = skills.filter(skill => containsTerm(text, skill));
   const skillScore = (matched.length / skills.length) * 70;
   const titleScore = /software engineer|software developer|full.?stack|frontend|front.?end|backend|back.?end|web developer|developer/i.test(jobTitle || '') ? 20 : 0;
@@ -57,10 +49,9 @@ export function getMatchBreakdown(cvSkills = [], jobDescription = '', jobTitle =
   const skills = [...new Set((cvSkills || []).map(normaliseSkill).filter(Boolean))];
   const text = `${jobTitle || ''} ${jobDescription || ''}`;
   const matched = skills.filter(skill => containsTerm(text, skill));
-  const missing = skills.filter(skill => !containsTerm(text, skill));
   return {
     matchedSkills: matched,
-    missingFromJob: missing,
+    missingFromJob: skills.filter(skill => !containsTerm(text, skill)),
     skillCoverage: skills.length ? Math.round((matched.length / skills.length) * 100) : 0,
     roleAlignment: /software engineer|software developer|full.?stack|frontend|front.?end|backend|back.?end|web developer|developer/i.test(jobTitle || ''),
     score: calculateMatchPercent(skills, jobDescription, jobTitle)
@@ -82,7 +73,9 @@ export function getRecommendation(matchPercent, isHiring = true, closingDate = n
 }
 
 function latexEscape(value = '') {
-  return String(value).replace(/[&%$#_{}]/g, ch => `\\${ch}`).replace(/\\/g, '\\textbackslash{}');
+  return String(value)
+    .replace(/\\/g, '\\textbackslash{}')
+    .replace(/([&%$#_{}])/g, '\\$1');
 }
 
 export function generateLatexCV({ companyName, role, jobDescription, cvSkills = [] }) {
@@ -91,8 +84,7 @@ export function generateLatexCV({ companyName, role, jobDescription, cvSkills = 
   const skillsStr = matched.join(' \\skillsep ');
   const safeCompany = latexEscape(companyName);
   const safeRole = latexEscape(role);
-
-  return `% Tailored CV generated for ${safeCompany} - ${safeRole}\n\\documentclass[letterpaper,11pt]{article}\n\\usepackage[margin=0.5in]{geometry}\n\\usepackage{enumitem}\n\\usepackage[hidelinks]{hyperref}\n\\usepackage[english]{babel}\n\\pagestyle{empty}\n\\newcommand{\\skillsep}{\\hspace{2pt}\\textbar{}\\hspace{2pt}\\allowbreak}\n\\begin{document}\n\\begin{center}\n{\\LARGE \\textbf{Raghav Mittal}}\\\\\n\\small Software Engineer | React | TypeScript | Node.js\\\\\n\\small Southampton, UK | mittalraghav45@gmail.com | raghavmittal.co.uk\\n\\end{center}\n\\section*{Summary}\nSoftware Engineer with 2+ years of professional web-development experience and an MSc Computer Science from the University of Southampton. Experience across React, TypeScript, Node.js, REST APIs, databases, AWS and automated testing.\\n\\section*{Technical Skills}\n\\textbf{Relevant to this vacancy:} ${skillsStr || 'React \\skillsep TypeScript \\skillsep Node.js'}\\\\\n\\textbf{Core:} React.js \\skillsep TypeScript \\skillsep JavaScript \\skillsep Node.js \\skillsep PHP \\skillsep PostgreSQL \\skillsep MongoDB \\skillsep Elasticsearch \\skillsep AWS \\skillsep Jest \\skillsep Playwright \\skillsep Git\\n\\section*{Experience}\n\\textbf{Software Engineer -- IndiaMART InterMESH Ltd}\\hfill 2021--2023\\n\\begin{itemize}[leftmargin=*]\n\\item Designed and improved web-platform workflows using JavaScript, React, Node.js and backend APIs.\\n\\item Architected the Tender Upload Process, including duplicate detection and parallel-upload handling.\\n\\item Revamped Latest Tender search and homepage experiences with location and category filtering.\\n\\item Migrated scheduled scripts to AWS and improved application and backend performance.\\n\\end{itemize}\n\\section*{Education}\n\\textbf{University of Southampton} -- MSc Computer Science, Merit\\hfill 2023--2024\\n\\end{document}`;
+  return `% Tailored CV generated for ${safeCompany} - ${safeRole}\n\\documentclass[letterpaper,11pt]{article}\n\\usepackage[margin=0.5in]{geometry}\n\\usepackage{enumitem}\n\\usepackage[hidelinks]{hyperref}\n\\pagestyle{empty}\n\\newcommand{\\skillsep}{\\hspace{2pt}\\textbar{}\\hspace{2pt}\\allowbreak}\n\\begin{document}\n\\begin{center}\n{\\LARGE \\textbf{Raghav Mittal}}\\\\\n\\small Software Engineer | React | TypeScript | Node.js\\\\\n\\small Southampton, UK | mittalraghav45@gmail.com | raghavmittal.co.uk\\n\\end{center}\n\\section*{Summary}\nSoftware Engineer with 2+ years of professional web-development experience and an MSc Computer Science from the University of Southampton. Experience across React, TypeScript, Node.js, REST APIs, databases, AWS and automated testing.\\n\\section*{Technical Skills}\n\\textbf{Relevant to this vacancy:} ${skillsStr || 'React \\skillsep TypeScript \\skillsep Node.js'}\\\\\n\\textbf{Core:} React.js \\skillsep TypeScript \\skillsep JavaScript \\skillsep Node.js \\skillsep PHP \\skillsep PostgreSQL \\skillsep MongoDB \\skillsep Elasticsearch \\skillsep AWS \\skillsep Jest \\skillsep Playwright \\skillsep Git\\n\\section*{Experience}\n\\textbf{Software Engineer -- IndiaMART InterMESH Ltd}\\hfill 2021--2023\\n\\begin{itemize}[leftmargin=*]\n\\item Designed and improved web-platform workflows using JavaScript, React, Node.js and backend APIs.\\n\\item Architected the Tender Upload Process, including duplicate detection and parallel-upload handling.\\n\\item Revamped Latest Tender search and homepage experiences with location and category filtering.\\n\\item Migrated scheduled scripts to AWS and improved application and backend performance.\\n\\end{itemize}\n\\section*{Education}\n\\textbf{University of Southampton} -- MSc Computer Science, Merit\\hfill 2023--2024\\n\\end{document}`;
 }
 
 export function generateCoverLetter({ companyName, role, location }) {
