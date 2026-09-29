@@ -1,0 +1,5 @@
+[
+  {"company_id":"demo-tech-001","company_name":"Northstar Digital","company_number":"00000001","website":"https://example.com","careers_url":"https://example.com/careers","enabled":true,"priority":"high","ats":"greenhouse","sponsorship":"unknown","metadata":{"sector":"technology"}},
+  {"company_id":"demo-tech-002","company_name":"Riverbank Software","company_number":"00000002","website":"https://example.com","careers_url":"https://example.com/jobs","enabled":true,"priority":"medium","ats":"lever","sponsorship":"unknown","metadata":{"sector":"software"}},
+  {"company_id":"demo-public-001","company_name":"Civic Digital Services","company_number":"00000003","website":"https://example.com","careers_url":"https://example.com/careers","enabled":true,"priority":"high","ats":"workday","sponsorship":"unknown","metadata":{"sector":"public-sector"}}
+]
