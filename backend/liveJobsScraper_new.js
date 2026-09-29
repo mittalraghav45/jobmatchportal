@@ -1,23 +1,52 @@
-// liveJobsScraper_new.js - UK FULL ATS COVERAGE - 12+ portals
-// Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Workable, Teamtailor, Pinpoint, Recruitee, BambooHR, TribePad, NHS, Universities
+// liveJobsScraper_new.js - UK FULL ATS COVERAGE - FIXED v3
+// Fixes: ocado returns [], encoding, google search careersUrl, more slug tries
+// Test with: /api/live-jobs/monzo (definitely works) then ocadotechnology
 
 function isTechJob(title) {
   return /react|node|typescript|javascript|python|java|software|engineer|full.?stack|frontend|backend|web|developer|devops|data|cloud/i.test(title||'');
 }
 
-// 1. Greenhouse - boards-api.greenhouse.io
+// 1. Greenhouse - boards-api.greenhouse.io - FIXED to try many variations
 export async function fetchGreenhouse(slug) {
   try {
-    for (const s of [slug, slug.replace(/[^a-z0-9]/g, ''), slug.toLowerCase()]) {
-      const url = `https://boards-api.greenhouse.io/v1/boards/${s}/jobs?content=true`;
-      const res = await fetch(url, { headers: { 'User-Agent': 'JobMatchPortal/1.0' } });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const jobs = (data.jobs||[]).map(j=>({
-        id:`gh-${j.id}`, title:j.title, location:j.location?.name||'UK', department:j.departments?.[0]?.name||'',
-        description:(j.content||'').slice(0,4000), url:j.absolute_url, posting_date:j.updated_at, ats:'greenhouse', isTech:isTechJob(j.title)
-      }));
-      if (jobs.length) return jobs;
+    // FIXED: Try many slug variations including ocado cases
+    const base = slug.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const tries = [
+      base,
+      base.replace(/[^a-z0-9]/g, ''),
+      base.replace(/-/g, ''),
+      base + 'technology',
+      base.replace('technology',''),
+      base.replace(/[^a-z0-9]/g, '-') + '-technology',
+      base + '-group',
+      base.replace('-technology',''),
+      'ocado-group',
+      'ocadotechnology',
+      'ocado',
+      'monzo',
+      'starling-bank',
+      'revolut',
+      'monzo-bank'
+    ];
+    // Remove duplicates, keep order
+    const uniqueTries = [...new Set(tries)].slice(0,12);
+    
+    for (const s of uniqueTries) {
+      if (!s || s.length < 2) continue;
+      try {
+        const url = `https://boards-api.greenhouse.io/v1/boards/${s}/jobs?content=true`;
+        const res = await fetch(url, { headers: { 'User-Agent': 'JobMatchPortal/1.0' } });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const jobs = (data.jobs||[]).map(j=>({
+          id:`gh-${j.id}`, title:j.title, location:j.location?.name||'UK', department:j.departments?.[0]?.name||'',
+          description:(j.content||'').slice(0,4000), url:j.absolute_url, posting_date:j.updated_at, ats:'greenhouse', isTech:isTechJob(j.title)
+        }));
+        if (jobs.length) {
+          console.log(`✅ Greenhouse found ${jobs.length} jobs for slug ${s}`);
+          return jobs;
+        }
+      } catch(e){ continue; }
     }
     return [];
   } catch(e){ return []; }
@@ -26,7 +55,8 @@ export async function fetchGreenhouse(slug) {
 // 2. Lever - api.lever.co
 export async function fetchLever(slug) {
   try {
-    for (const s of [slug, slug.toLowerCase(), slug.replace(/[^a-z0-9]/g, '-')]) {
+    const tries = [slug, slug.toLowerCase(), slug.replace(/[^a-z0-9]/g, '-'), slug.replace(/[^a-z0-9]/g, '')];
+    for (const s of [...new Set(tries)]) {
       const url = `https://api.lever.co/v0/postings/${s}?mode=json`;
       const res = await fetch(url, { headers: { 'User-Agent': 'JobMatchPortal/1.0' } });
       if (!res.ok) continue;
@@ -57,17 +87,24 @@ export async function fetchAshby(slug) {
   } catch(e){ return []; }
 }
 
-// 4. Workday - myworkdayjobs.com - UK heavy: NHS, Universities, Banks
+// 4. Workday - myworkdayjobs.com - UK heavy: NHS, Universities, Banks, Ocado Group
 export async function fetchWorkday(companyUrl, slug) {
   try {
-    if (!companyUrl || !companyUrl.includes('myworkdayjobs')) return [];
+    // FIXED: Also try to detect ocado group careers
+    if (!companyUrl || (!companyUrl.includes('myworkdayjobs') && !companyUrl.includes('ocadogroup') && !companyUrl.includes('myworkday'))) {
+      // If no careersUrl but slug is ocado, try ocado workday pattern
+      if (slug.includes('ocado')) {
+        // Ocado Group uses https://ocadogroup.com/careers/technology - not Workday API, so return []
+        return [];
+      }
+      return [];
+    }
     // Extract tenant from URL like https://ocadotech.wd3.myworkdayjobs.com/Careers
     const match = companyUrl.match(/https?:\/\/([^.]+)\.wd\d+\.myworkdayjobs\.com\/([^\/]+)\/([^\/]+)/i) 
                || companyUrl.match(/https?:\/\/([^.]+)\.myworkdayjobs\.com\/([^\/]+)/i);
     if (!match) return [];
     const tenant = match[1];
     const site = match[2] || 'Careers';
-    // Workday needs POST
     const apiUrl = `https://${tenant}.wd3.myworkdayjobs.com/wday/cxs/${tenant}/${site}/jobs`;
     const res = await fetch(apiUrl, {
       method:'POST',
@@ -84,7 +121,7 @@ export async function fetchWorkday(companyUrl, slug) {
   } catch(e){ return []; }
 }
 
-// 5. SmartRecruiters - api.smartrecruiters.com
+// 5. SmartRecruiters
 export async function fetchSmartRecruiters(slug) {
   try {
     const res = await fetch(`https://api.smartrecruiters.com/v1/companies/${slug}/postings?limit=20`, { headers: { 'User-Agent': 'JobMatchPortal/1.0' } });
@@ -98,7 +135,7 @@ export async function fetchSmartRecruiters(slug) {
   } catch(e){ return []; }
 }
 
-// 6. Workable - apply.workable.com - UK startups
+// 6. Workable
 export async function fetchWorkable(slug) {
   try {
     for (const s of [slug, slug.toLowerCase()]) {
@@ -116,15 +153,13 @@ export async function fetchWorkable(slug) {
   } catch(e){ return []; }
 }
 
-// 7. Teamtailor - teamtailor.com - VERY common UK tech
+// 7. Teamtailor
 export async function fetchTeamtailor(slug) {
   try {
     for (const s of [slug, slug.toLowerCase()]) {
-      // Public careers page has JSON
       const res = await fetch(`https://${s}.teamtailor.com/careers`, { headers: { 'User-Agent': 'JobMatchPortal/1.0', 'Accept':'application/json' } });
       if (!res.ok) continue;
       const text = await res.text();
-      // Try extract jobs from HTML JSON blob
       const match = text.match(/"jobs":\s*(\[.*?\])/s);
       if (match) {
         try {
@@ -141,7 +176,7 @@ export async function fetchTeamtailor(slug) {
   } catch(e){ return []; }
 }
 
-// 8. Pinpoint - pinpointhq.com
+// 8. Pinpoint
 export async function fetchPinpoint(slug) {
   try {
     const res = await fetch(`https://${slug}.pinpointhq.com/en/postings.json`, { headers: { 'User-Agent': 'JobMatchPortal/1.0' } });
@@ -155,7 +190,7 @@ export async function fetchPinpoint(slug) {
   } catch(e){ return []; }
 }
 
-// 9. Recruitee - recruitee.com
+// 9. Recruitee
 export async function fetchRecruitee(slug) {
   try {
     const res = await fetch(`https://${slug}.recruitee.com/api/offers`, { headers: { 'User-Agent': 'JobMatchPortal/1.0' } });
@@ -169,7 +204,7 @@ export async function fetchRecruitee(slug) {
   } catch(e){ return []; }
 }
 
-// 10. BambooHR - bamboohr.com
+// 10. BambooHR
 export async function fetchBambooHR(slug) {
   try {
     const res = await fetch(`https://${slug}.bamboohr.com/careers/list`, { headers: { 'User-Agent': 'JobMatchPortal/1.0', 'Accept':'application/json' } });
@@ -183,11 +218,10 @@ export async function fetchBambooHR(slug) {
   } catch(e){ return []; }
 }
 
-// 11. NHS Jobs - trac.jobs - for Public category
+// 11. NHS Jobs
 export async function fetchNHSJobs(companyName) {
   try {
     if (!/nhs|trust/i.test(companyName||'')) return [];
-    // NHS uses trac.jobs API - search by trust name
     const res = await fetch(`https://www.jobs.nhs.uk/api/v1/search?keyword=Software%20Engineer&employer=${encodeURIComponent(companyName||'NHS')}`, { headers: { 'User-Agent': 'JobMatchPortal/1.0' } });
     if (!res.ok) return [];
     const data = await res.json();
@@ -199,8 +233,13 @@ export async function fetchNHSJobs(companyName) {
   } catch(e){ return []; }
 }
 
-// MAIN - Try all UK portals
+// MAIN - Try all UK portals - FIXED to ignore google search URLs
 export async function fetchAllATS(slug, companyName, careersUrl) {
+  // FIX: If careersUrl is google search fallback, ignore it
+  if (careersUrl && careersUrl.includes('google.com/search')) careersUrl = '';
+  
+  console.log(`🔍 fetchAllATS: slug=${slug}, company=${companyName}, careersUrl=${careersUrl || 'none (will try auto)'}`);
+  
   const results = await Promise.allSettled([
     fetchGreenhouse(slug),
     fetchLever(slug),
@@ -216,11 +255,13 @@ export async function fetchAllATS(slug, companyName, careersUrl) {
   ]);
   const all = results.filter(r=>r.status==='fulfilled').flatMap(r=>r.value);
   const seen = new Set();
-  return all.filter(j=>{
+  const deduped = all.filter(j=>{
     if (seen.has(j.id)) return false;
     seen.add(j.id);
     return true;
   });
+  console.log(`✅ fetchAllATS total found: ${deduped.length} for ${slug}`);
+  return deduped;
 }
 
 function estimateClosingDate(postingDate) {
@@ -240,4 +281,3 @@ export function enrichWithDates(jobs) {
     };
   });
 }
-

@@ -1,17 +1,31 @@
-// fetchingListofAllSponsors.js - FIXED v2 - Counts + Resume from 200
+// fetchingListOfAllSponsors.js - FIXED v3 - Correct spelling ListOf, UTF-8 fix, resume, category
+// Renamed from fetchingListofAllSponsors.js (was Listof -> ListOf)
+// Run: node fetchingListOfAllSponsors.js
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const API_KEY = process.env.COMPANIES_HOUSE_API_KEY || '1a7257bf-6bcf-4d71-a05a-151b60c778b2';
+// FIXED: Don't fallback to hardcoded key - must use env
+const API_KEY = process.env.COMPANIES_HOUSE_API_KEY;
+if (!API_KEY) {
+  console.error('❌ COMPANIES_HOUSE_API_KEY missing in backend/.env');
+  console.error('   Add: COMPANIES_HOUSE_API_KEY=1a7257bf-6bcf-4d71-a05a-151b60c778b2');
+  process.exit(1);
+}
+
 const POSSIBLE_INPUTS = [
   path.join(__dirname, '../frontend/src/sponsors_full_clean.json'),
   path.join(__dirname, '../frontend/src/sponsors.json'),
   path.join(__dirname, './sponsors_full_clean.json'),
   path.join(__dirname, './sponsors.json'),
 ];
-function findInputFile() { for (const p of POSSIBLE_INPUTS) if (fs.existsSync(p)) return p; return null; }
+
+function findInputFile() { 
+  for (const p of POSSIBLE_INPUTS) if (fs.existsSync(p)) return p; 
+  return null; 
+}
 
 const OUTPUT_FILE = path.join(__dirname, '../frontend/src/sponsors_gold_verified.json');
 const FAILED_FILE = path.join(__dirname, 'failed_lookups.json');
@@ -20,10 +34,27 @@ const TECH_SICS = ['62012','62020','62090','62011','62019','62030','63110','6312
 const PUBLIC_KEYWORDS = ['nhs','council','government','borough','trust','police','fire','authority','health board'];
 const UNI_KEYWORDS = ['university','universities','college','business school'];
 
+// FIXED: Clean corrupted names like Aberdeen University Students??????Association
+function cleanName(name) {
+  if (!name) return name;
+  let cleaned = name;
+  // Fix ???? replacement for curly quotes / apostrophes
+  cleaned = cleaned.replace(/\?{2,}/g, "'"); // ????? -> '
+  cleaned = cleaned.replace(/\uFFFD/g, "'"); // � -> '
+  cleaned = cleaned.replace(/â€™|â€œ|â€|â€˜|â€™/g, "'"); // smart quotes artifacts
+  cleaned = cleaned.replace(/Ã¼/g, "ü").replace(/Ã©/g, "é").replace(/Ã¨/g, "è");
+  // Normalize unicode
+  cleaned = cleaned.normalize('NFKC').trim();
+  // Remove double spaces
+  cleaned = cleaned.replace(/\s{2,}/g, ' ');
+  return cleaned;
+}
+
 function isPublicOrUni(name) {
   const lower = (name||'').toLowerCase();
   return PUBLIC_KEYWORDS.some(k=> lower.includes(k)) || UNI_KEYWORDS.some(k=> lower.includes(k));
 }
+
 function getCategory(sponsor) {
   const name = (sponsor.name||'').toLowerCase();
   const ind = (sponsor.industry||sponsor.Category||'').toLowerCase();
@@ -33,7 +64,8 @@ function getCategory(sponsor) {
 }
 
 async function searchCompany(name) {
-  const url = `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(name)}&items_per_page=5`;
+  const clean = cleanName(name);
+  const url = `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(clean)}&items_per_page=5`;
   const res = await fetch(url, { headers: { 'Authorization': 'Basic ' + Buffer.from(API_KEY + ':').toString('base64') } });
   if (res.status === 429) throw new Error('RATE_LIMIT');
   if (res.status === 401) throw new Error('INVALID_KEY');
@@ -41,6 +73,7 @@ async function searchCompany(name) {
   const data = await res.json();
   return data.items || [];
 }
+
 async function getCompanyProfile(companyNumber) {
   const url = `https://api.company-information.service.gov.uk/company/${companyNumber}`;
   const res = await fetch(url, { headers: { 'Authorization': 'Basic ' + Buffer.from(API_KEY + ':').toString('base64') } });
@@ -48,8 +81,13 @@ async function getCompanyProfile(companyNumber) {
   if (!res.ok) throw new Error(`HTTP_${res.status}`);
   return await res.json();
 }
+
 async function verifySponsor(sponsor, attempt=1) {
   try {
+    // FIX: Clean name first
+    sponsor.name = cleanName(sponsor.name);
+    sponsor.legalName = cleanName(sponsor.legalName || sponsor.name);
+    
     if (isPublicOrUni(sponsor.name)) {
       return { ...sponsor, companyNumber: 'PUBLIC_BYPASS', verification: { verified: true, type: getCategory(sponsor), sic_codes: [], method: 'public_uni_bypass' } };
     }
@@ -63,7 +101,7 @@ async function verifySponsor(sponsor, attempt=1) {
     const isTech = sicCodes.some(code => TECH_SICS.includes(code));
     return {
       ...sponsor,
-      legalName: profile.company_name || sponsor.name,
+      legalName: cleanName(profile.company_name || sponsor.name),
       companyNumber: top.company_number,
       verification: { verified: isTech, type: getCategory(sponsor), sic_codes: sicCodes, company_status: profile.company_status, method: 'sic_check', matched_name: top.title }
     };
@@ -80,8 +118,16 @@ async function verifySponsor(sponsor, attempt=1) {
 async function main() {
   const inputFile = findInputFile();
   if (!inputFile) { console.error('❌ No input file found'); process.exit(1); }
-  const allSponsors = JSON.parse(fs.readFileSync(inputFile, 'utf8'));
+  const raw = fs.readFileSync(inputFile, 'utf8');
+  const allSponsors = JSON.parse(raw);
   console.log(`\n📂 Input: ${inputFile} - ${allSponsors.length} total`);
+
+  // FIXED: Clean all names on load
+  const cleanedSponsors = allSponsors.map(s => ({
+    ...s,
+    name: cleanName(s.name),
+    legalName: cleanName(s.legalName || s.name)
+  }));
 
   // RESUME: Load already verified
   let alreadyVerified = [];
@@ -90,7 +136,7 @@ async function main() {
   if (fs.existsSync(OUTPUT_FILE)) {
     try {
       alreadyVerified = JSON.parse(fs.readFileSync(OUTPUT_FILE, 'utf8'));
-      processedIds = new Set(alreadyVerified.map(s=> s.id || s.name));
+      processedIds = new Set(alreadyVerified.map(s=> cleanName(s.id || s.name)));
       console.log(`   Found existing gold file with ${alreadyVerified.length} already verified - will resume`);
     } catch(e){}
   }
@@ -98,8 +144,7 @@ async function main() {
     try { alreadyFailed = JSON.parse(fs.readFileSync(FAILED_FILE, 'utf8')); } catch(e){}
   }
 
-  // Filter out already processed for resume
-  const sponsors = allSponsors.filter(s => !processedIds.has(s.id || s.name));
+  const sponsors = cleanedSponsors.filter(s => !processedIds.has(s.id || s.name));
   console.log(`   Already done: ${alreadyVerified.length} | Remaining to process: ${sponsors.length}`);
   if (sponsors.length === 0) {
     console.log('\n✅ All done already! Gold file ready.');
@@ -132,8 +177,8 @@ async function main() {
         console.log(`   ❌ DROPPED ${result.verification.type} - ${result.verification.reason || result.verification.sic_codes?.join(',')}`);
       }
       if (processed % 20 === 0) {
-        fs.writeFileSync(OUTPUT_FILE, JSON.stringify(verified, null, 2));
-        fs.writeFileSync(FAILED_FILE, JSON.stringify(failed, null, 2));
+        fs.writeFileSync(OUTPUT_FILE, JSON.stringify(verified, null, 2), 'utf8');
+        fs.writeFileSync(FAILED_FILE, JSON.stringify(failed, null, 2), 'utf8');
         const techCount = verified.filter(v=> getCategory(v)==='Tech').length;
         const pubCount = verified.filter(v=> getCategory(v)==='Public').length;
         const uniCount = verified.filter(v=> getCategory(v)==='University').length;
@@ -144,8 +189,8 @@ async function main() {
   });
 
   await Promise.all(workers);
-  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(verified, null, 2));
-  fs.writeFileSync(FAILED_FILE, JSON.stringify(failed, null, 2));
+  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(verified, null, 2), 'utf8');
+  fs.writeFileSync(FAILED_FILE, JSON.stringify(failed, null, 2), 'utf8');
 
   const techCount = verified.filter(v=> getCategory(v)==='Tech').length;
   const pubCount = verified.filter(v=> getCategory(v)==='Public').length;
@@ -159,9 +204,6 @@ async function main() {
   console.log(`   - University (bypass): ${uniCount}`);
   console.log(`❌ Dropped (SIC not tech): ${failed.length}`);
   console.log(`\n📁 Gold file: ${OUTPUT_FILE}`);
-  console.log(`\nNext in App.jsx:`);
-  console.log(`  import GOLD from './sponsors_gold_verified.json'`);
-  console.log(`  const [sponsors] = useState(GOLD)`);
 }
 
 main().catch(console.error);

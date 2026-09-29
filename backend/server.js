@@ -1,123 +1,95 @@
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config();
+
 import { calculateMatchPercent, getRecommendation, parseCV, generateLatexCV, generateCoverLetter } from './cvJobMatcher.js';
 import { fetchAllATS, enrichWithDates } from './liveJobsScraper_new.js';
-dotenv.config();
+import OpenAI from 'openai';
 
 const app = express();
 app.use(cors({ origin: ['http://localhost:5173','http://localhost:3000','http://localhost:5174','http://localhost:5175'], credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
 const PERPLEXITY_KEY = process.env.PERPLEXITY_API_KEY;
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
 const PORT = process.env.PORT || 3001;
+
+const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
 
 app.get('/api/health', (req,res)=> {
   res.json({ 
     ok:true, 
-    hasPerplexityKey: !!PERPLEXITY_KEY, 
+    hasPerplexityKey: !!PERPLEXITY_KEY,
+    hasOpenAIKey: !!OPENAI_KEY,
+    using: openai ? 'openai (cheaper)' : PERPLEXITY_KEY ? 'perplexity' : 'none - set OPENAI_API_KEY in .env',
     port: PORT, 
     ats: ['greenhouse','lever','ashby','workday','smartrecruiters','workable','teamtailor','pinpoint','recruitee','bamboohr','nhs'],
     coverage: '11 UK portals - 95% of UK A-rated sponsors',
-    timestamp: new Date().toISOString() 
+    timestamp: new Date().toISOString(),
+    nodeVersion: process.version
   });
 });
 
-// REAL ATS - ALL UK PORTALS - Own logic > Perplexity for dates
-// GET /api/live-jobs/ocado?skills=react,typescript,node.js&careersUrl=https://boards.greenhouse.io/ocado&name=Ocado%20Technology
 app.get('/api/live-jobs/:company', async (req,res)=>{
-  const slug = req.params.company.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  let slug = req.params.company.toLowerCase().replace(/[^a-z0-9-]/g, '').trim() || 'monzo';
   const companyName = req.query.name || req.params.company;
-  const careersUrl = req.query.careersUrl || '';
-  const cvSkills = (req.query.skills ? req.query.skills.split(',') : ['react','typescript','node.js','javascript','next.js']);
-  
-  console.log(`🔍 Live jobs: ${slug} (${companyName}) via ${careersUrl || 'auto-detect'} | skills: ${cvSkills.join(',')}`);
+  let careersUrl = req.query.careersUrl || '';
+  if (careersUrl.includes('google.com/search')) careersUrl = '';
+  const cvSkills = (req.query.skills ? req.query.skills.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean) : ['react','typescript','node.js']);
   
   try {
     const jobs = await fetchAllATS(slug, companyName, careersUrl);
-    
     if (jobs.length === 0) {
       return res.json({ 
-        company: slug, 
-        companyName,
-        jobs: [], 
-        count: 0, 
-        message: 'No ATS found - use Perplexity fallback or provide careersUrl',
+        company: slug, companyName, jobs: [], count: 0, 
+        message: 'No ATS found - try monzo, starling, revolut',
         ats_tried: ['greenhouse','lever','ashby','workday','smartrecruiters','workable','teamtailor','pinpoint','recruitee','bamboohr','nhs'],
-        suggestion: 'Add ?careersUrl= to help detect Workday/NHS. Example: ?careersUrl=https://myworkdayjobs.com/company'
+        suggestion: 'Test: /api/live-jobs/monzo?name=Monzo'
       });
     }
-    
     const enriched = enrichWithDates(jobs).map(job => {
       const matchPercent = calculateMatchPercent(cvSkills, job.description, job.title);
       const rec = getRecommendation(matchPercent, true, job.closing_date, true);
-      return {
-        ...job,
-        matchPercent,
-        recommendation: rec,
-        shouldApply: rec.shouldApply,
-        matchReason: rec.reason,
-        postingDate: job.posting_date,
-        closingDate: job.closing_date
-      };
-    })
-    .filter(j => j.isTech || j.matchPercent >= 15)
-    .sort((a,b) => b.matchPercent - a.matchPercent)
-    .slice(0, 20);
+      return { ...job, matchPercent, recommendation: rec, shouldApply: rec.shouldApply, matchReason: rec.reason, postingDate: job.posting_date, closingDate: job.closing_date };
+    }).filter(j => j.isTech || j.matchPercent >= 15).sort((a,b) => b.matchPercent - a.matchPercent).slice(0, 20);
 
-    res.json({ 
-      company: slug,
-      companyName,
-      jobs: enriched, 
-      count: enriched.length,
-      totalFound: jobs.length,
-      fetched_at: new Date().toISOString(),
-      source: 'own_logic_11_ats_uk',
-      dates_real: true,
-      ats_used: [...new Set(enriched.map(j=>j.ats))]
-    });
+    res.json({ company: slug, companyName, jobs: enriched, count: enriched.length, totalFound: jobs.length, fetched_at: new Date().toISOString(), source: 'own_logic_11_ats_uk', dates_real: true, ats_used: [...new Set(enriched.map(j=>j.ats))] });
   } catch(e) {
-    console.error('Live jobs error', e);
     res.status(500).json({ error: e.message, company: slug });
   }
 });
 
-// POST /api/live-jobs/batch - For 5000 sponsors bulk check
 app.post('/api/live-jobs/batch', async (req,res)=>{
   const { companies, cvSkills } = req.body;
   if (!companies || !Array.isArray(companies)) return res.status(400).json({ error: 'companies array required' });
-  if (companies.length > 50) return res.status(400).json({ error: 'Max 50 companies per batch to avoid rate limits' });
-  
+  if (companies.length > 50) return res.status(400).json({ error: 'Max 50 per batch' });
   const skills = cvSkills || ['react','typescript','node.js'];
   const results = [];
-  
   for (const comp of companies) {
-    const slug = (comp.slug || comp.name || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+    let slug = (comp.slug || comp.name || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0,30);
+    let careersUrl = comp.careersUrl || '';
+    if (careersUrl.includes('google.com/search')) careersUrl = '';
     try {
-      const jobs = await fetchAllATS(slug, comp.name, comp.careersUrl);
-      const enriched = enrichWithDates(jobs).map(j=>({
-        ...j,
-        matchPercent: calculateMatchPercent(skills, j.description, j.title),
-        companySlug: slug,
-        companyName: comp.name
-      })).filter(j=>j.isTech || j.matchPercent>=20).sort((a,b)=>b.matchPercent-a.matchPercent).slice(0,5);
-      
+      const jobs = await fetchAllATS(slug, comp.name, careersUrl);
+      const enriched = enrichWithDates(jobs).map(j=>({ ...j, matchPercent: calculateMatchPercent(skills, j.description, j.title), companySlug: slug, companyName: comp.name })).filter(j=>j.isTech || j.matchPercent>=20).sort((a,b)=>b.matchPercent-a.matchPercent).slice(0,5);
       results.push({ company: slug, name: comp.name, jobs: enriched, count: enriched.length, ats: enriched[0]?.ats || 'none' });
       await new Promise(r=>setTimeout(r, 500));
     } catch(e) {
       results.push({ company: slug, name: comp.name, jobs: [], count: 0, error: e.message });
     }
   }
-  
   res.json({ results, totalCompanies: companies.length, totalJobs: results.reduce((s,r)=>s+r.count,0) });
 });
 
 app.post('/api/parse-cv', (req,res)=>{
   const { cvText } = req.body;
   if (!cvText) return res.status(400).json({ error: 'cvText required' });
-  const parsed = parseCV(cvText);
-  res.json(parsed);
+  res.json(parseCV(cvText));
 });
 
 app.post('/api/generate-latex', (req,res)=>{
@@ -134,10 +106,40 @@ app.post('/api/generate-cover-letter', (req,res)=>{
   res.json({ letter, filename: `Cover_Letter_${companyName.replace(/\s+/g,'_')}_${role.replace(/\s+/g,'_')}.docx` });
 });
 
+// NEW: OpenAI version - replaces Perplexity
+// POST /api/search { query: "find React sponsors in London" }
 app.post('/api/search', async (req,res)=>{
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'query required' });
-  if (!PERPLEXITY_KEY) return res.json({ mock:true, message:'Set PERPLEXITY_API_KEY in backend/.env - $3 min top-up' });
+
+  // 1. Try OpenAI first (cheaper, better)
+  if (openai) {
+    const controller = new AbortController();
+    const timeout = setTimeout(()=> controller.abort(), 15000);
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini', // cheapest + good JSON - $0.15 per 1M tokens vs Perplexity $3 min
+        messages: [
+          { role:'system', content: 'You are UK visa job researcher. Return ONLY valid JSON: {"companies": [{"name": string, "location": string, "industry": string, "roles": [string], "salaryMin": number, "salaryMax": number, "careersUrl": string, "isHiring": boolean}]} Focus on A-rated sponsors React/TypeScript/Node.js in UK. No markdown, only JSON.' },
+          { role:'user', content: query }
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" }
+      }, { signal: controller.signal });
+      clearTimeout(timeout);
+      const content = completion.choices[0].message.content;
+      let parsed = null;
+      try { parsed = JSON.parse(content); } catch(e){ const m=content.match(/\{[\s\S]*\}/); if(m) parsed=JSON.parse(m[0]); }
+      return res.json({ content, parsed, hasKey:true, source:'openai_gpt-4o-mini', usage: completion.usage });
+    } catch(e) {
+      clearTimeout(timeout);
+      console.error('OpenAI error, falling back to Perplexity:', e.message);
+      // fall through to perplexity
+    }
+  }
+
+  // 2. Fallback to Perplexity
+  if (!PERPLEXITY_KEY) return res.json({ mock:true, message:'Set OPENAI_API_KEY or PERPLEXITY_API_KEY in backend/.env', hasOpenAIKey: !!OPENAI_KEY, hasPerplexityKey: !!PERPLEXITY_KEY });
   const controller = new AbortController();
   const timeout = setTimeout(()=> controller.abort(), 15000);
   try {
@@ -164,7 +166,6 @@ app.post('/api/search', async (req,res)=>{
     res.json({ raw:data, content, parsed, hasKey:true, source:'perplexity_fallback' });
   } catch(e) {
     clearTimeout(timeout);
-    if (e.name==='AbortError') return res.status(504).json({ error:'Timeout 15s', timeout:true });
     res.status(500).json({ error:e.message });
   }
 });
@@ -172,7 +173,7 @@ app.post('/api/search', async (req,res)=>{
 app.use((err, req, res, next)=>{ console.error(err); res.status(500).json({ error:'Server error', message:err.message }); });
 
 function startServer(port) {
-  app.listen(port, ()=> console.log(`✅ Backend http://localhost:${port} | 11 ATS: Greenhouse, Lever, Ashby, Workday (NHS/Uni), SmartRecruiters, Workable, Teamtailor, Pinpoint, Recruitee, BambooHR, NHS | CV Matcher + LaTeX/DOCX`))
+  app.listen(port, ()=> console.log(`✅ Backend http://localhost:${port} | 11 ATS + ${openai ? 'OpenAI gpt-4o-mini' : PERPLEXITY_KEY ? 'Perplexity' : 'NO AI KEY'} | Node ${process.version}`))
   .on('error', (err)=>{ if (err.code==='EADDRINUSE'){ console.log(`Port ${port} in use, trying ${port+1}`); startServer(port+1); } else { console.error(err); } });
 }
 startServer(PORT);
