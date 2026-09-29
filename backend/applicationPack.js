@@ -49,6 +49,9 @@ export function validateApplicationPack(pack = {}, options = {}) {
 }
 
 export function buildApplicationPromptContext({ job = {}, candidateEvidence = {}, task = 'full', specialist = 'all-in-one' } = {}) {
+  const essential = Array.isArray(job.criteria?.essential) ? job.criteria.essential : [];
+  const desirable = Array.isArray(job.criteria?.desirable) ? job.criteria.desirable : [];
+
   return {
     specialist,
     task,
@@ -56,9 +59,16 @@ export function buildApplicationPromptContext({ job = {}, candidateEvidence = {}
       title: clean(job.title),
       company: clean(job.companyName || job.company),
       description: clean(job.description),
-      essential: job.criteria?.essential || [],
-      desirable: job.criteria?.desirable || [],
-      technicalSkills: job.technicalSkills || [],
+      criteria: {
+        essential,
+        desirable
+      },
+      // Keep the flattened fields for backwards compatibility with existing
+      // consumers while exposing the structured criteria contract expected by
+      // application-pack callers and tests.
+      essential,
+      desirable,
+      technicalSkills: Array.isArray(job.technicalSkills) ? job.technicalSkills : [],
       sponsorship: job.sponsorship || {}
     },
     candidate: buildEvidenceProfile(candidateEvidence),
