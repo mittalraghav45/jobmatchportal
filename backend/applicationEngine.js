@@ -1,4 +1,4 @@
-import { ALL_IN_ONE_CV_OPTIMISER_SYSTEM_PROMPT, CV_OUTPUT_CONTRACT, buildCvOptimisationPrompt } from './prompts/cvOptimisationPrompt.js';
+import { ALL_IN_ONE_CV_OPTIMISER_SYSTEM_PROMPT, CV_OUTPUT_CONTRACT } from './prompts/cvOptimisationPrompt.js';
 import { PUBLIC_SECTOR_RULES, classifyPublicSectorOrganisation } from './prompts/publicSectorOptimisationPrompt.js';
 
 const PUBLIC_SECTOR_TERMS = [
@@ -15,7 +15,7 @@ const REQUIREMENT_PATTERNS = [
 function cleanPhrase(value) {
   return String(value || '')
     .replace(/\s+/g, ' ')
-    .replace(/^[\s:,-]+|[\s:,.!?;:-]+$/g, '')
+    .replace(/^[\s:,-]+|[\s,.:!?;:-]+$/g, '')
     .trim();
 }
 
@@ -52,8 +52,9 @@ export function extractJobKeywords(jobDescription = '', limit = 15) {
     }
   }
 
-  const technicalTerms = [...text.matchAll(/\b(?:React(?:\.js)?|TypeScript|JavaScript|Node(?:\.js)?|AWS|Azure|GCP|GraphQL|REST(?:ful)?|PostgreSQL|MongoDB|Elasticsearch|Kafka|RabbitMQ|Docker|Kubernetes|PHP|Python|Java|\.NET|C#|SQL|Playwright|Jest|Git|CI\/CD)\b/gi)];
-  for (const match of technicalTerms) add(match[0]);
+  for (const match of text.matchAll(/\b(?:React(?:\.js)?|TypeScript|JavaScript|Node(?:\.js)?|AWS|Azure|GCP|GraphQL|REST(?:ful)?|PostgreSQL|MongoDB|Elasticsearch|Kafka|RabbitMQ|Docker|Kubernetes|PHP|Python|Java|\.NET|C#|SQL|Playwright|Jest|Git|CI\/CD)\b/gi)) {
+    add(match[0]);
+  }
 
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -66,23 +67,27 @@ export function buildOptimisationRequest({ companyName = '', role = '', jobDescr
   const systemPrompt = classification.isPublicSector
     ? PUBLIC_SECTOR_RULES
     : ALL_IN_ONE_CV_OPTIMISER_SYSTEM_PROMPT;
+  const userPrompt = [
+    `TASK\n${task}`,
+    `ROLE\n${role}`,
+    `COMPANY\n${companyName}`,
+    `JOB MATERIAL\n${jobDescription}`,
+    `CANDIDATE EVIDENCE\n${candidateEvidence}`,
+    'Return only claims supported by the supplied evidence. Mark missing measurable results with explicit placeholders rather than guessing.'
+  ].join('\n\n');
 
   return {
     classification,
     keywords: extractJobKeywords(jobDescription),
     systemPrompt,
-    userPrompt: buildCvOptimisationPrompt({
-      jobDescription,
-      candidateEvidence,
-      task
-    }),
+    userPrompt,
     outputContract: CV_OUTPUT_CONTRACT
   };
 }
 
 export function buildStructuredApplicationMessages(input = {}) {
   const request = buildOptimisationRequest(input);
-  const outputInstruction = `Return JSON with these keys only: classification, keywords, skills, experienceBullets, projects, summary, coverLetter, evidenceGaps. Cover letter must be <= ${CV_OUTPUT_CONTRACT.maxCoverLetterWords} words. Keywords must contain exactly ${CV_OUTPUT_CONTRACT.keywordCount} items when the job material contains enough explicit requirements; otherwise return the available verified keywords. Never invent evidence. Use [X%], [X users] or another explicit placeholder when a metric is missing.`;
+  const outputInstruction = `Return JSON with these keys only: classification, keywords, skills, experienceBullets, projects, summary, coverLetter, evidenceGaps. Cover letter must be <= ${CV_OUTPUT_CONTRACT.maxCoverLetterWords} words. Keywords should contain exactly ${CV_OUTPUT_CONTRACT.keywordCount} items when the job material contains enough explicit requirements; otherwise return the available verified keywords. Never invent evidence. Use [X%], [X users] or another explicit placeholder when a metric is missing.`;
 
   return {
     classification: request.classification,
