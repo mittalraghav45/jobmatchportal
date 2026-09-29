@@ -1,6 +1,6 @@
 {
   "name": "sponsor-tracker-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "node -r dotenv/config server.js",
@@ -8,7 +8,10 @@
     "start": "node -r dotenv/config server.js",
     "test": "node --check server.js && node --test tests/*.test.js",
     "import:dummy-companies": "node -r dotenv/config scripts/importDummyCompanies.js",
-    "discover:companies": "node -r dotenv/config scripts/discoverCompanies.js"
+    "discover:companies": "node -r dotenv/config scripts/discoverCompanies.js",
+    "discover:pipeline": "node -r dotenv/config scripts/runDiscoveryPipeline.js",
+    "sync:jobs": "node -r dotenv/config scripts/runDiscoveryPipeline.js --persist",
+    "check": "node --check server.js && node --check services/discoveryPipeline.js && node --check services/candidateMatcher.js && node --check routes/platformRouter.js"
   },
   "dependencies": {
     "axios": "^1.20.0",
