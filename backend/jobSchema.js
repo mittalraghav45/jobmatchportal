@@ -1,3 +1,5 @@
+export const JOB_SCHEMA_VERSION = '1.1';
+
 const ATS_VALUES = new Set(['greenhouse','lever','ashby','workday','smartrecruiters','workable','teamtailor','pinpoint','recruitee','bamboohr','nhs','unknown']);
 
 function clean(value) {
@@ -12,17 +14,26 @@ function dateOrNull(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function slug(value) {
+  return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 export function normaliseJob(raw = {}) {
   const url = clean(raw.url || raw.jobUrl || raw.applyUrl);
   const atsValue = clean(raw.ats)?.toLowerCase();
   const ats = ATS_VALUES.has(atsValue) ? atsValue : 'unknown';
   const postingDate = dateOrNull(raw.posting_date || raw.postingDate || raw.publishedAt || raw.createdAt);
   const closingDate = dateOrNull(raw.closing_date || raw.closingDate || raw.closeDate || raw.expirationDate);
+  const companyName = clean(raw.companyName || raw.company || raw.organisationName);
+  const externalId = clean(raw.externalId || raw.external_id || raw.job_id || raw.jobId || raw.id);
 
-  return {
+  const job = {
+    schemaVersion: JOB_SCHEMA_VERSION,
     id: clean(raw.id) || (url ? `job-${Buffer.from(url).toString('base64url').slice(0, 32)}` : null),
+    externalId,
     title: clean(raw.title) || 'Untitled role',
-    companyName: clean(raw.companyName || raw.company || raw.organisationName),
+    companyId: clean(raw.companyId || raw.company_id),
+    companyName,
     location: clean(raw.location) || 'UK',
     department: clean(raw.department),
     employmentType: clean(raw.employmentType || raw.employment_type),
@@ -39,10 +50,16 @@ export function normaliseJob(raw = {}) {
     salaryCurrency: clean(raw.salaryCurrency),
     sponsorshipEvidence: raw.sponsorshipEvidence || null
   };
+
+  job.fingerprint = getJobKey(job);
+  return job;
 }
 
 export function getJobKey(job) {
-  return job.url || `${job.ats || 'unknown'}:${job.id || job.title}`;
+  const external = slug(job.externalId);
+  if (external && job.companyId) return `${slug(job.companyId)}|${external}`;
+  if (job.url) return `url|${slug(job.url)}`;
+  return `${slug(job.companyName)}|${slug(job.title)}|${slug(job.location)}|${job.ats || 'unknown'}`;
 }
 
 export function deduplicateJobs(jobs = []) {
