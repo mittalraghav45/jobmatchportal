@@ -1,0 +1,8 @@
+company_id,company_name,enabled,priority,careers_url
+amazon,Amazon,true,high,
+monzo,Monzo,true,high,
+wise,Wise,true,high,
+deliveroo,Deliveroo,true,high,
+revolut,Revolut,true,high,
+
+# Add/remove companies here. Keep company_id stable. Set enabled=false instead of deleting a company when historical discovery data must be retained.
