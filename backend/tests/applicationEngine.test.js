@@ -47,19 +47,29 @@ test('builds a public-sector optimisation request with evidence rules', () => {
   });
   assert.equal(request.classification.specialist, 'nhs-public-sector');
   assert.match(request.systemPrompt, /Never invent NHS/i);
-  assert.ok(request.outputContract.factualAccuracy === 'strict');
+  assert.equal(request.outputContract.factualAccuracy, 'strict');
 });
 
-test('structured request always includes a factuality instruction', () => {
+test('public-sector output requests a supporting statement and evidence matrix', () => {
+  const result = buildStructuredApplicationMessages({
+    companyName: 'DWP',
+    role: 'Software Developer',
+    jobDescription: 'Essential criteria: React experience.',
+    candidateEvidence: 'Professional React development experience.'
+  });
+  assert.match(result.messages[0].content, /supportingStatement/i);
+  assert.match(result.messages[0].content, /evidenceMatrix/i);
+});
+
+test('commercial output keeps public-sector statement fields empty', () => {
   const result = buildStructuredApplicationMessages({
     companyName: 'Example Ltd',
     role: 'Software Engineer',
     jobDescription: 'React and TypeScript required.',
     candidateEvidence: 'React and TypeScript experience.'
   });
-  assert.equal(result.messages.length, 2);
+  assert.match(result.messages[0].content, /commercial applications/i);
   assert.match(result.messages[0].content, /Never invent evidence/i);
-  assert.match(result.messages[0].content, /coverLetter/i);
 });
 
 console.log('PASS applicationEngine tests');
