@@ -1,16 +1,14 @@
-// fetchingListOfAllSponsors.js - sponsor/company verification pipeline
+// fetchingListofAllSponsors.js - Companies House identity enrichment for an existing sponsor dataset.
+// IMPORTANT: Companies House confirms company identity/status/SIC data. It does NOT by itself
+// prove that an employer holds a UK Skilled Worker sponsor licence. Sponsor status must come
+// from an appropriate sponsorship source and is stored separately as sponsorStatus.
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_KEY = process.env.COMPANIES_HOUSE_API_KEY;
-if (!API_KEY) {
-  console.error('❌ COMPANIES_HOUSE_API_KEY missing in backend/.env');
-  console.error('   Configure COMPANIES_HOUSE_API_KEY in your environment; never commit the key to source control.');
-  process.exit(1);
-}
 
 const POSSIBLE_INPUTS = [
   path.join(__dirname, '../frontend/src/sponsors_full_clean.json'),
@@ -18,87 +16,145 @@ const POSSIBLE_INPUTS = [
   path.join(__dirname, './sponsors_full_clean.json'),
   path.join(__dirname, './sponsors.json')
 ];
-function findInputFile() { for (const p of POSSIBLE_INPUTS) if (fs.existsSync(p)) return p; return null; }
 const OUTPUT_FILE = path.join(__dirname, '../frontend/src/sponsors_gold_verified.json');
 const FAILED_FILE = path.join(__dirname, 'failed_lookups.json');
-const TECH_SICS = ['62012','62020','62090','62011','62019','62030','63110','63120','58290','58210','61100','61200','70229'];
-const PUBLIC_KEYWORDS = ['nhs','council','government','borough','trust','police','fire','authority','health board'];
-const UNI_KEYWORDS = ['university','universities','college','business school'];
 
 function cleanName(name) {
   if (!name) return name;
-  return String(name).replace(/\?{2,}/g, "'").replace(/\uFFFD/g, "'")
-    .replace(/â€™|â€œ|â€|â€˜/g, "'").replace(/Ã¼/g, 'ü').replace(/Ã©/g, 'é').replace(/Ã¨/g, 'è')
+  return String(name)
+    .replace(/\?{2,}/g, "'")
+    .replace(/\uFFFD/g, "'")
+    .replace(/â€™|â€œ|â€|â€˜/g, "'")
+    .replace(/Ã¼/g, 'ü').replace(/Ã©/g, 'é').replace(/Ã¨/g, 'è')
     .normalize('NFKC').trim().replace(/\s{2,}/g, ' ');
 }
-function isPublicOrUni(name) { const lower = (name || '').toLowerCase(); return PUBLIC_KEYWORDS.some(k => lower.includes(k)) || UNI_KEYWORDS.some(k => lower.includes(k)); }
-function getCategory(sponsor) {
-  const name = (sponsor.name || '').toLowerCase();
-  const ind = (sponsor.industry || sponsor.Category || '').toLowerCase();
-  if (ind.includes('public') || PUBLIC_KEYWORDS.some(k => name.includes(k))) return 'Public';
-  if (ind.includes('univer') || UNI_KEYWORDS.some(k => name.includes(k))) return 'University';
-  return 'Tech';
+
+function findInputFile() {
+  return POSSIBLE_INPUTS.find(file => fs.existsSync(file)) || null;
 }
 
-async function searchCompany(name) {
+function getSponsorStatus(sponsor) {
+  const value = String(sponsor.sponsorStatus || sponsor.status || '').toLowerCase().trim();
+  return ['verified', 'not-sponsor'].includes(value) ? value : 'unknown';
+}
+
+async function searchCompany(name, apiKey = API_KEY) {
+  if (!apiKey) throw new Error('MISSING_COMPANIES_HOUSE_API_KEY');
   const url = `https://api.company-information.service.gov.uk/search/companies?q=${encodeURIComponent(cleanName(name))}&items_per_page=5`;
-  const res = await fetch(url, { headers: { Authorization: 'Basic ' + Buffer.from(API_KEY + ':').toString('base64') } });
+  const res = await fetch(url, {
+    headers: { Authorization: 'Basic ' + Buffer.from(apiKey + ':').toString('base64') }
+  });
   if (res.status === 429) throw new Error('RATE_LIMIT');
   if (res.status === 401) throw new Error('INVALID_KEY');
   if (!res.ok) throw new Error(`HTTP_${res.status}`);
   return (await res.json()).items || [];
 }
-async function getCompanyProfile(companyNumber) {
-  const res = await fetch(`https://api.company-information.service.gov.uk/company/${companyNumber}`, { headers: { Authorization: 'Basic ' + Buffer.from(API_KEY + ':').toString('base64') } });
+
+async function getCompanyProfile(companyNumber, apiKey = API_KEY) {
+  if (!apiKey) throw new Error('MISSING_COMPANIES_HOUSE_API_KEY');
+  const res = await fetch(`https://api.company-information.service.gov.uk/company/${companyNumber}`, {
+    headers: { Authorization: 'Basic ' + Buffer.from(apiKey + ':').toString('base64') }
+  });
   if (res.status === 429) throw new Error('RATE_LIMIT');
+  if (res.status === 401) throw new Error('INVALID_KEY');
   if (!res.ok) throw new Error(`HTTP_${res.status}`);
   return res.json();
 }
-async function verifySponsor(sponsor, attempt = 1) {
+
+export async function enrichCompanyIdentity(sponsor, apiKey = API_KEY, attempt = 1) {
+  const input = {
+    ...sponsor,
+    name: cleanName(sponsor.name),
+    legalName: cleanName(sponsor.legalName || sponsor.name),
+    sponsorStatus: getSponsorStatus(sponsor)
+  };
+
   try {
-    sponsor.name = cleanName(sponsor.name);
-    sponsor.legalName = cleanName(sponsor.legalName || sponsor.name);
-    if (isPublicOrUni(sponsor.name)) return { ...sponsor, companyNumber: 'PUBLIC_BYPASS', verification: { verified: true, type: getCategory(sponsor), sic_codes: [], method: 'public_uni_bypass' } };
-    const searchResults = await searchCompany(sponsor.name);
-    if (!searchResults.length) return { ...sponsor, verification: { verified: false, type: getCategory(sponsor), reason: 'NOT_FOUND', method: 'search' } };
+    const searchResults = await searchCompany(input.name, apiKey);
+    if (!searchResults.length) {
+      return {
+        ...input,
+        companyVerification: {
+          verified: false,
+          reason: 'NOT_FOUND',
+          method: 'companies_house_search'
+        }
+      };
+    }
+
     const top = searchResults[0];
-    const profile = await getCompanyProfile(top.company_number);
-    const sicCodes = profile.sic_codes || [];
-    const isTech = sicCodes.some(code => TECH_SICS.includes(code));
-    return { ...sponsor, legalName: cleanName(profile.company_name || sponsor.name), companyNumber: top.company_number,
-      verification: { verified: isTech, type: getCategory(sponsor), sic_codes: sicCodes, company_status: profile.company_status, method: 'sic_check', matched_name: top.title } };
-  } catch (e) {
-    if (e.message === 'RATE_LIMIT' && attempt < 5) { await new Promise(r => setTimeout(r, attempt * 10000)); return verifySponsor(sponsor, attempt + 1); }
-    return { ...sponsor, verification: { verified: false, type: getCategory(sponsor), reason: e.message, method: 'error' } };
+    const profile = await getCompanyProfile(top.company_number, apiKey);
+
+    return {
+      ...input,
+      legalName: cleanName(profile.company_name || input.legalName),
+      companyNumber: top.company_number,
+      companyVerification: {
+        verified: true,
+        method: 'companies_house',
+        matchedName: top.title,
+        companyStatus: profile.company_status || null,
+        sicCodes: profile.sic_codes || [],
+        dateOfCreation: profile.date_of_creation || null
+      }
+    };
+  } catch (error) {
+    if (error.message === 'RATE_LIMIT' && attempt < 5) {
+      await new Promise(resolve => setTimeout(resolve, attempt * 10000));
+      return enrichCompanyIdentity(input, apiKey, attempt + 1);
+    }
+
+    return {
+      ...input,
+      companyVerification: {
+        verified: false,
+        reason: error.message,
+        method: 'companies_house_error'
+      }
+    };
   }
 }
 
-async function main() {
-  const inputFile = findInputFile();
-  if (!inputFile) { console.error('❌ No input file found'); process.exit(1); }
+export async function runSponsorEnrichment({ inputFile = findInputFile(), outputFile = OUTPUT_FILE, failedFile = FAILED_FILE, apiKey = API_KEY, concurrency = 5, delayMs = 700 } = {}) {
+  if (!inputFile) throw new Error('NO_INPUT_FILE');
+  if (!apiKey) throw new Error('MISSING_COMPANIES_HOUSE_API_KEY');
+
   const allSponsors = JSON.parse(fs.readFileSync(inputFile, 'utf8'));
-  const cleanedSponsors = allSponsors.map(s => ({ ...s, name: cleanName(s.name), legalName: cleanName(s.legalName || s.name) }));
-  let alreadyVerified = [], alreadyFailed = [], processedIds = new Set();
-  if (fs.existsSync(OUTPUT_FILE)) { try { alreadyVerified = JSON.parse(fs.readFileSync(OUTPUT_FILE, 'utf8')); processedIds = new Set(alreadyVerified.map(s => cleanName(s.id || s.name))); } catch {} }
-  if (fs.existsSync(FAILED_FILE)) { try { alreadyFailed = JSON.parse(fs.readFileSync(FAILED_FILE, 'utf8')); } catch {} }
-  const sponsors = cleanedSponsors.filter(s => !processedIds.has(s.id || s.name));
-  const CONCURRENCY = 5, DELAY_MS = 700;
-  const verified = [...alreadyVerified], failed = [...alreadyFailed];
-  let processed = alreadyVerified.length + alreadyFailed.length;
-  const queue = [...sponsors];
-  const workers = Array(CONCURRENCY).fill(null).map(async () => {
+  const cleanedSponsors = allSponsors.map(sponsor => ({
+    ...sponsor,
+    name: cleanName(sponsor.name),
+    legalName: cleanName(sponsor.legalName || sponsor.name),
+    sponsorStatus: getSponsorStatus(sponsor)
+  }));
+
+  let alreadyProcessed = [];
+  if (fs.existsSync(outputFile)) {
+    try { alreadyProcessed = JSON.parse(fs.readFileSync(outputFile, 'utf8')); } catch { alreadyProcessed = []; }
+  }
+  const processedIds = new Set(alreadyProcessed.map(s => s.id || s.companyNumber || s.name));
+  const queue = cleanedSponsors.filter(s => !processedIds.has(s.id || s.companyNumber || s.name));
+  const verified = [...alreadyProcessed];
+  const failed = fs.existsSync(failedFile) ? JSON.parse(fs.readFileSync(failedFile, 'utf8')) : [];
+
+  const workers = Array.from({ length: concurrency }, async () => {
     while (queue.length) {
       const sponsor = queue.shift();
       if (!sponsor) break;
-      const result = await verifySponsor(sponsor); processed++;
-      if (result.verification.verified) verified.push(result); else failed.push(result);
-      if (processed % 20 === 0) { fs.writeFileSync(OUTPUT_FILE, JSON.stringify(verified, null, 2)); fs.writeFileSync(FAILED_FILE, JSON.stringify(failed, null, 2)); }
-      await new Promise(r => setTimeout(r, DELAY_MS));
+      const result = await enrichCompanyIdentity(sponsor, apiKey);
+      if (result.companyVerification?.verified) verified.push(result);
+      else failed.push(result);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   });
+
   await Promise.all(workers);
-  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(verified, null, 2));
-  fs.writeFileSync(FAILED_FILE, JSON.stringify(failed, null, 2));
-  console.log(`Completed: ${allSponsors.length}; verified: ${verified.length}; failed: ${failed.length}`);
+  fs.writeFileSync(outputFile, JSON.stringify(verified, null, 2));
+  fs.writeFileSync(failedFile, JSON.stringify(failed, null, 2));
+  return { total: allSponsors.length, verified: verified.length, failed: failed.length };
 }
-main().catch(err => { console.error(err); process.exit(1); });
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  runSponsorEnrichment()
+    .then(result => console.log(`Completed: ${result.total}; company-verified: ${result.verified}; failed: ${result.failed}`))
+    .catch(error => { console.error(`Sponsor enrichment failed: ${error.message}`); process.exitCode = 1; });
+}
