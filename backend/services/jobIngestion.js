@@ -24,19 +24,20 @@ export function ingestJobs(rawJobs = [], { existing = new Map(), now = new Date(
     const previous = unique.get(fingerprint) || existing.get(fingerprint);
     unique.set(fingerprint, {
       ...job,
+      fingerprint,
       id: previous?.id || job.id || fingerprint,
       dates: {
         ...job.dates,
+        firstSeenAt: previous?.dates?.firstSeenAt || job.dates?.firstSeenAt || now,
         lastSeenAt: now,
         postedAt: job.dates?.postedAt || previous?.dates?.postedAt || null,
         closingAt: job.dates?.closingAt || previous?.dates?.closingAt || null
-      },
-      firstSeenAt: previous?.firstSeenAt || job.firstSeenAt || now
+      }
     });
   }
 
   const jobs = [...unique.values()];
-  const added = jobs.filter(job => !existing.has(jobFingerprint(job))).length;
+  const added = jobs.filter(job => !existing.has(job.fingerprint)).length;
   const updated = jobs.length - added;
 
   return {
