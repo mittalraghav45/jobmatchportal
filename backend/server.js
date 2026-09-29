@@ -10,6 +10,7 @@ dotenv.config();
 import { calculateMatchPercent, getRecommendation, parseCV, generateLatexCV, generateCoverLetter, getMatchBreakdown } from './cvJobMatcher.js';
 import { fetchAllATS, enrichWithDates } from './liveJobsScraper_new.js';
 import { buildStructuredApplicationMessages } from './applicationEngine.js';
+import { evaluateSponsorship } from './sponsorRegistry.js';
 import OpenAI from 'openai';
 
 const app = express();
@@ -32,14 +33,37 @@ function getSkills(req) {
   return req.query.skills ? req.query.skills.split(',').map(s=>s.trim()).filter(Boolean) : ['react','typescript','node.js'];
 }
 
-function enrichJobs(jobs, skills) {
+function getSponsorshipRecord(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch { return { status: String(value) }; }
+}
+
+function enrichJobs(jobs, skills, sponsorshipRecord = {}) {
+  const sponsorship = evaluateSponsorship(sponsorshipRecord);
+  const visaSponsors = sponsorship.decision === 'not-sponsor' ? false : sponsorship.decision === 'verified' ? true : null;
+
   return enrichWithDates(jobs).map(job => {
     const matchPercent = calculateMatchPercent(skills, job.description, job.title);
     const breakdown = getMatchBreakdown(skills, job.description, job.title);
-    const rec = getRecommendation(matchPercent, job.isLive, job.closing_date, null);
-    return { ...job, matchPercent, matchBreakdown:breakdown, recommendation:rec, shouldApply:rec.shouldApply, matchReason:rec.reason };
+    const rec = getRecommendation(matchPercent, job.isLive, job.closing_date, visaSponsors);
+    return {
+      ...job,
+      matchPercent,
+      matchBreakdown:breakdown,
+      sponsorship:sponsorship.sponsor,
+      sponsorshipDecision:sponsorship.decision,
+      recommendation:rec,
+      shouldApply:rec.shouldApply,
+      matchReason:rec.reason
+    };
   }).filter(j => j.isLive !== false && (j.isTech || j.matchPercent >= 15)).sort((a,b)=>b.matchPercent-a.matchPercent);
 }
+
+app.post('/api/sponsorship/evaluate',(req,res)=>{
+  const result = evaluateSponsorship(req.body?.sponsorship || req.body || {});
+  res.json(result);
+});
 
 app.get('/api/live-jobs/:company', async (req,res)=>{
   const rawCompany = req.params.company || '';
@@ -48,9 +72,10 @@ app.get('/api/live-jobs/:company', async (req,res)=>{
   const companyName = req.query.name || rawCompany;
   let careersUrl = req.query.careersUrl || '';
   if (/google\.com\/search/i.test(careersUrl)) careersUrl = '';
+  const sponsorshipRecord = getSponsorshipRecord(req.query.sponsorship);
   try {
     const jobs = await fetchAllATS(slug, companyName, careersUrl);
-    const enriched = enrichJobs(jobs, getSkills(req)).slice(0, 50);
+    const enriched = enrichJobs(jobs, getSkills(req), sponsorshipRecord).slice(0, 50);
     res.json({ company:slug, companyName, jobs:enriched, count:enriched.length, totalFound:jobs.length, fetched_at:new Date().toISOString(), source:'ats', dates_real:true, ats_used:[...new Set(enriched.map(j=>j.ats))] });
   } catch(e) { res.status(500).json({error:e.message,company:slug}); }
 });
@@ -68,7 +93,7 @@ app.post('/api/live-jobs/batch', async (req,res)=>{
     if (/google\.com\/search/i.test(careersUrl)) careersUrl='';
     try {
       const jobs=await fetchAllATS(slug,comp.name,careersUrl);
-      const enriched=enrichJobs(jobs,skills).slice(0,20);
+      const enriched=enrichJobs(jobs,skills,comp.sponsorship || {}).slice(0,20);
       results.push({company:slug,name:comp.name,jobs:enriched,count:enriched.length,ats:[...new Set(enriched.map(j=>j.ats))]});
       await new Promise(r=>setTimeout(r,500));
     } catch(e) { results.push({company:slug,name:comp.name,jobs:[],count:0,error:e.message}); }
