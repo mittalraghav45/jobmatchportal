@@ -9,6 +9,7 @@ import { resolveATSConfig } from '../ats/detector.js';
 dotenv.config();
 
 const TARGET_COMPANIES = 5;
+const CANDIDATE_LIMIT = 100;
 
 async function selectGoldenCompanies() {
   const cursor = Company.find({
@@ -20,25 +21,35 @@ async function selectGoldenCompanies() {
     .cursor();
 
   const selected = [];
+  const skipped = [];
+  let candidatesChecked = 0;
 
   for await (const company of cursor) {
+    candidatesChecked += 1;
+    if (candidatesChecked > CANDIDATE_LIMIT || selected.length >= TARGET_COMPANIES) break;
+
     const resolved = resolveATSConfig({
+      ats: company.ats,
+      atsSlug: company.metadata?.atsSlug,
       careersUrl: company.careersUrl
     });
 
-    if (!resolved.ats) continue;
+    // A golden company may have a normal corporate careers URL rather than
+    // an ATS-hosted URL. In that case use the custom careers-page adapter,
+    // which is designed to discover JobPosting JSON-LD and job links.
+    const ats = resolved.ats || 'custom';
+    const slug = resolved.slug || company.companyId;
 
     selected.push({
       ...company,
-      ats: resolved.ats,
-      atsSlug: resolved.slug,
-      atsSite: resolved.site
+      ats,
+      atsSlug: slug,
+      atsSite: resolved.site || null,
+      atsDetectionSource: resolved.source
     });
-
-    if (selected.length >= TARGET_COMPANIES) break;
   }
 
-  return selected;
+  return { selected, skipped, candidatesChecked };
 }
 
 async function main() {
@@ -47,20 +58,22 @@ async function main() {
   await connectMongo();
   console.log(`MongoDB connected: ${mongoose.connection.name}`);
 
-  const companies = await selectGoldenCompanies();
+  const { selected, candidatesChecked } = await selectGoldenCompanies();
 
-  if (companies.length === 0) {
-    throw new Error('No golden sponsor companies with a supported ATS could be found.');
+  if (selected.length === 0) {
+    throw new Error('No enabled golden sponsor companies with careers URLs could be found.');
   }
 
-  console.log(`Selected ${companies.length} golden companies.`);
+  console.log(`Checked up to ${candidatesChecked} golden companies.`);
+  console.log(`Selected ${selected.length} golden companies.`);
   console.log('');
 
   const results = [];
 
-  for (const company of companies) {
+  for (const company of selected) {
     console.log(`Testing: ${company.companyName} [${company.ats}]`);
     console.log(`Careers: ${company.careersUrl}`);
+    console.log(`ATS detection source: ${company.atsDetectionSource}`);
 
     const result = await discoverCompanyJobs(company, {
       persist: true,
@@ -77,6 +90,9 @@ async function main() {
 
     if (result.rejected?.length) {
       console.log(`Rejected: ${result.rejected.length}`);
+      result.rejected.slice(0, 5).forEach(item => {
+        console.log(`  - ${item.reason}${item.message ? `: ${item.message}` : ''}`);
+      });
     }
 
     console.log('---');
@@ -84,9 +100,11 @@ async function main() {
 
   const summary = {
     generatedAt: new Date().toISOString(),
+    candidatesChecked,
     companiesTested: results.length,
     successful: results.filter(r => r.status === 'ok').length,
     failed: results.filter(r => r.status === 'error').length,
+    unconfigured: results.filter(r => r.status === 'unconfigured').length,
     jobsDiscovered: results.reduce((sum, r) => sum + r.jobs.length, 0),
     jobsAdded: results.reduce((sum, r) => sum + r.added, 0),
     jobsUpdated: results.reduce((sum, r) => sum + r.updated, 0),
@@ -96,6 +114,7 @@ async function main() {
       companyName: r.company.companyName,
       ats: r.company.ats || null,
       careersUrl: r.company.careersUrl,
+      atsSource: r.company.atsDetectionSource || r.company.atsSource || null,
       status: r.status,
       jobs: r.jobs.length,
       added: r.added,
@@ -108,7 +127,7 @@ async function main() {
   console.log('=== CONTROLLED TEST SUMMARY ===');
   console.log(JSON.stringify(summary, null, 2));
   console.log('');
-  console.log('No other sponsor companies were scraped.');
+  console.log('Only the selected controlled companies were processed.');
   console.log('');
 
   await mongoose.disconnect();
