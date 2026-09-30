@@ -12,7 +12,7 @@ const RULES = [
   { ats: 'nhs', patterns: [/jobs\.nhs\.uk/i] }
 ];
 
-const SUPPORTED_ATS = new Set(RULES.map(rule => rule.ats));
+const SUPPORTED_ATS = new Set([...RULES.map(rule => rule.ats), 'custom']);
 
 function clean(value) {
   return String(value || '').trim().replace(/\/$/, '');
@@ -38,17 +38,9 @@ export function extractATSConfig(careersUrl = '') {
       if (!match) continue;
 
       if (rule.ats === 'workday') {
-        return {
-          ats: rule.ats,
-          slug: match[1] || null,
-          site: match[2] || null
-        };
+        return { ats: rule.ats, slug: match[1] || null, site: match[2] || null };
       }
-
-      if (rule.ats === 'nhs') {
-        return { ats: rule.ats, slug: null };
-      }
-
+      if (rule.ats === 'nhs') return { ats: rule.ats, slug: null };
       return { ats: rule.ats, slug: match[1] || null };
     }
   }
