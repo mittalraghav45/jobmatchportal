@@ -5,7 +5,7 @@ import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
 import { discoverCompanyJobs } from '../services/companyDiscovery.js';
 import { resolveATSConfig } from '../ats/detector.js';
-import { getCareerSourceOverride } from '../config/career-source-overrides.js';
+import { resolveCareerSource } from '../services/careerSourceResolver.js';
 
 dotenv.config();
 
@@ -16,60 +16,36 @@ const CONTROLLED_TEST_IDS = new Set(['1', '3', '8', '11', '12']);
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function isUsableCareerUrl(url = '') {
-  try {
-    const parsed = new URL(String(url).trim());
-    const host = parsed.hostname.toLowerCase();
-
-    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
-
-    // Never treat search-engine result pages as careers sources.
-    const blockedHosts = new Set([
-      'google.com', 'www.google.com',
-      'bing.com', 'www.bing.com',
-      'yahoo.com', 'search.yahoo.com',
-      'duckduckgo.com', 'www.duckduckgo.com'
-    ]);
-    if (blockedHosts.has(host) || host.endsWith('.google.com') || host.endsWith('.bing.com')) return false;
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function selectGoldenCompanies() {
   const cursor = Company.find({
     enabled: true,
-    careersUrl: { $exists: true, $nin: ['', null] },
     companyId: { $nin: [...CONTROLLED_TEST_IDS] }
   })
-    .select('companyId companyName companyNumber careersUrl ats enabled metadata')
+    .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
     .sort({ companyId: 1 })
     .lean()
     .cursor();
 
   const selected = [];
   let candidatesChecked = 0;
-  let unusableSourcesSkipped = 0;
+  let unresolvedSources = 0;
+  let resolvedByProbe = 0;
 
   for await (const company of cursor) {
     candidatesChecked += 1;
     if (candidatesChecked > CANDIDATE_LIMIT || selected.length >= TARGET_COMPANIES) break;
 
-    const override = getCareerSourceOverride(company);
-    const source = override || company;
-
-    // A Google/Bing search result is not a job source. Skip it and keep looking
-    // so the controlled batch contains actual careers pages or ATS endpoints.
-    if (!isUsableCareerUrl(source.careersUrl)) {
-      unusableSourcesSkipped += 1;
+    const source = await resolveCareerSource(company);
+    if (source.status !== 'resolved') {
+      unresolvedSources += 1;
       continue;
     }
 
+    if (source.source === 'website-probe') resolvedByProbe += 1;
+
     const resolved = resolveATSConfig({
-      ats: source.ats,
-      atsSlug: source.atsSlug || source.metadata?.atsSlug,
+      ats: source.ats || company.ats,
+      atsSlug: source.atsSlug || company.metadata?.atsSlug,
       careersUrl: source.careersUrl
     });
 
@@ -79,11 +55,12 @@ async function selectGoldenCompanies() {
       ats: resolved.ats || 'custom',
       atsSlug: resolved.slug || source.atsSlug || company.companyId,
       atsSite: resolved.site || null,
-      atsDetectionSource: override?.source || resolved.source || 'inferred'
+      atsDetectionSource: source.source === 'website-probe' ? 'website-probe' : (resolved.source || source.source),
+      jobSourceStatus: source.status
     });
   }
 
-  return { selected, candidatesChecked, unusableSourcesSkipped };
+  return { selected, candidatesChecked, unresolvedSources, resolvedByProbe };
 }
 
 async function main() {
@@ -91,29 +68,28 @@ async function main() {
   await connectMongo();
   console.log(`MongoDB connected: ${mongoose.connection.name}`);
 
-  const { selected, candidatesChecked, unusableSourcesSkipped } = await selectGoldenCompanies();
+  const { selected, candidatesChecked, unresolvedSources, resolvedByProbe } = await selectGoldenCompanies();
   if (selected.length === 0) {
-    throw new Error('No enabled golden sponsor companies with usable careers URLs could be found.');
+    throw new Error(`No enabled golden sponsor companies with resolvable job sources found. Checked ${candidatesChecked}; unresolved ${unresolvedSources}.`);
   }
 
   console.log(`Checked ${candidatesChecked} candidates.`);
-  console.log(`Skipped ${unusableSourcesSkipped} unusable/search-engine career URLs.`);
-  console.log(`Selected ${selected.length} new golden companies with usable source URLs.`);
+  console.log(`Unresolved sources skipped: ${unresolvedSources}.`);
+  console.log(`Sources resolved by website probing: ${resolvedByProbe}.`);
+  console.log(`Selected ${selected.length} golden companies with usable job sources.`);
   console.log(`Delay between companies: ${DELAY_MS}ms`);
   console.log('');
 
   const results = [];
-
   for (let index = 0; index < selected.length; index += 1) {
     const company = selected[index];
     console.log(`[${index + 1}/${selected.length}] ${company.companyName} [${company.ats}]`);
     console.log(`Careers: ${company.careersUrl}`);
-    console.log(`ATS source: ${company.atsDetectionSource}`);
+    console.log(`Source: ${company.atsDetectionSource}`);
 
     try {
       const result = await discoverCompanyJobs(company, { persist: true, now: new Date() });
       results.push(result);
-
       console.log(`Status: ${result.status}`);
       console.log(`Jobs discovered: ${result.jobs.length}`);
       console.log(`Added: ${result.added} | Updated: ${result.updated} | Duplicates: ${result.duplicatesRemoved}`);
@@ -131,7 +107,8 @@ async function main() {
   const summary = {
     generatedAt: new Date().toISOString(),
     candidatesChecked,
-    unusableSourcesSkipped,
+    unresolvedSources,
+    resolvedByProbe,
     companiesTested: results.length,
     successful: results.filter(r => r.status === 'ok').length,
     failed: results.filter(r => r.status === 'error').length,
