@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node -r dotenv/config routes/registerJobs.js",
+    "dev": "nodemon -r dotenv/config routes/registerJobs.js",
     "dev:node20": "node --env-file=.env routes/registerJobs.js",
     "start": "node -r dotenv/config routes/registerJobs.js",
     "test": "node --check server.js && node --test tests/*.test.js",
@@ -22,5 +22,8 @@
     "express": "^4.22.3",
     "mongoose": "^8.18.0",
     "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   }
 }
