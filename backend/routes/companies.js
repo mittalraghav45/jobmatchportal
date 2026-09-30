@@ -4,6 +4,16 @@ import { Company } from '../models/Company.js';
 
 const router = express.Router();
 
+router.get('/count', async (req, res) => {
+  try {
+    await connectMongo();
+    const total = await Company.countDocuments({});
+    res.json({ total });
+  } catch (error) {
+    res.status(503).json({ error: 'Unable to count companies', message: error.message });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     await connectMongo();
@@ -36,13 +46,7 @@ router.get('/', async (req, res) => {
       .limit(limit)
       .lean();
 
-    res.json({
-      companies,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
-    });
+    res.json({ companies, total, page, limit, totalPages: Math.ceil(total / limit) });
   } catch (error) {
     res.status(503).json({ error: 'Unable to query companies', message: error.message });
   }
