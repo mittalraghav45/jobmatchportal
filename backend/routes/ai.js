@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { connectMongo } from '../db/mongoose.js';
 import { Job } from '../models/Job.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
@@ -21,10 +22,15 @@ router.post('/job-insight', async (req, res) => {
     }
 
     if (req.body?.jobId) {
-      job = await Job.findOne({
-        $or: [{ fingerprint: String(req.body.jobId) }, { externalId: String(req.body.jobId) }]
-      }).lean();
-      if (!job) return res.status(404).json({ error: 'Job not found' });
+      const jobId = String(req.body.jobId);
+      const lookup = [
+        { fingerprint: jobId },
+        { externalId: jobId }
+      ];
+      if (mongoose.isValidObjectId(jobId)) lookup.push({ _id: new mongoose.Types.ObjectId(jobId) });
+
+      job = await Job.findOne({ $or: lookup }).lean();
+      if (!job) return res.status(404).json({ error: 'Job not found', jobId });
     }
 
     if (!profile || !job) {
