@@ -259,3 +259,172 @@ app.post('/api/live-jobs/batch', async (req, res) => {
   const { companies, cvSkills, cvText, yearsExperience } = req.body || {};
   if (!Array.isArray(companies)) return res.status(400).json({ error: 'companies array required' });
   if (companies.length > 50) return res.status(400).json({ error: 'Max 50 per batch' });
+
+  const skills = Array.isArray(cvSkills) && cvSkills.length ? cvSkills : ['react', 'typescript', 'node.js'];
+  const results = [];
+
+  for (const company of companies) {
+    const rawSlug = company?.slug || company?.name || '';
+    const slug = String(rawSlug).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 60);
+    if (!slug) {
+      results.push({ name: company?.name, jobs: [], count: 0, error: 'Invalid company' });
+      continue;
+    }
+
+    let careersUrl = String(company?.careersUrl || '').trim();
+    if (/google\.com\/search/i.test(careersUrl)) careersUrl = '';
+
+    try {
+      const jobs = await fetchAllATS(slug, company.name, careersUrl);
+      const enriched = enrichJobs(
+        jobs,
+        skills,
+        company.sponsorship || {},
+        cvText || '',
+        Number(yearsExperience || 0)
+      ).slice(0, 20);
+      results.push({
+        company: slug,
+        name: company.name,
+        jobs: enriched,
+        count: enriched.length,
+        ats: [...new Set(enriched.map(job => job.ats).filter(Boolean))]
+      });
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      results.push({ company: slug, name: company.name, jobs: [], count: 0, error: error.message });
+    }
+  }
+
+  res.json({
+    results,
+    totalCompanies: companies.length,
+    totalJobs: results.reduce((sum, result) => sum + result.count, 0)
+  });
+});
+
+app.post('/api/parse-cv', (req, res) => {
+  const { cvText } = req.body || {};
+  if (!cvText) return res.status(400).json({ error: 'cvText required' });
+  res.json(parseCV(cvText));
+});
+
+app.post('/api/generate-latex', (req, res) => {
+  const { companyName, role, jobDescription, cvSkills } = req.body || {};
+  if (!companyName || !role) return res.status(400).json({ error: 'companyName and role required' });
+  const latex = generateLatexCV({
+    companyName,
+    role,
+    jobDescription: jobDescription || '',
+    cvSkills: cvSkills || ['react', 'typescript', 'node.js']
+  });
+  res.json({
+    latex,
+    filename: `Raghav_Mittal_${companyName.replace(/\s+/g, '_')}_${role.replace(/\s+/g, '_')}.tex`
+  });
+});
+
+app.post('/api/generate-cover-letter', (req, res) => {
+  const { companyName, role, location, jobDescription } = req.body || {};
+  if (!companyName || !role) return res.status(400).json({ error: 'companyName and role required' });
+  res.json({
+    letter: generateCoverLetter({ companyName, role, location, jobDescription }),
+    filename: `Cover_Letter_${companyName.replace(/\s+/g, '_')}_${role.replace(/\s+/g, '_')}.txt`
+  });
+});
+
+app.post('/api/optimise-application', async (req, res) => {
+  const {
+    companyName, role, jobDescription, candidateEvidence,
+    candidatePack, companyMaterial, recipient, task
+  } = req.body || {};
+
+  if (!companyName || !role || !jobDescription || !(candidateEvidence || candidatePack)) {
+    return res.status(400).json({
+      error: 'companyName, role, jobDescription and candidateEvidence/candidatePack are required'
+    });
+  }
+  if (!openai) {
+    return res.status(503).json({ error: 'OpenAI is required for application optimisation', hasOpenAIKey: false });
+  }
+
+  const requestInput = {
+    companyName,
+    role,
+    jobDescription,
+    candidateEvidence,
+    candidatePack,
+    companyMaterial,
+    recipient,
+    task: task || 'full'
+  };
+  const { classification, keywords, messages } = buildStructuredApplicationMessages(requestInput);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      temperature: 0.1,
+      response_format: { type: 'json_object' }
+    }, { signal: controller.signal });
+
+    const content = completion.choices?.[0]?.message?.content || '{}';
+    let parsed = null;
+    try { parsed = JSON.parse(content); } catch { parsed = null; }
+    if (!parsed || typeof parsed !== 'object') {
+      return res.status(502).json({ error: 'Model returned invalid JSON', raw: content });
+    }
+
+    const cleaned = stripUnsupportedFields(parsed);
+    const validation = validateApplicationOutput(cleaned, {
+      publicSector: classification.isPublicSector,
+      candidateEvidence: candidateEvidence || candidatePack || ''
+    });
+
+    return res.json({
+      classification,
+      extractedKeywords: keywords,
+      result: cleaned,
+      validation,
+      source: 'openai',
+      usage: completion.usage || null
+    });
+  } catch (error) {
+    console.error('Application optimisation error:', error.message);
+    return res.status(error.name === 'AbortError' ? 504 : 502).json({
+      error: 'Application optimisation failed',
+      message: error.message
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
+app.use((error, req, res, next) => {
+  console.error(error);
+  if (res.headersSent) return next(error);
+  res.status(500).json({ error: 'Server error', message: error.message });
+});
+
+export { app };
+
+export function startServer(port = PORT) {
+  const server = app.listen(port, () => {
+    console.log(`Backend http://localhost:${port}`);
+  });
+  server.on('error', error => {
+    if (error.code === 'EADDRINUSE') {
+      console.log(`Port ${port} in use, trying ${port + 1}`);
+      startServer(port + 1);
+    } else {
+      console.error(error);
+    }
+  });
+  return server;
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  startServer(PORT);
+}
