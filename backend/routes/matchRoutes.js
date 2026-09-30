@@ -4,6 +4,7 @@ import { Company } from '../models/Company.js';
 import { matchJobToProfile } from '../profileMatching.js';
 import { DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
 import { ukJobMongoFilter } from '../utils/ukJobLocation.js';
+import { techJobMongoFilter } from '../utils/techJobRole.js';
 
 const router = express.Router();
 
@@ -90,7 +91,8 @@ router.post('/jobs', async (req, res) => {
     const filter = {
       $and: [
         { 'status.isLive': { $ne: false } },
-        ukJobMongoFilter()
+        ukJobMongoFilter(),
+        techJobMongoFilter()
       ]
     };
     if (sponsorshipCompanyIds) {
@@ -147,6 +149,7 @@ router.post('/jobs', async (req, res) => {
       pages: Math.ceil(total / limit),
       matches,
       market: 'United Kingdom',
+      roleType: 'Technology',
       sponsorshipFilter: sponsorship || 'all'
     });
   } catch (error) {
