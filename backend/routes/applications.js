@@ -1,7 +1,9 @@
 import express from 'express';
 import { connectMongo } from '../db/mongoose.js';
 import { Application } from '../models/Application.js';
+import { CandidateProfile } from '../models/CandidateProfile.js';
 import { createApplication, transitionApplication, summariseApplications } from '../applicationStore.js';
+import { generateApplicationPack } from '../applicationPackGenerator.js';
 
 const router = express.Router();
 
@@ -52,13 +54,7 @@ router.post('/', async (req, res) => {
     const document = new Application({
       applicationId: application.id,
       profileId: payload.profileId || null,
-      job: {
-        id: job.id || null,
-        title: job.title,
-        company: job.company || job.companyName,
-        companyId: job.companyId || null,
-        url: job.url || null
-      },
+      job: { id: job.id || null, title: job.title, company: job.company || job.companyName, companyId: job.companyId || null, url: job.url || null },
       match: payload.match || {},
       specialist: payload.specialist || 'all-in-one',
       status: 'saved',
@@ -72,6 +68,37 @@ router.post('/', async (req, res) => {
     return res.status(201).json(saved.toObject());
   } catch (error) {
     return res.status(400).json({ error: 'Unable to create application', message: error.message });
+  }
+});
+
+router.post('/:applicationId/generate-pack', async (req, res) => {
+  try {
+    await connectMongo();
+    const application = await Application.findOne({ applicationId: String(req.params.applicationId) }).lean();
+    if (!application) return res.status(404).json({ error: 'Application not found' });
+
+    const profileId = req.body?.profileId || application.profileId;
+    const candidate = profileId
+      ? await CandidateProfile.findOne({ profileId: String(profileId) }).lean()
+      : req.body?.candidate;
+    if (!candidate) return res.status(400).json({ error: 'Candidate profile/evidence is required.' });
+
+    const job = req.body?.job || application.job;
+    const result = await generateApplicationPack({ job, candidate, task: req.body?.task || 'full' });
+
+    if (result.pack) {
+      const materials = { ...(application.materials || {}), applicationPack: result.pack };
+      const saved = await Application.findOneAndUpdate(
+        { applicationId: application.applicationId },
+        { $set: { materials, status: 'tailoring', updatedAt: new Date() } },
+        { new: true, runValidators: true }
+      ).lean();
+      return res.json({ application: saved, generation: result });
+    }
+
+    return res.json({ application, generation: result });
+  } catch (error) {
+    return res.status(400).json({ error: 'Unable to generate application pack', message: error.message });
   }
 });
 
