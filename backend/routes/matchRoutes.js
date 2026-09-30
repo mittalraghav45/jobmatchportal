@@ -3,6 +3,7 @@ import { Job } from '../models/Job.js';
 import { Company } from '../models/Company.js';
 import { matchJobToProfile } from '../profileMatching.js';
 import { DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
+import { ukJobMongoFilter } from '../utils/ukJobLocation.js';
 
 const router = express.Router();
 
@@ -67,7 +68,12 @@ router.post('/jobs', async (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.body?.limit || 20)));
     const skip = (page - 1) * limit;
 
-    const filter = { 'status.isLive': { $ne: false } };
+    const filter = {
+      $and: [
+        { 'status.isLive': { $ne: false } },
+        ukJobMongoFilter()
+      ]
+    };
     const [jobs, total] = await Promise.all([
       Job.find(filter).sort({ 'dates.lastSeenAt': -1, _id: -1 }).skip(skip).limit(limit).lean(),
       Job.countDocuments(filter)
@@ -116,7 +122,8 @@ router.post('/jobs', async (req, res) => {
       limit,
       total,
       pages: Math.ceil(total / limit),
-      matches
+      matches,
+      market: 'United Kingdom'
     });
   } catch (error) {
     if (error.code === 'PROFILE_NOT_FOUND') {
