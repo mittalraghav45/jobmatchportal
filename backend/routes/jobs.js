@@ -2,6 +2,7 @@ import express from 'express';
 import { connectMongo } from '../db/mongoose.js';
 import { Job } from '../models/Job.js';
 import { Company } from '../models/Company.js';
+import { ukJobMongoFilter } from '../utils/ukJobLocation.js';
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ router.get('/', async (req, res) => {
 
     const page = clampInteger(req.query.page, 1, 1, 100000);
     const limit = clampInteger(req.query.limit, 25, 1, 100);
-    const filter = {};
+    const filter = { $and: [ukJobMongoFilter()] };
 
     if (req.query.company) filter.companyId = String(req.query.company).trim().toLowerCase();
     if (req.query.ats) filter['source.ats'] = String(req.query.ats).trim().toLowerCase();
@@ -67,11 +68,13 @@ router.get('/', async (req, res) => {
     if (req.query.q) {
       const search = escapeRegex(String(req.query.q).trim());
       if (search) {
-        filter.$or = [
-          { title: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } },
-          { location: { $regex: search, $options: 'i' } }
-        ];
+        filter.$and.push({
+          $or: [
+            { title: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } },
+            { location: { $regex: search, $options: 'i' } }
+          ]
+        });
       }
     }
 
@@ -110,17 +113,19 @@ router.get('/', async (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     await connectMongo();
+    const ukFilter = ukJobMongoFilter();
     const [total, live, companies] = await Promise.all([
-      Job.countDocuments(),
-      Job.countDocuments({ 'status.isLive': true }),
-      Job.distinct('companyId')
+      Job.countDocuments(ukFilter),
+      Job.countDocuments({ $and: [ukFilter, { 'status.isLive': true }] }),
+      Job.distinct('companyId', ukFilter)
     ]);
 
     return res.json({
       total,
       live,
       closed: total - live,
-      companies: companies.length
+      companies: companies.length,
+      market: 'United Kingdom'
     });
   } catch (error) {
     console.error('Jobs stats error:', error.message);
@@ -135,10 +140,13 @@ router.get('/:id', async (req, res) => {
     if (!id) return res.status(400).json({ error: 'job id required' });
 
     const job = await Job.findOne({
-      $or: [{ fingerprint: id }, { externalId: id }]
+      $and: [
+        { $or: [{ fingerprint: id }, { externalId: id }] },
+        ukJobMongoFilter()
+      ]
     }).lean();
 
-    if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (!job) return res.status(404).json({ error: 'UK job not found' });
     const [enriched] = await enrichJobs([job]);
     return res.json({ job: enriched });
   } catch (error) {
