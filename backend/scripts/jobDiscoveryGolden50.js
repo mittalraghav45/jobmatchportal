@@ -10,11 +10,33 @@ import { getCareerSourceOverride } from '../config/career-source-overrides.js';
 dotenv.config();
 
 const TARGET_COMPANIES = 50;
-const CANDIDATE_LIMIT = 1000;
+const CANDIDATE_LIMIT = 5000;
 const DELAY_MS = 750;
 const CONTROLLED_TEST_IDS = new Set(['1', '3', '8', '11', '12']);
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function isUsableCareerUrl(url = '') {
+  try {
+    const parsed = new URL(String(url).trim());
+    const host = parsed.hostname.toLowerCase();
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+
+    // Never treat search-engine result pages as careers sources.
+    const blockedHosts = new Set([
+      'google.com', 'www.google.com',
+      'bing.com', 'www.bing.com',
+      'yahoo.com', 'search.yahoo.com',
+      'duckduckgo.com', 'www.duckduckgo.com'
+    ]);
+    if (blockedHosts.has(host) || host.endsWith('.google.com') || host.endsWith('.bing.com')) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function selectGoldenCompanies() {
   const cursor = Company.find({
@@ -29,6 +51,7 @@ async function selectGoldenCompanies() {
 
   const selected = [];
   let candidatesChecked = 0;
+  let unusableSourcesSkipped = 0;
 
   for await (const company of cursor) {
     candidatesChecked += 1;
@@ -36,6 +59,14 @@ async function selectGoldenCompanies() {
 
     const override = getCareerSourceOverride(company);
     const source = override || company;
+
+    // A Google/Bing search result is not a job source. Skip it and keep looking
+    // so the controlled batch contains actual careers pages or ATS endpoints.
+    if (!isUsableCareerUrl(source.careersUrl)) {
+      unusableSourcesSkipped += 1;
+      continue;
+    }
+
     const resolved = resolveATSConfig({
       ats: source.ats,
       atsSlug: source.atsSlug || source.metadata?.atsSlug,
@@ -52,7 +83,7 @@ async function selectGoldenCompanies() {
     });
   }
 
-  return { selected, candidatesChecked };
+  return { selected, candidatesChecked, unusableSourcesSkipped };
 }
 
 async function main() {
@@ -60,13 +91,14 @@ async function main() {
   await connectMongo();
   console.log(`MongoDB connected: ${mongoose.connection.name}`);
 
-  const { selected, candidatesChecked } = await selectGoldenCompanies();
+  const { selected, candidatesChecked, unusableSourcesSkipped } = await selectGoldenCompanies();
   if (selected.length === 0) {
-    throw new Error('No enabled golden sponsor companies with careers URLs could be found.');
+    throw new Error('No enabled golden sponsor companies with usable careers URLs could be found.');
   }
 
   console.log(`Checked ${candidatesChecked} candidates.`);
-  console.log(`Selected ${selected.length} new golden companies.`);
+  console.log(`Skipped ${unusableSourcesSkipped} unusable/search-engine career URLs.`);
+  console.log(`Selected ${selected.length} new golden companies with usable source URLs.`);
   console.log(`Delay between companies: ${DELAY_MS}ms`);
   console.log('');
 
@@ -88,7 +120,7 @@ async function main() {
       if (result.rejected?.length) console.log(`Rejected: ${result.rejected.length}`);
     } catch (error) {
       results.push({ company, status: 'error', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'exception', message: error.message }] });
-      console.log(`Status: error`);
+      console.log('Status: error');
       console.log(`Error: ${error.message}`);
     }
 
@@ -99,10 +131,12 @@ async function main() {
   const summary = {
     generatedAt: new Date().toISOString(),
     candidatesChecked,
+    unusableSourcesSkipped,
     companiesTested: results.length,
     successful: results.filter(r => r.status === 'ok').length,
     failed: results.filter(r => r.status === 'error').length,
     unconfigured: results.filter(r => r.status === 'unconfigured').length,
+    invalid: results.filter(r => r.status === 'invalid').length,
     jobsDiscovered: results.reduce((sum, r) => sum + (r.jobs?.length || 0), 0),
     jobsAdded: results.reduce((sum, r) => sum + (r.added || 0), 0),
     jobsUpdated: results.reduce((sum, r) => sum + (r.updated || 0), 0),
