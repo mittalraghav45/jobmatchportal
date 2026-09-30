@@ -7,6 +7,23 @@ import { ukJobMongoFilter } from '../utils/ukJobLocation.js';
 
 const router = express.Router();
 
+function resolveSponsorship(value) {
+  if (value === undefined || value === '') return null;
+  const sponsorship = String(value).trim().toLowerCase();
+  if (!['verified', 'not-sponsor', 'unknown'].includes(sponsorship)) {
+    const error = new Error('sponsorship must be verified, not-sponsor, or unknown');
+    error.code = 'INVALID_SPONSORSHIP_FILTER';
+    throw error;
+  }
+  return sponsorship;
+}
+
+async function companyIdsForSponsorship(sponsorship) {
+  if (!sponsorship) return null;
+  const companies = await Company.find({ sponsorship }).select('companyId').lean();
+  return companies.map(company => String(company.companyId));
+}
+
 // Single-job endpoint used by the existing frontend match modal.
 router.post('/', async (req, res) => {
   try {
@@ -67,6 +84,8 @@ router.post('/jobs', async (req, res) => {
     const page = Math.max(1, Number(req.body?.page || 1));
     const limit = Math.min(100, Math.max(1, Number(req.body?.limit || 20)));
     const skip = (page - 1) * limit;
+    const sponsorship = resolveSponsorship(req.body?.sponsorship);
+    const sponsorshipCompanyIds = await companyIdsForSponsorship(sponsorship);
 
     const filter = {
       $and: [
@@ -74,6 +93,10 @@ router.post('/jobs', async (req, res) => {
         ukJobMongoFilter()
       ]
     };
+    if (sponsorshipCompanyIds) {
+      filter.companyId = { $in: sponsorshipCompanyIds };
+    }
+
     const [jobs, total] = await Promise.all([
       Job.find(filter).sort({ 'dates.lastSeenAt': -1, _id: -1 }).skip(skip).limit(limit).lean(),
       Job.countDocuments(filter)
@@ -123,11 +146,15 @@ router.post('/jobs', async (req, res) => {
       total,
       pages: Math.ceil(total / limit),
       matches,
-      market: 'United Kingdom'
+      market: 'United Kingdom',
+      sponsorshipFilter: sponsorship || 'all'
     });
   } catch (error) {
     if (error.code === 'PROFILE_NOT_FOUND') {
       return res.status(404).json({ error: error.message });
+    }
+    if (error.code === 'INVALID_SPONSORSHIP_FILTER') {
+      return res.status(400).json({ error: error.message });
     }
     console.error('Bulk matching error:', error);
     return res.status(503).json({ error: 'Bulk job matching unavailable', detail: error.message });
