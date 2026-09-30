@@ -7,6 +7,7 @@ import { normaliseJob, jobFingerprint } from '../models/jobSchema.js';
 export function ingestJobs(rawJobs = [], { existing = new Map(), now = new Date().toISOString() } = {}) {
   const unique = new Map();
   const rejected = [];
+  let duplicatesRemoved = 0;
 
   for (const raw of rawJobs) {
     const job = normaliseJob(raw);
@@ -21,7 +22,14 @@ export function ingestJobs(rawJobs = [], { existing = new Map(), now = new Date(
       continue;
     }
 
-    const previous = unique.get(fingerprint) || existing.get(fingerprint);
+    // A duplicate in the same discovery response must not become a second
+    // update. Keep the first record and count later copies separately.
+    if (unique.has(fingerprint)) {
+      duplicatesRemoved += 1;
+      continue;
+    }
+
+    const previous = existing.get(fingerprint);
     unique.set(fingerprint, {
       ...job,
       id: previous?.id || job.id || fingerprint,
@@ -29,21 +37,28 @@ export function ingestJobs(rawJobs = [], { existing = new Map(), now = new Date(
         ...job.dates,
         lastSeenAt: now,
         postedAt: job.dates?.postedAt || previous?.dates?.postedAt || null,
-        closingAt: job.dates?.closingAt || previous?.dates?.closingAt || null
+        closingAt: job.dates?.closingAt || previous?.dates?.closingAt || null,
+        firstSeenAt: previous?.dates?.firstSeenAt || job.dates?.firstSeenAt || previous?.firstSeenAt || now
       },
       firstSeenAt: previous?.firstSeenAt || job.firstSeenAt || now
     });
   }
 
   const jobs = [...unique.values()];
-  const added = jobs.filter(job => !existing.has(jobFingerprint(job))).length;
-  const updated = jobs.length - added;
+  let added = 0;
+  let updated = 0;
+
+  for (const job of jobs) {
+    const fingerprint = jobFingerprint(job);
+    if (existing.has(fingerprint)) updated += 1;
+    else added += 1;
+  }
 
   return {
     jobs,
     added,
     updated,
-    duplicatesRemoved: Math.max(0, rawJobs.length - jobs.length - rejected.length),
+    duplicatesRemoved,
     rejected
   };
 }
