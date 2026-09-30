@@ -10,7 +10,8 @@
     "import:dummy-companies": "node -r dotenv/config scripts/importDummyCompanies.js",
     "import:sponsors": "node -r dotenv/config scripts/importSponsorCompanies.js",
     "discover:companies": "node -r dotenv/config scripts/discoverCompanies.js",
-    "discover:golden5": "node -r dotenv/config scripts/jobDiscoveryGolden5.js"
+    "discover:golden5": "node -r dotenv/config scripts/jobDiscoveryGolden5.js",
+    "discover:golden50": "node -r dotenv/config scripts/jobDiscoveryGolden50.js"
   },
   "dependencies": {
     "axios": "^1.20.0",
