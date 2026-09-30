@@ -1,7 +1,7 @@
 import express from 'express';
 import { connectMongo } from '../db/mongoose.js';
 import { Application } from '../models/Application.js';
-import { createApplication, transitionApplication, updateApplicationDocuments, summariseApplications } from '../applicationStore.js';
+import { createApplication, transitionApplication, summariseApplications } from '../applicationStore.js';
 
 const router = express.Router();
 
@@ -45,20 +45,27 @@ router.post('/', async (req, res) => {
   try {
     const payload = req.body || {};
     const application = createApplication(payload);
+    const job = payload.job || {};
+    if (!job.title || !(job.company || job.companyName)) {
+      return res.status(400).json({ error: 'Job title and company are required.' });
+    }
     const document = new Application({
-      ...application,
       applicationId: application.id,
       profileId: payload.profileId || null,
       job: {
-        id: payload.job?.id || null,
-        title: payload.job?.title || '',
-        company: payload.job?.company || payload.job?.companyName || '',
-        companyId: payload.job?.companyId || null,
-        url: payload.job?.url || null
+        id: job.id || null,
+        title: job.title,
+        company: job.company || job.companyName,
+        companyId: job.companyId || null,
+        url: job.url || null
       },
       match: payload.match || {},
       specialist: payload.specialist || 'all-in-one',
-      materials: payload.materials || payload.documents || {}
+      status: 'saved',
+      materials: payload.materials || payload.documents || {},
+      notes: String(payload.notes || ''),
+      createdAt: application.createdAt,
+      updatedAt: application.updatedAt
     });
     await connectMongo();
     const saved = await document.save();
@@ -90,10 +97,10 @@ router.patch('/:applicationId/materials', async (req, res) => {
     await connectMongo();
     const existing = await Application.findOne({ applicationId: String(req.params.applicationId) }).lean();
     if (!existing) return res.status(404).json({ error: 'Application not found' });
-    const updated = updateApplicationDocuments(existing, req.body?.materials || req.body || {});
+    const materials = { ...(existing.materials || {}), ...(req.body?.materials || req.body || {}) };
     const saved = await Application.findOneAndUpdate(
       { applicationId: existing.applicationId },
-      { $set: { materials: updated.documents || updated.materials, updatedAt: updated.updatedAt } },
+      { $set: { materials, updatedAt: new Date() } },
       { new: true, runValidators: true }
     ).lean();
     return res.json(saved);
