@@ -1,54 +1,118 @@
 import { Job } from '../models/Job.js';
 import { normaliseJob, jobFingerprint } from '../models/jobSchema.js';
 
-export async function upsertJob(rawJob) {
+function toDateOrNull(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toMongoJob(rawJob, now) {
   const job = normaliseJob(rawJob);
   const fingerprint = jobFingerprint(job);
+
   if (!job.title || !job.companyId || !fingerprint) {
     throw new Error('Job requires title, companyId and a fingerprint.');
   }
 
-  const now = new Date();
-  const postedAt = job.dates?.postedAt ? new Date(job.dates.postedAt) : null;
-  const closingAt = job.dates?.closingAt ? new Date(job.dates.closingAt) : null;
+  const seenAt = toDateOrNull(now) || new Date();
+  const postedAt = toDateOrNull(job.dates?.postedAt);
+  const closingAt = toDateOrNull(job.dates?.closingAt);
 
-  const setFields = {
-    schemaVersion: job.schemaVersion,
-    id: job.id,
-    externalId: job.externalId,
-    companyId: job.companyId,
-    title: job.title,
-    description: job.description,
-    location: job.location,
-    employmentType: job.employmentType,
-    department: job.department,
-    source: job.source,
-    'dates.postedAt': Number.isNaN(postedAt?.getTime?.()) ? null : postedAt,
-    'dates.closingAt': Number.isNaN(closingAt?.getTime?.()) ? null : closingAt,
-    'dates.lastSeenAt': now,
-    'status.isLive': job.status?.isLive !== false,
-    raw: job.raw
+  return {
+    fingerprint,
+    update: {
+      schemaVersion: job.schemaVersion,
+      externalId: job.externalId,
+      companyId: job.companyId,
+      title: job.title,
+      description: job.description,
+      location: job.location,
+      employmentType: job.employmentType,
+      department: job.department,
+      source: job.source,
+      'dates.postedAt': postedAt,
+      'dates.closingAt': closingAt,
+      'dates.lastSeenAt': seenAt,
+      'status.isLive': job.status?.isLive !== false,
+      raw: job.raw
+    }
   };
+}
+
+/**
+ * Upsert one canonical job. The fingerprint is the idempotency key.
+ */
+export async function upsertJob(rawJob, { now = new Date() } = {}) {
+  const { fingerprint, update } = toMongoJob(rawJob, now);
 
   return Job.findOneAndUpdate(
     { fingerprint },
     {
-      $set: setFields,
-      $setOnInsert: { 'dates.firstSeenAt': now }
+      $set: update,
+      $setOnInsert: {
+        fingerprint,
+        'dates.firstSeenAt': toDateOrNull(now) || new Date()
+      }
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).lean();
 }
 
-export async function upsertJobs(rawJobs = []) {
-  const results = { saved: 0, rejected: [] };
-  for (const raw of rawJobs) {
+/**
+ * Persist a discovery batch and report whether records were inserted or
+ * already existed. Duplicate fingerprints inside the same batch are collapsed
+ * before writing so one discovery response cannot inflate the counts.
+ */
+export async function upsertJobs(rawJobs = [], { now = new Date() } = {}) {
+  const operations = [];
+  const rejected = [];
+  const seen = new Set();
+
+  for (const rawJob of rawJobs) {
     try {
-      await upsertJob(raw);
-      results.saved += 1;
+      const { fingerprint, update } = toMongoJob(rawJob, now);
+      if (seen.has(fingerprint)) continue;
+      seen.add(fingerprint);
+
+      operations.push({
+        updateOne: {
+          filter: { fingerprint },
+          update: {
+            $set: update,
+            $setOnInsert: {
+              fingerprint,
+              'dates.firstSeenAt': toDateOrNull(now) || new Date()
+            }
+          },
+          upsert: true
+        }
+      });
     } catch (error) {
-      results.rejected.push({ raw, error: error.message });
+      rejected.push({ raw: rawJob, reason: error.message });
     }
   }
-  return results;
+
+  if (!operations.length) {
+    return { added: 0, updated: 0, matched: 0, upserted: 0, rejected };
+  }
+
+  const result = await Job.bulkWrite(operations, { ordered: false });
+  return {
+    added: result.upsertedCount || 0,
+    updated: result.modifiedCount || 0,
+    matched: result.matchedCount || 0,
+    upserted: result.upsertedCount || 0,
+    rejected
+  };
+}
+
+export async function countJobs(filter = {}) {
+  return Job.countDocuments(filter);
+}
+
+export async function findJobs(filter = {}, options = {}) {
+  const query = Job.find(filter).sort(options.sort || { 'dates.lastSeenAt': -1 });
+  if (options.limit) query.limit(options.limit);
+  return query.lean();
 }
