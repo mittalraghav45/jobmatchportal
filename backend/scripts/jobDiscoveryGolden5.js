@@ -5,6 +5,7 @@ import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
 import { discoverCompanyJobs } from '../services/companyDiscovery.js';
 import { resolveATSConfig } from '../ats/detector.js';
+import { getCareerSourceOverride } from '../config/career-source-overrides.js';
 
 dotenv.config();
 
@@ -21,35 +22,35 @@ async function selectGoldenCompanies() {
     .cursor();
 
   const selected = [];
-  const skipped = [];
   let candidatesChecked = 0;
 
   for await (const company of cursor) {
     candidatesChecked += 1;
     if (candidatesChecked > CANDIDATE_LIMIT || selected.length >= TARGET_COMPANIES) break;
 
+    const override = getCareerSourceOverride(company);
+    const source = override || company;
+
     const resolved = resolveATSConfig({
-      ats: company.ats,
-      atsSlug: company.metadata?.atsSlug,
-      careersUrl: company.careersUrl
+      ats: source.ats,
+      atsSlug: source.atsSlug || source.metadata?.atsSlug,
+      careersUrl: source.careersUrl
     });
 
-    // A golden company may have a normal corporate careers URL rather than
-    // an ATS-hosted URL. In that case use the custom careers-page adapter,
-    // which is designed to discover JobPosting JSON-LD and job links.
     const ats = resolved.ats || 'custom';
-    const slug = resolved.slug || company.companyId;
+    const slug = resolved.slug || source.atsSlug || company.companyId;
 
     selected.push({
       ...company,
+      careersUrl: source.careersUrl,
       ats,
       atsSlug: slug,
       atsSite: resolved.site || null,
-      atsDetectionSource: resolved.source
+      atsDetectionSource: override?.source || resolved.source
     });
   }
 
-  return { selected, skipped, candidatesChecked };
+  return { selected, candidatesChecked };
 }
 
 async function main() {
