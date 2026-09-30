@@ -1,9 +1,6 @@
 import { ATSAdapter, createATSRegistry } from './adapter.js';
-import {
-  fetchGreenhouse, fetchLever, fetchAshby, fetchWorkday,
-  fetchSmartRecruiters, fetchWorkable, fetchTeamtailor,
-  fetchPinpoint, fetchRecruitee, fetchBambooHR, fetchNHSJobs
-} from '../liveJobsScraper_new.js';
+import { fetchGreenhouse, fetchLever, fetchAshby, fetchWorkday, fetchSmartRecruiters, fetchWorkable, fetchTeamtailor, fetchPinpoint, fetchRecruitee, fetchBambooHR, fetchNHSJobs } from '../liveJobsScraper_new.js';
+import { fetchCustomCareersPage } from './custom.js';
 
 export const atsRegistry = createATSRegistry([
   new ATSAdapter('greenhouse', ({ slug }) => fetchGreenhouse(slug)),
@@ -16,7 +13,8 @@ export const atsRegistry = createATSRegistry([
   new ATSAdapter('pinpoint', ({ slug }) => fetchPinpoint(slug)),
   new ATSAdapter('recruitee', ({ slug }) => fetchRecruitee(slug)),
   new ATSAdapter('bamboohr', ({ slug }) => fetchBambooHR(slug)),
-  new ATSAdapter('nhs', ({ companyName }) => fetchNHSJobs(companyName))
+  new ATSAdapter('nhs', ({ companyName }) => fetchNHSJobs(companyName)),
+  new ATSAdapter('custom', ({ careersUrl, companyId, companyName }) => fetchCustomCareersPage(careersUrl, { companyId, companyName }))
 ]);
 
 export function getSupportedATS() {
