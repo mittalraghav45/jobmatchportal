@@ -8,6 +8,7 @@
     "start": "node -r dotenv/config routes/registerJobs.js",
     "test": "node --check server.js && node --test tests/*.test.js",
     "import:dummy-companies": "node -r dotenv/config scripts/importDummyCompanies.js",
+    "import:sponsors": "node -r dotenv/config scripts/importSponsorCompanies.js",
     "discover:companies": "node -r dotenv/config scripts/discoverCompanies.js"
   },
   "dependencies": {
