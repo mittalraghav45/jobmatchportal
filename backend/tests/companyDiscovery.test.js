@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { detectATS, normaliseCompanyConfig } from '../services/companyDiscovery.js';
-import { extractATSConfig, resolveATSConfig } from '../ats/detector.js';
+import { extractATSConfig, resolveATSConfig, isSupportedATS } from '../ats/detector.js';
+import { getSupportedATS } from '../ats/registry.js';
 import { ingestJobs } from '../services/jobIngestion.js';
 
 const NOW = '2026-09-29T00:00:00.000Z';
@@ -19,6 +20,14 @@ test('detectATS identifies supported ATS from careers URLs', () => {
   assert.equal(detectATS('https://example.bamboohr.com/careers'), 'bamboohr');
   assert.equal(detectATS('https://www.jobs.nhs.uk/candidate/search'), 'nhs');
   assert.equal(detectATS('https://example.com/careers'), null);
+});
+
+test('custom is an explicit supported adapter for non-standard careers sites', () => {
+  assert.equal(isSupportedATS('custom'), true);
+  assert.equal(getSupportedATS().includes('custom'), true);
+  const result = resolveATSConfig({ ats: 'custom', careersUrl: 'https://example.com/careers' });
+  assert.equal(result.ats, 'custom');
+  assert.equal(result.source, 'explicit');
 });
 
 test('extractATSConfig derives ATS and slug from common URL formats', () => {
