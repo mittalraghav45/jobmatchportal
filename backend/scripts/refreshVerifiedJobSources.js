@@ -4,14 +4,16 @@ import mongoose from 'mongoose';
 import { connectMongo } from '../db/mongoose.js';
 import { Job } from '../models/Job.js';
 import { Company } from '../models/Company.js';
-import { ingestCompanyJobs } from '../jobs/ingestion.js';
+import { discoverCompanyJobs } from '../services/companyDiscovery.js';
 
 const registryPath = path.resolve(process.cwd(), 'config/job-source-registry.json');
 
 function loadRegistry() {
   const raw = fs.readFileSync(registryPath, 'utf8');
   const registry = JSON.parse(raw);
-  if (!Array.isArray(registry.sources)) throw new Error('Invalid job-source registry: sources must be an array.');
+  if (!Array.isArray(registry.sources)) {
+    throw new Error('Invalid job-source registry: sources must be an array.');
+  }
   return registry.sources.filter(source => source.status === 'verified');
 }
 
@@ -33,6 +35,7 @@ async function run() {
     jobsAdded: 0,
     jobsUpdated: 0,
     duplicatesRemoved: 0,
+    rejected: 0
   };
 
   for (const source of sources) {
@@ -44,25 +47,38 @@ async function run() {
       const company = await Company.findOne({ companyId: String(source.companyId) }).lean();
       if (!company) throw new Error(`Golden company ${source.companyId} not found in MongoDB.`);
 
-      const result = await ingestCompanyJobs({
-        company: {
+      const result = await discoverCompanyJobs(
+        {
           ...company,
+          companyId: String(source.companyId),
           companyName: source.companyName,
           careersUrl: source.sourceUrl,
           ats: source.ats,
+          atsSlug: source.atsSlug || company.atsSlug,
+          atsSite: source.atsSite || company.atsSite
         },
-      });
+        { persist: true, now: new Date() }
+      );
+
+      if (result.status === 'error' || result.status === 'invalid' || result.status === 'unconfigured') {
+        summary.failed += 1;
+        summary.rejected += result.rejected?.length || 0;
+        console.log(`Status: ${result.status}`);
+        continue;
+      }
 
       summary.successful += 1;
-      summary.jobsDiscovered += result.jobsDiscovered ?? result.discovered ?? 0;
-      summary.jobsAdded += result.jobsAdded ?? result.added ?? 0;
-      summary.jobsUpdated += result.jobsUpdated ?? result.updated ?? 0;
-      summary.duplicatesRemoved += result.duplicatesRemoved ?? 0;
+      summary.jobsDiscovered += result.jobs.length;
+      summary.jobsAdded += result.added;
+      summary.jobsUpdated += result.updated;
+      summary.duplicatesRemoved += result.duplicatesRemoved;
+      summary.rejected += result.rejected?.length || 0;
 
-      console.log(`Status: ok`);
-      console.log(`Jobs discovered: ${result.jobsDiscovered ?? result.discovered ?? 0}`);
-      console.log(`Jobs added: ${result.jobsAdded ?? result.added ?? 0}`);
-      console.log(`Jobs updated: ${result.jobsUpdated ?? result.updated ?? 0}`);
+      console.log('Status: ok');
+      console.log(`Jobs discovered: ${result.jobs.length}`);
+      console.log(`Jobs added: ${result.added}`);
+      console.log(`Jobs updated: ${result.updated}`);
+      console.log(`Duplicates removed: ${result.duplicatesRemoved}`);
     } catch (error) {
       summary.failed += 1;
       console.error(`Status: failed - ${error.message}`);
