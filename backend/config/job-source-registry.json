@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "description": "Verified job-discovery sources. Golden sponsor data remains the authoritative company/sponsorship dataset.",
+  "sources": [
+    {
+      "companyId": "3",
+      "companyName": "Confluent",
+      "ats": "ashby",
+      "sourceUrl": "https://jobs.ashbyhq.com/confluent",
+      "sourceType": "ats",
+      "status": "verified",
+      "notes": "Verified during controlled ingestion test; 17 jobs discovered."
+    },
+    {
+      "companyId": "1",
+      "companyName": "Vercel UK Limited",
+      "ats": "greenhouse",
+      "sourceUrl": "https://job-boards.greenhouse.io/vercel",
+      "sourceType": "ats",
+      "status": "verified",
+      "notes": "Verified during controlled ingestion test; 91 jobs discovered."
+    },
+    {
+      "companyId": "11",
+      "companyName": "GoCardless",
+      "ats": "greenhouse",
+      "sourceUrl": "https://job-boards.greenhouse.io/gocardless",
+      "sourceType": "ats",
+      "status": "verified",
+      "notes": "Verified during controlled ingestion test; 24 jobs discovered."
+    }
+  ]
+}
