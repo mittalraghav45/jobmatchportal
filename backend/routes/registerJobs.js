@@ -1,9 +1,10 @@
 import { app } from '../server.js';
-import jobsRouter from './jobs.js';
+import { registerCoreRoutes } from './registerCoreRoutes.js';
+import matchRouter from './match.js';
 
-// Mount the MongoDB-backed jobs API after the existing server module is loaded.
-// Express applications remain mutable after listen(), so this keeps server.js
-// stable while allowing the jobs API to evolve independently.
-app.use('/api/jobs', jobsRouter);
+// Route registration is kept outside server.js so the application bootstrap
+// remains stable while API modules evolve independently.
+registerCoreRoutes(app);
+app.use('/api/match', matchRouter);
 
-console.log('MongoDB jobs API mounted at /api/jobs');
+console.log('Core MongoDB APIs mounted: /api/jobs, /api/companies, /api/profile, /api/match');
