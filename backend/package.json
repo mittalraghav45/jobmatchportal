@@ -11,7 +11,8 @@
     "import:sponsors": "node -r dotenv/config scripts/importSponsorCompanies.js",
     "discover:companies": "node -r dotenv/config scripts/discoverCompanies.js",
     "discover:golden5": "node -r dotenv/config scripts/jobDiscoveryGolden5.js",
-    "discover:golden50": "node -r dotenv/config scripts/jobDiscoveryGolden50.js"
+    "discover:golden50": "node -r dotenv/config scripts/jobDiscoveryGolden50.js",
+    "jobs:refresh": "node -r dotenv/config scripts/refreshVerifiedJobSources.js"
   },
   "dependencies": {
     "axios": "^1.20.0",
