@@ -1,6 +1,7 @@
 import express from 'express';
 import { connectMongo } from '../db/mongoose.js';
 import { Job } from '../models/Job.js';
+import { Company } from '../models/Company.js';
 
 const router = express.Router();
 
@@ -19,6 +20,31 @@ function clampInteger(value, fallback, min, max) {
 
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function enrichJobs(jobs) {
+  const companyIds = [...new Set(jobs.map(job => String(job.companyId || '').trim()).filter(Boolean))];
+  if (!companyIds.length) return jobs;
+
+  const companies = await Company.find({ companyId: { $in: companyIds } })
+    .select({ companyId: 1, companyName: 1, sponsorship: 1, careersUrl: 1, metadata: 1 })
+    .lean();
+  const byId = new Map(companies.map(company => [String(company.companyId), company]));
+
+  return jobs.map(job => {
+    const company = byId.get(String(job.companyId || ''));
+    return {
+      ...job,
+      companyName: company?.companyName || 'Unknown company',
+      sponsorship: company?.sponsorship || 'unknown',
+      company: company ? {
+        id: company.companyId,
+        name: company.companyName,
+        sponsorship: company.sponsorship,
+        careersUrl: company.careersUrl
+      } : null
+    };
+  });
 }
 
 router.get('/', async (req, res) => {
@@ -55,7 +81,7 @@ router.get('/', async (req, res) => {
         ? { 'dates.postedAt': -1, 'dates.lastSeenAt': -1 }
         : { 'dates.lastSeenAt': -1 };
 
-    const [jobs, total] = await Promise.all([
+    const [rawJobs, total] = await Promise.all([
       Job.find(filter)
         .sort(sort)
         .skip((page - 1) * limit)
@@ -63,6 +89,8 @@ router.get('/', async (req, res) => {
         .lean(),
       Job.countDocuments(filter)
     ]);
+
+    const jobs = await enrichJobs(rawJobs);
 
     return res.json({
       jobs,
@@ -111,7 +139,8 @@ router.get('/:id', async (req, res) => {
     }).lean();
 
     if (!job) return res.status(404).json({ error: 'Job not found' });
-    return res.json({ job });
+    const [enriched] = await enrichJobs([job]);
+    return res.json({ job: enriched });
   } catch (error) {
     console.error('Job detail error:', error.message);
     return res.status(503).json({ error: 'Unable to query job', message: error.message });
