@@ -3,6 +3,7 @@ import { connectMongo } from '../db/mongoose.js';
 import { Job } from '../models/Job.js';
 import { Company } from '../models/Company.js';
 import { ukJobMongoFilter } from '../utils/ukJobLocation.js';
+import { techJobMongoFilter } from '../utils/techJobRole.js';
 
 const router = express.Router();
 
@@ -69,7 +70,7 @@ router.get('/', async (req, res) => {
 
     const page = clampInteger(req.query.page, 1, 1, 100000);
     const limit = clampInteger(req.query.limit, 25, 1, 100);
-    const filter = { $and: [ukJobMongoFilter()] };
+    const filter = { $and: [ukJobMongoFilter(), techJobMongoFilter()] };
 
     if (req.query.company) filter.companyId = String(req.query.company).trim();
     if (req.query.ats) filter['source.ats'] = String(req.query.ats).trim().toLowerCase();
@@ -129,7 +130,9 @@ router.get('/', async (req, res) => {
         limit,
         total,
         pages: Math.ceil(total / limit)
-      }
+      },
+      market: 'United Kingdom',
+      roleType: 'Technology'
     });
   } catch (error) {
     console.error('Jobs list error:', error.message);
@@ -143,11 +146,11 @@ router.get('/', async (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     await connectMongo();
-    const ukFilter = ukJobMongoFilter();
+    const filter = { $and: [ukJobMongoFilter(), techJobMongoFilter()] };
     const [total, live, companies] = await Promise.all([
-      Job.countDocuments(ukFilter),
-      Job.countDocuments({ $and: [ukFilter, { 'status.isLive': true }] }),
-      Job.distinct('companyId', ukFilter)
+      Job.countDocuments(filter),
+      Job.countDocuments({ $and: [filter, { 'status.isLive': true }] }),
+      Job.distinct('companyId', filter)
     ]);
 
     return res.json({
@@ -155,7 +158,8 @@ router.get('/stats', async (req, res) => {
       live,
       closed: total - live,
       companies: companies.length,
-      market: 'United Kingdom'
+      market: 'United Kingdom',
+      roleType: 'Technology'
     });
   } catch (error) {
     console.error('Jobs stats error:', error.message);
@@ -172,11 +176,12 @@ router.get('/:id', async (req, res) => {
     const job = await Job.findOne({
       $and: [
         { $or: [{ fingerprint: id }, { externalId: id }] },
-        ukJobMongoFilter()
+        ukJobMongoFilter(),
+        techJobMongoFilter()
       ]
     }).lean();
 
-    if (!job) return res.status(404).json({ error: 'UK job not found' });
+    if (!job) return res.status(404).json({ error: 'UK technology job not found' });
     const [enriched] = await enrichJobs([job]);
     return res.json({ job: enriched });
   } catch (error) {
