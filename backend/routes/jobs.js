@@ -23,15 +23,19 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function applySponsorshipFilter(filter, value) {
-  if (value === undefined || value === '') return;
+async function resolveSponsorshipCompanyIds(value) {
+  if (value === undefined || value === '') return null;
   const sponsorship = String(value).trim().toLowerCase();
   if (!['verified', 'not-sponsor', 'unknown'].includes(sponsorship)) {
     const error = new Error('sponsorship must be verified, not-sponsor, or unknown');
     error.code = 'INVALID_SPONSORSHIP_FILTER';
     throw error;
   }
-  filter.$and.push({ companySponsorship: sponsorship });
+
+  const companies = await Company.find({ sponsorship })
+    .select({ companyId: 1 })
+    .lean();
+  return companies.map(company => String(company.companyId));
 }
 
 async function enrichJobs(jobs) {
@@ -59,19 +63,6 @@ async function enrichJobs(jobs) {
   });
 }
 
-async function resolveCompanySponsorshipFilter(filter) {
-  const sponsorship = filter.$and.find(condition => condition.companySponsorship)?.companySponsorship;
-  if (!sponsorship) return;
-
-  delete filter.$and.find(condition => condition.companySponsorship).companySponsorship;
-  filter.$and = filter.$and.filter(condition => !condition.companySponsorship);
-
-  const companies = await Company.find({ sponsorship })
-    .select({ companyId: 1 })
-    .lean();
-  filter.companyId = { $in: companies.map(company => String(company.companyId)) };
-}
-
 router.get('/', async (req, res) => {
   try {
     await connectMongo();
@@ -80,12 +71,22 @@ router.get('/', async (req, res) => {
     const limit = clampInteger(req.query.limit, 25, 1, 100);
     const filter = { $and: [ukJobMongoFilter()] };
 
-    if (req.query.company) filter.companyId = String(req.query.company).trim().toLowerCase();
+    if (req.query.company) filter.companyId = String(req.query.company).trim();
     if (req.query.ats) filter['source.ats'] = String(req.query.ats).trim().toLowerCase();
     if (req.query.location) filter.location = { $regex: escapeRegex(req.query.location), $options: 'i' };
     if (req.query.employmentType) filter.employmentType = String(req.query.employmentType).trim();
-    applySponsorshipFilter(filter, req.query.sponsorship);
-    await resolveCompanySponsorshipFilter(filter);
+
+    const sponsorshipCompanyIds = await resolveSponsorshipCompanyIds(req.query.sponsorship);
+    if (sponsorshipCompanyIds) {
+      if (filter.companyId) {
+        const requestedCompanyId = String(filter.companyId);
+        if (!sponsorshipCompanyIds.includes(requestedCompanyId)) {
+          return res.json({ jobs: [], pagination: { page, limit, total: 0, pages: 0 } });
+        }
+      } else {
+        filter.companyId = { $in: sponsorshipCompanyIds };
+      }
+    }
 
     const live = parseBoolean(req.query.live);
     if (live === null) return res.status(400).json({ error: 'live must be true or false' });
