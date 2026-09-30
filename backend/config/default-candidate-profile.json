@@ -1,0 +1,89 @@
+{
+  "profileId": "default",
+  "name": "Raghav Mittal",
+  "location": "Southampton, UK",
+  "yearsExperience": 2.5,
+  "summary": "Software Engineer with 2.5+ years of full-stack web development experience, specialising in JavaScript, TypeScript, React, Node.js and PHP-based web applications, with experience across AWS, databases, APIs, testing and cloud infrastructure.",
+  "skills": [
+    "JavaScript",
+    "TypeScript",
+    "React.js",
+    "React",
+    "Node.js",
+    "PHP",
+    "Core PHP",
+    "Yii2",
+    "HTML",
+    "CSS",
+    "Redux",
+    "React Hooks",
+    "REST APIs",
+    "PostgreSQL",
+    "MongoDB",
+    "Elasticsearch",
+    "Kafka",
+    "RabbitMQ",
+    "AWS",
+    "GCP",
+    "Linux",
+    "Jest",
+    "Playwright",
+    "CI/CD",
+    "Git",
+    "GitHub",
+    "WCAG",
+    "Web Accessibility",
+    "SEO",
+    "Web Security"
+  ],
+  "education": [
+    {
+      "qualification": "MSc Computer Science",
+      "institution": "University of Southampton",
+      "result": "Merit"
+    },
+    {
+      "qualification": "B.Tech Computer Science",
+      "institution": "Amity University Noida"
+    }
+  ],
+  "experience": [
+    {
+      "title": "Software Engineer",
+      "company": "IndiaMART InterMESH Limited",
+      "duration": "Mar 2021 - Aug 2023",
+      "highlights": [
+        "Full-stack web development across marketplace seller domains.",
+        "Designed the Tender Upload Process architecture, including duplicity detection and parallel uploads.",
+        "Revamped Latest Tender homepage and search experiences with location and category filtering.",
+        "Optimised AJAX workflows and migrated scheduled jobs/scripts to AWS.",
+        "Implemented city/state search functionality for Latest Tenders."
+      ]
+    }
+  ],
+  "certifications": [
+    {
+      "name": "AWS Certified Cloud Practitioner"
+    },
+    {
+      "name": "Certified Ethical Hacker (CEH) v10"
+    }
+  ],
+  "workAuthorisation": {
+    "country": "United Kingdom",
+    "status": "Graduate visa",
+    "requiresSkilledWorkerSponsorship": true
+  },
+  "preferences": {
+    "employmentType": ["Permanent", "Full-time"],
+    "seniority": ["Junior", "Mid-level", "Associate"],
+    "excludeTechnologies": ["Java", ".NET", "Python", "React Native"],
+    "preferredTechnologies": ["JavaScript", "TypeScript", "React", "Node.js", "PHP", "AWS"],
+    "preferredLocations": ["United Kingdom", "London", "Southampton", "Remote", "Hybrid"],
+    "requiresSponsorship": true
+  },
+  "metadata": {
+    "source": "project-default-profile",
+    "purpose": "Job matching baseline"
+  }
+}
