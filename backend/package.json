@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node -r dotenv/config server.js",
-    "dev:node20": "node --env-file=.env server.js",
-    "start": "node -r dotenv/config server.js",
+    "dev": "node -r dotenv/config routes/registerJobs.js",
+    "dev:node20": "node --env-file=.env routes/registerJobs.js",
+    "start": "node -r dotenv/config routes/registerJobs.js",
     "test": "node --check server.js && node --test tests/*.test.js",
     "import:dummy-companies": "node -r dotenv/config scripts/importDummyCompanies.js",
     "discover:companies": "node -r dotenv/config scripts/discoverCompanies.js"
