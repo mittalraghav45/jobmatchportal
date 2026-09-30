@@ -1,6 +1,8 @@
 import { getEnabledCompanies } from '../config/companies.js';
 import { discoverWithATS } from '../ats/registry.js';
 import { resolveATSConfig } from '../ats/detector.js';
+import { connectMongo } from '../db/mongoose.js';
+import { upsertJobs } from '../repositories/jobRepository.js';
 import { ingestJobs } from './jobIngestion.js';
 
 export function detectATS(careersUrl = '') {
@@ -29,7 +31,7 @@ export function normaliseCompanyConfig(company = {}) {
   };
 }
 
-export async function discoverCompanyJobs(company, { existing = new Map(), now } = {}) {
+export async function discoverCompanyJobs(company, { existing = new Map(), now, persist = false } = {}) {
   const config = normaliseCompanyConfig(company);
   if (!config.companyId || !config.companyName) {
     return { company: config, status: 'invalid', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'missing_company_id_or_name' }] };
@@ -64,7 +66,20 @@ export async function discoverCompanyJobs(company, { existing = new Map(), now }
     }));
 
     const result = ingestJobs(tagged, { existing, now });
-    return { company: config, status: 'ok', ...result };
+
+    if (!persist || result.jobs.length === 0) {
+      return { company: config, status: 'ok', ...result };
+    }
+
+    const persisted = await upsertJobs(result.jobs, { now });
+    return {
+      company: config,
+      status: 'ok',
+      ...result,
+      added: persisted.added,
+      updated: persisted.updated,
+      rejected: [...result.rejected, ...persisted.rejected]
+    };
   } catch (error) {
     return {
       company: config,
@@ -73,18 +88,20 @@ export async function discoverCompanyJobs(company, { existing = new Map(), now }
       added: 0,
       updated: 0,
       duplicatesRemoved: 0,
-      rejected: [{ reason: 'discovery_failed', message: error.message }]
+      rejected: [{ reason: 'discovery_or_persistence_failed', message: error.message }]
     };
   }
 }
 
-export async function discoverEnabledCompanies({ filePath, existing = new Map(), now } = {}) {
+export async function discoverEnabledCompanies({ filePath, existing = new Map(), now, persist = false } = {}) {
+  if (persist) await connectMongo();
+
   const companies = getEnabledCompanies(filePath).map(normaliseCompanyConfig);
   const results = [];
   const jobs = [];
 
   for (const company of companies) {
-    const result = await discoverCompanyJobs(company, { existing, now });
+    const result = await discoverCompanyJobs(company, { existing, now, persist });
     results.push(result);
     jobs.push(...result.jobs);
   }
