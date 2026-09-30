@@ -23,6 +23,17 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function applySponsorshipFilter(filter, value) {
+  if (value === undefined || value === '') return;
+  const sponsorship = String(value).trim().toLowerCase();
+  if (!['verified', 'not-sponsor', 'unknown'].includes(sponsorship)) {
+    const error = new Error('sponsorship must be verified, not-sponsor, or unknown');
+    error.code = 'INVALID_SPONSORSHIP_FILTER';
+    throw error;
+  }
+  filter.$and.push({ companySponsorship: sponsorship });
+}
+
 async function enrichJobs(jobs) {
   const companyIds = [...new Set(jobs.map(job => String(job.companyId || '').trim()).filter(Boolean))];
   if (!companyIds.length) return jobs;
@@ -48,6 +59,19 @@ async function enrichJobs(jobs) {
   });
 }
 
+async function resolveCompanySponsorshipFilter(filter) {
+  const sponsorship = filter.$and.find(condition => condition.companySponsorship)?.companySponsorship;
+  if (!sponsorship) return;
+
+  delete filter.$and.find(condition => condition.companySponsorship).companySponsorship;
+  filter.$and = filter.$and.filter(condition => !condition.companySponsorship);
+
+  const companies = await Company.find({ sponsorship })
+    .select({ companyId: 1 })
+    .lean();
+  filter.companyId = { $in: companies.map(company => String(company.companyId)) };
+}
+
 router.get('/', async (req, res) => {
   try {
     await connectMongo();
@@ -60,6 +84,8 @@ router.get('/', async (req, res) => {
     if (req.query.ats) filter['source.ats'] = String(req.query.ats).trim().toLowerCase();
     if (req.query.location) filter.location = { $regex: escapeRegex(req.query.location), $options: 'i' };
     if (req.query.employmentType) filter.employmentType = String(req.query.employmentType).trim();
+    applySponsorshipFilter(filter, req.query.sponsorship);
+    await resolveCompanySponsorshipFilter(filter);
 
     const live = parseBoolean(req.query.live);
     if (live === null) return res.status(400).json({ error: 'live must be true or false' });
@@ -106,6 +132,9 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Jobs list error:', error.message);
+    if (error.code === 'INVALID_SPONSORSHIP_FILTER') {
+      return res.status(400).json({ error: error.message });
+    }
     return res.status(503).json({ error: 'Unable to query jobs', message: error.message });
   }
 });
