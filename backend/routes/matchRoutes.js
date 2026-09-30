@@ -6,6 +6,60 @@ import { DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
 
 const router = express.Router();
 
+// Single-job endpoint used by the existing frontend match modal.
+router.post('/', async (req, res) => {
+  try {
+    const profileId = String(req.body?.profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+    let job = req.body?.job;
+
+    if (!job && req.body?.jobId) {
+      job = await Job.findById(req.body.jobId).lean();
+      if (!job) return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (!job || typeof job !== 'object') {
+      return res.status(400).json({ error: 'job or jobId is required' });
+    }
+
+    const companyId = String(job.companyId || '').trim();
+    const company = companyId
+      ? await Company.findOne({ companyId }).select('companyId companyName sponsorship').lean()
+      : null;
+
+    const result = await matchJobToProfile({
+      profileId,
+      job: {
+        ...job,
+        companyName: company?.companyName || job.companyName || '',
+        postedAt: job.postedAt || job.dates?.postedAt,
+        closingAt: job.closingAt || job.dates?.closingAt,
+        ats: job.ats || job.source?.ats,
+        source: job.source?.url || job.source || ''
+      }
+    });
+
+    return res.json({
+      profileId,
+      job: result.job,
+      analysis: result.analysis,
+      candidateScore: result.candidateScore,
+      match: {
+        score: result.candidateScore.score,
+        matchedSkills: result.candidateScore.matchedSkills,
+        missingSkills: result.candidateScore.missingSkills,
+        components: result.candidateScore.components
+      },
+      sponsorship: company?.sponsorship || 'unknown'
+    });
+  } catch (error) {
+    if (error.code === 'PROFILE_NOT_FOUND') {
+      return res.status(404).json({ error: error.message });
+    }
+    console.error('Single-job matching error:', error);
+    return res.status(503).json({ error: 'Job matching unavailable', detail: error.message });
+  }
+});
+
 router.post('/jobs', async (req, res) => {
   try {
     const profileId = String(req.body?.profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
