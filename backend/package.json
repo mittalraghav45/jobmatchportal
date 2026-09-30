@@ -12,6 +12,7 @@
     "discover:companies": "node -r dotenv/config scripts/discoverCompanies.js",
     "discover:golden5": "node -r dotenv/config scripts/jobDiscoveryGolden5.js",
     "discover:golden50": "node -r dotenv/config scripts/jobDiscoveryGolden50.js",
+    "discover:golden:full": "node -r dotenv/config scripts/jobDiscoveryGoldenFull.js",
     "jobs:refresh": "node -r dotenv/config scripts/refreshVerifiedJobSources.js"
   },
   "dependencies": {
