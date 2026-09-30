@@ -9,7 +9,7 @@ export const atsRegistry = createATSRegistry([
   new ATSAdapter('greenhouse', ({ slug }) => fetchGreenhouse(slug)),
   new ATSAdapter('lever', ({ slug }) => fetchLever(slug)),
   new ATSAdapter('ashby', ({ slug }) => fetchAshby(slug)),
-  new ATSAdapter('workday', ({ slug, careersUrl }) => fetchWorkday(careersUrl, slug)),
+  new ATSAdapter('workday', ({ slug, careersUrl, site }) => fetchWorkday(careersUrl, site || slug)),
   new ATSAdapter('smartrecruiters', ({ slug }) => fetchSmartRecruiters(slug)),
   new ATSAdapter('workable', ({ slug }) => fetchWorkable(slug)),
   new ATSAdapter('teamtailor', ({ slug }) => fetchTeamtailor(slug)),
@@ -19,8 +19,13 @@ export const atsRegistry = createATSRegistry([
   new ATSAdapter('nhs', ({ companyName }) => fetchNHSJobs(companyName))
 ]);
 
+export function getSupportedATS() {
+  return [...atsRegistry.keys()];
+}
+
 export async function discoverWithATS(name, context = {}) {
-  const adapter = atsRegistry.get(String(name || '').toLowerCase());
+  const key = String(name || '').trim().toLowerCase();
+  const adapter = atsRegistry.get(key);
   if (!adapter) throw new Error(`Unsupported ATS adapter: ${name}`);
   return adapter.discover(context);
 }

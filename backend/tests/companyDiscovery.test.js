@@ -1,30 +1,62 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { detectATS, normaliseCompanyConfig } from '../services/companyDiscovery.js';
+import { extractATSConfig, resolveATSConfig } from '../ats/detector.js';
 import { ingestJobs } from '../services/jobIngestion.js';
 
 const NOW = '2026-09-29T00:00:00.000Z';
 
-test('detectATS identifies ATS from a careers URL', () => {
+test('detectATS identifies supported ATS from careers URLs', () => {
   assert.equal(detectATS('https://boards.greenhouse.io/example'), 'greenhouse');
+  assert.equal(detectATS('https://jobs.lever.co/example'), 'lever');
+  assert.equal(detectATS('https://jobs.ashbyhq.com/example'), 'ashby');
   assert.equal(detectATS('https://example.myworkdayjobs.com/en-US/careers'), 'workday');
-  assert.equal(detectATS('https://example.ashbyhq.com'), 'ashby');
+  assert.equal(detectATS('https://careers.smartrecruiters.com/example'), 'smartrecruiters');
+  assert.equal(detectATS('https://example.workable.com'), 'workable');
+  assert.equal(detectATS('https://example.teamtailor.com/jobs'), 'teamtailor');
+  assert.equal(detectATS('https://example.pinpointhq.com/en/postings'), 'pinpoint');
+  assert.equal(detectATS('https://example.recruitee.com'), 'recruitee');
+  assert.equal(detectATS('https://example.bamboohr.com/careers'), 'bamboohr');
+  assert.equal(detectATS('https://www.jobs.nhs.uk/candidate/search'), 'nhs');
   assert.equal(detectATS('https://example.com/careers'), null);
 });
 
-test('normaliseCompanyConfig keeps stable company identity and derives slug', () => {
+test('extractATSConfig derives ATS and slug from common URL formats', () => {
+  assert.deepEqual(extractATSConfig('https://boards.greenhouse.io/acme'), { ats: 'greenhouse', slug: 'acme' });
+  assert.deepEqual(extractATSConfig('https://jobs.lever.co/acme'), { ats: 'lever', slug: 'acme' });
+  assert.deepEqual(extractATSConfig('https://jobs.ashbyhq.com/acme'), { ats: 'ashby', slug: 'acme' });
+  assert.deepEqual(extractATSConfig('https://acme.workable.com'), { ats: 'workable', slug: 'acme' });
+  assert.deepEqual(extractATSConfig('https://acme.teamtailor.com/jobs'), { ats: 'teamtailor', slug: 'acme' });
+  assert.deepEqual(extractATSConfig('https://tenant.wd3.myworkdayjobs.com/Careers'), { ats: 'workday', slug: 'tenant', site: 'Careers' });
+});
+
+test('explicit ATS and slug take precedence over URL detection', () => {
+  const result = resolveATSConfig({ ats: 'greenhouse', atsSlug: 'custom-slug', careersUrl: 'https://example.lever.co' });
+  assert.equal(result.ats, 'greenhouse');
+  assert.equal(result.slug, 'custom-slug');
+  assert.equal(result.source, 'explicit');
+});
+
+test('unsupported explicit ATS is rejected instead of silently falling back', () => {
+  const result = resolveATSConfig({ ats: 'unknown-ats', careersUrl: 'https://boards.greenhouse.io/example' });
+  assert.equal(result.ats, null);
+  assert.equal(result.source, 'invalid-explicit-ats');
+});
+
+test('normaliseCompanyConfig resolves ATS and slug without changing company identity', () => {
   const result = normaliseCompanyConfig({
     company_id: 'Acme-Tech',
     company_name: 'Acme Tech',
     enabled: 'true',
     ats: 'auto',
-    careers_url: 'https://acme.greenhouse.io/careers'
+    careers_url: 'https://boards.greenhouse.io/acme'
   });
 
   assert.equal(result.companyId, 'acme-tech');
   assert.equal(result.companyName, 'Acme Tech');
   assert.equal(result.ats, 'greenhouse');
-  assert.equal(result.slug, 'Acme-Tech');
+  assert.equal(result.slug, 'acme');
+  assert.equal(result.atsSource, 'url');
 });
 
 test('ingestJobs deduplicates records and preserves first-seen data', () => {

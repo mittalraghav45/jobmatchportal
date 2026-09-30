@@ -1,24 +1,10 @@
 import { getEnabledCompanies } from '../config/companies.js';
 import { discoverWithATS } from '../ats/registry.js';
+import { resolveATSConfig } from '../ats/detector.js';
 import { ingestJobs } from './jobIngestion.js';
 
-const ATS_FROM_URL = [
-  ['greenhouse', /greenhouse\.io|boards-api\.greenhouse\.io/i],
-  ['lever', /jobs\.lever\.co|lever\.co/i],
-  ['ashby', /ashbyhq\.com/i],
-  ['workday', /myworkdayjobs\.com/i],
-  ['smartrecruiters', /smartrecruiters\.com/i],
-  ['workable', /workable\.com/i],
-  ['teamtailor', /teamtailor\.com/i],
-  ['pinpoint', /pinpointhq\.com/i],
-  ['recruitee', /recruitee\.com/i],
-  ['bamboohr', /bamboohr\.com/i],
-  ['nhs', /jobs\.nhs\.uk/i]
-];
-
 export function detectATS(careersUrl = '') {
-  const url = String(careersUrl || '');
-  return ATS_FROM_URL.find(([, pattern]) => pattern.test(url))?.[0] || null;
+  return resolveATSConfig({ careersUrl }).ats;
 }
 
 export function normaliseCompanyConfig(company = {}) {
@@ -26,20 +12,39 @@ export function normaliseCompanyConfig(company = {}) {
   const companyName = String(company.company_name || company.companyName || '').trim();
   const careersUrl = String(company.careers_url || company.careersUrl || '').trim();
   const configuredATS = String(company.ats || '').trim().toLowerCase();
-  const ats = configuredATS && configuredATS !== 'auto' ? configuredATS : detectATS(careersUrl);
-  const slug = String(company.ats_slug || company.atsSlug || company.slug || companyId).trim();
+  const configuredSlug = String(company.ats_slug || company.atsSlug || company.slug || '').trim();
+  const resolved = resolveATSConfig({ ats: configuredATS, atsSlug: configuredSlug, careersUrl });
+  const slug = resolved.slug || companyId;
 
-  return { ...company, companyId, companyName, careersUrl, ats, slug };
+  return {
+    ...company,
+    companyId,
+    companyName,
+    careersUrl,
+    ats: resolved.ats,
+    slug,
+    atsSource: resolved.source,
+    atsError: resolved.error || null,
+    atsSite: resolved.site || null
+  };
 }
 
 export async function discoverCompanyJobs(company, { existing = new Map(), now } = {}) {
   const config = normaliseCompanyConfig(company);
   if (!config.companyId || !config.companyName) {
-    return { company: config, status: 'invalid', jobs: [], added: 0, updated: 0, rejected: [{ reason: 'missing_company_id_or_name' }] };
+    return { company: config, status: 'invalid', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'missing_company_id_or_name' }] };
+  }
+
+  if (config.atsError) {
+    return { company: config, status: 'invalid', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'unsupported_ats', message: config.atsError }] };
   }
 
   if (!config.ats) {
-    return { company: config, status: 'unconfigured', jobs: [], added: 0, updated: 0, rejected: [{ reason: 'ats_not_configured' }] };
+    return { company: config, status: 'unconfigured', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'ats_not_configured' }] };
+  }
+
+  if (!config.slug && config.ats !== 'nhs') {
+    return { company: config, status: 'unconfigured', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'ats_slug_not_configured' }] };
   }
 
   try {
@@ -47,7 +52,8 @@ export async function discoverCompanyJobs(company, { existing = new Map(), now }
       slug: config.slug,
       careersUrl: config.careersUrl,
       companyName: config.companyName,
-      companyId: config.companyId
+      companyId: config.companyId,
+      site: config.atsSite
     });
 
     const tagged = rawJobs.map(job => ({
@@ -90,6 +96,7 @@ export async function discoverEnabledCompanies({ filePath, existing = new Map(),
       companies: companies.length,
       successful: results.filter(result => result.status === 'ok').length,
       unconfigured: results.filter(result => result.status === 'unconfigured').length,
+      invalid: results.filter(result => result.status === 'invalid').length,
       failed: results.filter(result => result.status === 'error').length,
       jobs: jobs.length,
       added: results.reduce((sum, result) => sum + result.added, 0),
