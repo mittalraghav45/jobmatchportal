@@ -6,11 +6,25 @@ import { resolveCareerSource } from '../services/careerSourceResolver.js';
 
 dotenv.config();
 
-const RUN_ID = process.env.PUBLIC_EMPLOYER_RUN_ID || 'public-employer-resolution-v1';
-const BATCH_SIZE = Math.max(1, Number(process.env.PUBLIC_EMPLOYER_BATCH_SIZE || 25));
-const CONCURRENCY = Math.max(1, Number(process.env.PUBLIC_EMPLOYER_CONCURRENCY || 3));
-const DELAY_MS = Math.max(0, Number(process.env.PUBLIC_EMPLOYER_DELAY_MS || 300));
-const LIMIT = Math.max(0, Number(process.env.PUBLIC_EMPLOYER_LIMIT || 0));
+function argValue(name, fallback = '') {
+  const prefix = `--${name}=`;
+  const arg = process.argv.slice(2).find(value => value.startsWith(prefix));
+  return arg ? arg.slice(prefix.length) : fallback;
+}
+
+function argNumber(name, fallback = 0) {
+  const value = Number(argValue(name, fallback));
+  return Number.isFinite(value) ? value : fallback;
+}
+
+// CLI arguments override environment defaults. This makes resumable test runs explicit.
+const RUN_ID = argValue('run-id', process.env.PUBLIC_EMPLOYER_RUN_ID || 'public-employer-resolution-v1');
+const START = Math.max(1, argNumber('start', Number(process.env.PUBLIC_EMPLOYER_START || 1)));
+const END = Math.max(START, argNumber('end', Number(process.env.PUBLIC_EMPLOYER_END || 0)));
+const BATCH_SIZE = Math.max(1, argNumber('batch-size', Number(process.env.PUBLIC_EMPLOYER_BATCH_SIZE || 25)));
+const CONCURRENCY = Math.max(1, argNumber('concurrency', Number(process.env.PUBLIC_EMPLOYER_CONCURRENCY || 3)));
+const DELAY_MS = Math.max(0, argNumber('delay-ms', Number(process.env.PUBLIC_EMPLOYER_DELAY_MS || 300)));
+const LIMIT = Math.max(0, argNumber('limit', Number(process.env.PUBLIC_EMPLOYER_LIMIT || 0)));
 const TYPES = ['nhs', 'councils', 'universities'];
 
 const checkpointSchema = new mongoose.Schema({
@@ -38,6 +52,8 @@ async function main() {
   console.log('=== Public Employer Resolution ===');
   console.log(`Run ID: ${RUN_ID}`);
   console.log(`Types: ${TYPES.join(', ')}`);
+  console.log(`Start: ${START}`);
+  console.log(`End: ${END || 'dataset end'}`);
   console.log(`Batch size: ${BATCH_SIZE}`);
   console.log(`Concurrency: ${CONCURRENCY}`);
 
@@ -48,7 +64,7 @@ async function main() {
     (await Checkpoint.find({ runId: RUN_ID, status: { $in: ['resolved', 'unresolved'] } }).select('companyId').lean())
       .map(row => String(row.companyId))
   );
-  console.log(`Existing checkpoints: ${completed.size}`);
+  console.log(`Existing checkpoints for this run: ${completed.size}`);
 
   const stats = {
     scanned: 0,
@@ -64,6 +80,7 @@ async function main() {
 
   let lastCompanyId = '';
   let stop = false;
+  let datasetIndex = 0;
 
   while (!stop) {
     const query = {
@@ -80,12 +97,23 @@ async function main() {
 
     if (!companies.length) break;
 
+    const selectedCompanies = companies.filter(() => {
+      datasetIndex += 1;
+      return datasetIndex >= START && (!END || datasetIndex <= END);
+    });
+
+    if (datasetIndex > END && END) break;
+    if (!selectedCompanies.length) {
+      lastCompanyId = String(companies[companies.length - 1].companyId);
+      continue;
+    }
+
     let cursor = 0;
     const results = [];
     const worker = async () => {
-      while (cursor < companies.length) {
+      while (cursor < selectedCompanies.length) {
         const index = cursor++;
-        const company = companies[index];
+        const company = selectedCompanies[index];
         const companyId = String(company.companyId);
 
         if (completed.has(companyId)) {
@@ -113,7 +141,7 @@ async function main() {
       }
     };
 
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, companies.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, selectedCompanies.length) }, worker));
 
     for (const item of results) {
       const company = item.company;
