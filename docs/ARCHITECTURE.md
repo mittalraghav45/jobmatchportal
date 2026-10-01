@@ -42,6 +42,9 @@ Candidate Evidence
 Explainable Match
       |
       v
+My Matches UI
+      |
+      v
 Application Specialist
   +-------------------------+
   | All-in-One | Public     |
@@ -64,6 +67,8 @@ Application Tracker
 |---|---|
 | `backend/server.js` | HTTP/API entry point and route wiring |
 | `backend/jobIntelligence.js` | JD parsing, skills, criteria, seniority, salary and sponsorship wording |
+| `backend/models/jobSchema.js` | Canonicalises legacy/ATS job payloads, including ATS and application URLs |
+| `backend/routes/matchRoutes.js` | Single-job and bulk candidate matching endpoints |
 | `backend/applicationPack.js` | Evidence profile and application-pack construction |
 | `backend/applicationPackSelector.js` | Selects the requested application output and validates it |
 | `backend/applicationStore.js` | Application lifecycle/state model |
@@ -71,7 +76,48 @@ Application Tracker
 | `backend/prompts/` | Specialist optimisation prompts |
 | `backend/tests/` | Automated Node tests |
 
-## 4. Application specialists
+## 4. My Matches
+
+The personalised matching endpoint is:
+
+```text
+POST /api/match/jobs
+```
+
+The route globally ranks matching jobs before pagination. Ranking uses candidate score first, then sponsorship evidence, posted date and job ID as deterministic tie-breakers.
+
+The canonical match job contract exposes:
+
+```text
+companyName
+title
+location
+nation
+ats
+applicationUrl
+postedAt
+closingAt
+isLive
+```
+
+`applicationUrl` may originate from direct fields or nested ATS/application payloads. Canonicalisation must recursively inspect the common `application`, `apply`, `job` and `source` wrappers and must never persist `[object Object]` as an ATS value.
+
+The UI presents:
+
+- match score when available
+- company and role
+- location and nation
+- ATS
+- sponsorship evidence
+- matched skills
+- live/closed state
+- posting date when available
+- closing date when available
+- application link only when a real URL exists and the role is live
+
+The sidebar exposes **My Matches** immediately below **Jobs** so the feature is discoverable from the main navigation.
+
+## 5. Application specialists
 
 ### All-in-One
 
@@ -100,7 +146,7 @@ Use for NHS, DWP, Civil Service, universities, councils and other public-sector 
 
 Do not claim NHS, DWP, Civil Service or other sector experience unless candidate evidence explicitly supports it.
 
-## 5. Sponsorship model
+## 6. Sponsorship model
 
 Sponsorship is deliberately separate from company identity.
 
@@ -114,7 +160,7 @@ Companies House identity/SIC information does **not** by itself prove Skilled Wo
 
 `unknown` must remain unknown; it must never be silently converted into `not-sponsor`.
 
-## 6. Job intelligence
+## 7. Job intelligence
 
 A job can be analysed into:
 
@@ -130,7 +176,7 @@ A job can be analysed into:
 
 Candidate scoring is explainable rather than a black-box LLM judgement. Current components include skill coverage, role alignment, experience and evidence.
 
-## 7. Application lifecycle
+## 8. Application lifecycle
 
 ```text
 saved
@@ -148,7 +194,7 @@ Alternative terminal states:
 
 Invalid transitions should be rejected by the application store.
 
-## 8. Where to change the company list
+## 9. Where to change the company list
 
 **Important:** the company list should eventually live in one configuration/data source rather than being scattered through scraper code.
 
@@ -190,21 +236,35 @@ organisation_name,company_number,enabled,priority,source
 
 This will make changing the target company list a one-file operation without touching application logic.
 
-## 9. Testing
+## 10. Testing and regression safety
 
 Backend tests use Node's built-in test runner.
 
 ```bash
 cd backend
-npm install
 npm test
 ```
 
-Tests cover the job-intelligence, application-pack, application-selector and application-store layers.
+Frontend unit/build checks:
+
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+Browser end-to-end checks:
+
+```bash
+cd frontend
+npm run test:e2e
+```
+
+Every new user-visible or API/data-contract feature should add or update a regression test before being considered complete. For My Matches, the regression coverage includes loading, successful rendering, application URL handling, API errors, empty results, ATS object handling, live/closed status and closing-date rendering.
 
 Do not treat an isolated smoke test as proof that the complete repository suite passes. The full CI workflow is the authoritative integration check.
 
-## 10. Development rules
+## 11. Development rules
 
 - Preserve factual candidate chronology.
 - Use British English by default.
@@ -215,8 +275,10 @@ Do not treat an isolated smoke test as proof that the complete repository suite 
 - Keep required and desirable criteria distinct.
 - Keep sponsorship evidence separate from company identity.
 - Keep deterministic validation outside the LLM where practical.
+- Do not merge a feature while its focused regression test is failing.
+- When a feature changes the API/data contract or user-facing workflow, update this guide and the README in the same change.
 
-## 11. Current implementation phases
+## 12. Current implementation phases
 
 1. Foundation / reliability
 2. Company and sponsorship intelligence
@@ -225,7 +287,7 @@ Do not treat an isolated smoke test as proof that the complete repository suite 
 5. Application dashboard and tracking
 6. Automated job discovery and monitoring
 
-## 12. Suggested next engineering priorities
+## 13. Suggested next engineering priorities
 
 1. Consolidate company configuration into a single editable source.
 2. Connect application persistence to the API/database.
