@@ -6,7 +6,7 @@ export default function DiscoveryStatusBar() {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState('');
-  const runId = import.meta.env.VITE_GOLDEN_RUN_ID || 'golden-full-v1000';
+  const runId = import.meta.env.VITE_GOLDEN_RUN_ID || 'golden-full-v20515';
 
   const refresh = async () => {
     try {
