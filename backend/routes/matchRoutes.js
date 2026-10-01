@@ -9,32 +9,71 @@ import { techJobMongoFilter } from '../utils/techJobRole.js';
 
 const router = express.Router();
 
-function normaliseAts(value) {
-  if (value === undefined || value === null || value === '') return 'unknown';
-  if (typeof value === 'string' || typeof value === 'number') return String(value).trim() || 'unknown';
-  if (typeof value === 'object') {
-    const candidate = value.name || value.type || value.platform || value.ats || value.provider || value.slug || value.id;
-    return candidate !== undefined && candidate !== null && String(candidate).trim()
-      ? String(candidate).trim()
-      : 'unknown';
+function normaliseAts(value, depth = 0) {
+  if (depth > 4 || value === undefined || value === null || value === '') return 'unknown';
+  if (typeof value === 'string' || typeof value === 'number') {
+    const text = String(value).trim();
+    return text && text !== '[object Object]' ? text : 'unknown';
   }
-  return String(value).trim() || 'unknown';
+  if (typeof value === 'object') {
+    for (const key of ['ats', 'name', 'type', 'platform', 'provider', 'slug', 'id']) {
+      const candidate = normaliseAts(value[key], depth + 1);
+      if (candidate !== 'unknown') return candidate;
+    }
+  }
+  return 'unknown';
+}
+
+function resolveAts(...values) {
+  for (const value of values) {
+    const ats = normaliseAts(value);
+    if (ats !== 'unknown') return ats;
+  }
+  return 'unknown';
 }
 
 function resolveApplicationUrl(job) {
-  const candidates = [
+  const queue = [
     job?.applicationUrl,
+    job?.application_url,
     job?.applyUrl,
+    job?.apply_url,
     job?.atsUrl,
+    job?.ats_url,
     job?.jobUrl,
+    job?.job_url,
     job?.url,
     job?.source?.url,
-    job?.raw?.applyUrl,
+    job?.source?.applicationUrl,
+    job?.source?.application_url,
     job?.raw?.applicationUrl,
+    job?.raw?.application_url,
+    job?.raw?.applyUrl,
+    job?.raw?.apply_url,
+    job?.raw?.atsUrl,
+    job?.raw?.ats_url,
+    job?.raw?.jobUrl,
     job?.raw?.job_url,
-    job?.raw?.url
+    job?.raw?.url,
+    job?.raw?.source
   ];
-  return candidates.find(value => typeof value === 'string' && /^https?:\/\//i.test(value.trim()))?.trim() || '';
+  const seen = new Set();
+
+  while (queue.length) {
+    const value = queue.shift();
+    if (typeof value === 'string') {
+      const url = value.trim();
+      if (/^https?:\/\//i.test(url)) return url;
+      continue;
+    }
+    if (!value || typeof value !== 'object' || seen.has(value)) continue;
+    seen.add(value);
+    for (const key of ['applicationUrl', 'application_url', 'applyUrl', 'apply_url', 'atsUrl', 'ats_url', 'jobUrl', 'job_url', 'url']) {
+      if (value[key] !== undefined) queue.push(value[key]);
+    }
+  }
+
+  return '';
 }
 
 function resolveSponsorship(value) {
@@ -94,7 +133,7 @@ router.post('/', async (req, res) => {
       ? await Company.findOne({ companyId }).select('companyId companyName sponsorship website careersUrl ats').lean()
       : null;
 
-    const ats = normaliseAts(job.ats || job.source?.ats || company?.ats);
+    const ats = resolveAts(job.ats, job.source?.ats, company?.ats, job.raw?.ats, job.raw?.source?.ats, job.raw?.atsName, job.raw?.atsSlug);
     const applicationUrl = resolveApplicationUrl(job);
     const result = await matchJobToProfile({
       profileId,
@@ -112,7 +151,7 @@ router.post('/', async (req, res) => {
       profileId,
       job: {
         ...result.job,
-        ats: normaliseAts(result.job?.ats || ats),
+        ats: resolveAts(result.job?.ats, ats, job.raw?.ats, job.raw?.source?.ats),
         applicationUrl: resolveApplicationUrl(result.job) || applicationUrl
       },
       analysis: result.analysis,
@@ -127,7 +166,7 @@ router.post('/', async (req, res) => {
       company: {
         website: company?.website || '',
         careersUrl: company?.careersUrl || '',
-        ats: normaliseAts(company?.ats || ats)
+        ats: resolveAts(company?.ats, ats)
       }
     });
   } catch (error) {
@@ -185,7 +224,7 @@ router.post('/jobs', async (req, res) => {
     const topMatches = [];
     for (const job of jobs) {
       const company = companyMap.get(String(job.companyId));
-      const ats = normaliseAts(job.source?.ats || company?.ats || job.raw?.ats);
+      const ats = resolveAts(job.source?.ats, company?.ats, job.raw?.ats, job.raw?.source?.ats, job.raw?.atsName, job.raw?.atsSlug);
       const applicationUrl = resolveApplicationUrl(job);
       const analysis = analyseJob({
         title: job.title || '',
@@ -223,7 +262,7 @@ router.post('/jobs', async (req, res) => {
         company: {
           website: company?.website || '',
           careersUrl: company?.careersUrl || '',
-          ats: normaliseAts(company?.ats || ats)
+          ats: resolveAts(company?.ats, ats)
         },
         analysis,
         candidateScore,
