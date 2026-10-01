@@ -8,6 +8,7 @@
     "start": "node -r dotenv/config routes/registerJobs.js",
     "test": "node --check server.js && node --check routes/intelligenceRoutes.js && node --check routes/discoveryStatus.js && node --check services/companyDiscovery.js && node --check scripts/jobDiscoveryGoldenFull.js && node --check scripts/enrichExistingJobs.js && node --test tests/*.test.js",
     "test:location": "node --test tests/locationClassification.test.js tests/locationApi.test.js",
+    "test:employer": "node --test tests/employerClassification.test.js",
     "import:dummy-companies": "node -r dotenv/config scripts/importDummyCompanies.js",
     "import:sponsors": "node -r dotenv/config scripts/importSponsorCompanies.js",
     "discover:companies": "node -r dotenv/config scripts/discoverCompanies.js",
