@@ -25,6 +25,7 @@ const loadCompanies=async(page=1,query=companyQ)=>{setCompanyBusy(true);try{cons
 const loadJobs=async(page=jobPage)=>{setJobLoading(true);try{setError('');const p=new URLSearchParams({limit:String(JOB_LIMIT),page:String(page),sort});if(q.trim())p.set('q',q.trim());if(sponsorship!=='all')p.set('sponsorship',sponsorship);if(nations.length)p.set('nation',nations.join(','));if(employerTypes.length)p.set('employerType',employerTypes.join(','));if(workMode!=='all')p.set('workMode',workMode);if(employmentType)p.set('employmentType',employmentType);const d=await api(`/api/jobs?${p}`);const jl=Array.isArray(d)?d:d.jobs||d.data||[];setJobs(jl.map(job));setJobTotal(Number(d?.pagination?.total)||jl.length);setJobPage(Number(d?.pagination?.page)||page)}catch(e){setError(e.message);setJobs(page===1?DEMO:[]);if(page===1)setJobTotal(DEMO.length)}finally{setJobLoading(false)}};
 const loadApps=async()=>{try{const a=await api('/api/applications?limit=100');const al=Array.isArray(a)?a:a.applications||a.data||[];setApps(al)}catch(e){setError(e.message)}};
 const load=async()=>{await Promise.all([loadJobs(1),loadApps(),loadCompanyCount()]);try{const p=await api('/api/profile/default');setProfile(p.profile||p)}catch{}};
+useEffect(()=>{loadCompanyCount()},[]);
 useEffect(()=>{loadJobs(1)},[sponsorship,nations.join(','),employerTypes.join(','),workMode,employmentType,sort]);
 useEffect(()=>{const timer=setTimeout(()=>loadJobs(1),350);return()=>clearTimeout(timer)},[q]);
 useEffect(()=>{if(v==='dashboard')loadJobs(1)},[v]);
