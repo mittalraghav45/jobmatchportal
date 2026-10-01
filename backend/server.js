@@ -16,7 +16,7 @@ import profileRoutes from './routes/profileRoutes.js';
 import matchRoutes from './routes/matchRoutes.js';
 import jobsRoutes from './routes/jobs.js';
 import companiesRoutes from './routes/companies.js';
-import applicationRoutes from './routes/applicationRoutes.js';
+import applicationRoutes from './routes/applications.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
