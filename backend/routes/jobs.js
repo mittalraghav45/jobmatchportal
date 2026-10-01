@@ -11,7 +11,7 @@ const NATION_PATTERNS = {
   Scotland: 'scotland|edinburgh|glasgow|aberdeen|dundee|stirling|inverness|perth|falkirk|paisley|livingston|hamilton|motherwell|cumbernauld|east kilbride|kilmarnock|ayr|coatbridge|greenock',
   Wales: 'wales|cardiff|swansea|newport|wrexham|bangor|aberystwyth|llanelli|bridgend|neath|caerphilly|merthyr|pontypridd|port talbot|cwmbran',
   'Northern Ireland': 'northern ireland|belfast|derry|londonderry|lisburn|newry|armagh|craigavon|newtownabbey|carrickfergus|antrim|newtownards|omagh|coleraine',
-  England: 'england|london|southampton|manchester|birmingham|bristol|leeds|liverpool|sheffield|nottingham|newcastle|reading|oxford|cambridge|brighton|bath|exeter|portsmouth|coventry|leicester|hull|york|milton keynes|luton|watford|guildford|winchester|chester|derby|norwich|plymouth|swindon|slough|croydon|hounslow|watford'
+  England: 'england|london|southampton|manchester|birmingham|bristol|leeds|liverpool|sheffield|nottingham|newcastle|reading|oxford|cambridge|brighton|bath|exeter|portsmouth|coventry|leicester|hull|york|milton keynes|luton|watford|guildford|winchester|chester|derby|norwich|plymouth|swindon|slough|croydon|hounslow'
 };
 
 const EMPLOYER_PATTERNS = {
@@ -38,6 +38,11 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function parseList(value) {
+  if (value === undefined || value === null || value === '') return [];
+  return String(value).split(',').map(x => x.trim()).filter(Boolean);
+}
+
 async function resolveSponsorshipCompanyIds(value) {
   if (value === undefined || value === '') return null;
   const sponsorship = String(value).trim().toLowerCase();
@@ -51,45 +56,54 @@ async function resolveSponsorshipCompanyIds(value) {
 }
 
 async function resolveEmployerCompanyIds(value) {
-  if (value === undefined || value === '' || String(value).toLowerCase() === 'all') return null;
-  const key = String(value).trim().toLowerCase();
-  if (!Object.prototype.hasOwnProperty.call(EMPLOYER_PATTERNS, key)) {
-    const error = new Error('employerType must be all, councils, universities, dwp, or nhs');
-    error.code = 'INVALID_EMPLOYER_TYPE';
-    throw error;
+  const keys = parseList(value).map(x => x.toLowerCase());
+  if (!keys.length || keys.includes('all')) return null;
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(EMPLOYER_PATTERNS, key)) {
+      const error = new Error('employerType must be all, councils, universities, dwp, or nhs');
+      error.code = 'INVALID_EMPLOYER_TYPE';
+      throw error;
+    }
   }
-  const pattern = EMPLOYER_PATTERNS[key];
-  const regex = new RegExp(pattern, 'i');
-  const companies = await Company.find({
-    $or: [
-      { companyName: regex },
-      { 'metadata.industry': regex },
-      { 'metadata.category': regex },
-      { 'metadata.organisationType': regex },
-      { 'metadata.organizationType': regex },
-      { 'metadata.sector': regex }
-    ]
-  }).select({ companyId: 1 }).lean();
-  return companies.map(company => String(company.companyId));
+  const ids = new Set();
+  for (const key of keys) {
+    const regex = new RegExp(EMPLOYER_PATTERNS[key], 'i');
+    const companies = await Company.find({
+      $or: [
+        { companyName: regex },
+        { 'metadata.industry': regex },
+        { 'metadata.category': regex },
+        { 'metadata.organisationType': regex },
+        { 'metadata.organizationType': regex },
+        { 'metadata.sector': regex }
+      ]
+    }).select({ companyId: 1 }).lean();
+    companies.forEach(company => ids.add(String(company.companyId)));
+  }
+  return [...ids];
 }
 
-function addNationFilter(filter, nation) {
-  if (nation === undefined || nation === '' || String(nation).toLowerCase() === 'all') return;
-  const key = String(nation).trim();
-  if (!Object.prototype.hasOwnProperty.call(NATION_PATTERNS, key)) {
-    const error = new Error('nation must be all, England, Scotland, Wales, or Northern Ireland');
-    error.code = 'INVALID_NATION_FILTER';
-    throw error;
+function addNationFilter(filter, value) {
+  const nations = parseList(value);
+  if (!nations.length || nations.some(x => x.toLowerCase() === 'all')) return;
+  const clauses = [];
+  for (const key of nations) {
+    if (!Object.prototype.hasOwnProperty.call(NATION_PATTERNS, key)) {
+      const error = new Error('nation must be all, England, Scotland, Wales, or Northern Ireland');
+      error.code = 'INVALID_NATION_FILTER';
+      throw error;
+    }
+    if (key === 'England') {
+      const nonEngland = Object.entries(NATION_PATTERNS)
+        .filter(([name]) => name !== 'England')
+        .map(([, pattern]) => pattern)
+        .join('|');
+      clauses.push({ location: { $not: { $regex: nonEngland, $options: 'i' } } });
+    } else {
+      clauses.push({ location: { $regex: NATION_PATTERNS[key], $options: 'i' } });
+    }
   }
-  if (key === 'England') {
-    const nonEngland = Object.entries(NATION_PATTERNS)
-      .filter(([name]) => name !== 'England')
-      .map(([, pattern]) => pattern)
-      .join('|');
-    filter.$and.push({ location: { $not: { $regex: nonEngland, $options: 'i' } } });
-    return;
-  }
-  filter.$and.push({ location: { $regex: NATION_PATTERNS[key], $options: 'i' } });
+  filter.$and.push(clauses.length === 1 ? clauses[0] : { $or: clauses });
 }
 
 async function enrichJobs(jobs) {
@@ -105,13 +119,7 @@ async function enrichJobs(jobs) {
       ...job,
       companyName: company?.companyName || 'Unknown company',
       sponsorship: company?.sponsorship || 'unknown',
-      company: company ? {
-        id: company.companyId,
-        name: company.companyName,
-        sponsorship: company.sponsorship,
-        careersUrl: company.careersUrl,
-        metadata: company.metadata || {}
-      } : null
+      company: company ? { id: company.companyId, name: company.companyName, sponsorship: company.sponsorship, careersUrl: company.careersUrl, metadata: company.metadata || {} } : null
     };
   });
 }
@@ -122,12 +130,10 @@ router.get('/', async (req, res) => {
     const page = clampInteger(req.query.page, 1, 1, 100000);
     const limit = clampInteger(req.query.limit, 25, 1, 100);
     const filter = { $and: [ukJobMongoFilter(), techJobMongoFilter()] };
-
     if (req.query.company) filter.companyId = String(req.query.company).trim();
     if (req.query.ats) filter['source.ats'] = String(req.query.ats).trim().toLowerCase();
     if (req.query.location) filter.location = { $regex: escapeRegex(req.query.location), $options: 'i' };
     if (req.query.employmentType) filter.employmentType = String(req.query.employmentType).trim();
-
     addNationFilter(filter, req.query.nation);
 
     const sponsorshipCompanyIds = await resolveSponsorshipCompanyIds(req.query.sponsorship);
@@ -137,11 +143,8 @@ router.get('/', async (req, res) => {
       const allowed = companyIdSets.reduce((acc, ids) => acc ? ids.filter(id => acc.includes(id)) : ids, null);
       if (!allowed.length) return res.json({ jobs: [], pagination: { page, limit, total: 0, pages: 0 }, market: 'United Kingdom', roleType: 'Technology' });
       if (filter.companyId) {
-        const requested = String(filter.companyId);
-        if (!allowed.includes(requested)) return res.json({ jobs: [], pagination: { page, limit, total: 0, pages: 0 }, market: 'United Kingdom', roleType: 'Technology' });
-      } else {
-        filter.companyId = { $in: allowed };
-      }
+        if (!allowed.includes(String(filter.companyId))) return res.json({ jobs: [], pagination: { page, limit, total: 0, pages: 0 }, market: 'United Kingdom', roleType: 'Technology' });
+      } else filter.companyId = { $in: allowed };
     }
 
     const live = parseBoolean(req.query.live);
@@ -150,23 +153,10 @@ router.get('/', async (req, res) => {
 
     if (req.query.q) {
       const search = escapeRegex(String(req.query.q).trim());
-      if (search) {
-        filter.$and.push({
-          $or: [
-            { title: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } },
-            { location: { $regex: search, $options: 'i' } }
-          ]
-        });
-      }
+      if (search) filter.$and.push({ $or: [{ title: { $regex: search, $options: 'i' } }, { description: { $regex: search, $options: 'i' } }, { location: { $regex: search, $options: 'i' } }] });
     }
 
-    const sort = req.query.sort === 'oldest'
-      ? { 'dates.lastSeenAt': 1 }
-      : req.query.sort === 'posted'
-        ? { 'dates.postedAt': -1, 'dates.lastSeenAt': -1 }
-        : { 'dates.lastSeenAt': -1 };
-
+    const sort = req.query.sort === 'oldest' ? { 'dates.lastSeenAt': 1 } : req.query.sort === 'posted' ? { 'dates.postedAt': -1, 'dates.lastSeenAt': -1 } : { 'dates.lastSeenAt': -1 };
     const [rawJobs, total] = await Promise.all([
       Job.find(filter).sort(sort).skip((page - 1) * limit).limit(limit).lean(),
       Job.countDocuments(filter)
