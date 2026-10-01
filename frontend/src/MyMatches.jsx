@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import './my-matches.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
 
 function pick(obj, keys, fallback = '') {
   for (const key of keys) {
@@ -9,6 +9,16 @@ function pick(obj, keys, fallback = '') {
     if (value !== undefined && value !== null && value !== '') return value;
   }
   return fallback;
+}
+
+function displayAts(value) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    const candidate = value.name || value.type || value.platform || value.provider || value.ats || value.slug || value.id;
+    return candidate ? String(candidate) : 'Unknown ATS';
+  }
+  return String(value);
 }
 
 function normaliseMatches(payload) {
@@ -20,14 +30,14 @@ function MatchCard({ item }) {
   const job = item?.job || item;
   const score = pick(item, ['matchScore', 'score', 'matchPercentage'], pick(job, ['matchScore', 'score'], null));
   const title = pick(job, ['title', 'jobTitle'], 'Untitled role');
-  const company = pick(job, ['companyName', 'employerName', 'company'], 'Unknown company');
+  const company = pick(job, ['companyName', 'employerName', 'company'], 'Company being resolved');
   const location = pick(job, ['location', 'city'], 'Location not specified');
   const nation = pick(job, ['nation'], '');
-  const ats = pick(job, ['ats', 'atsName'], '');
+  const ats = displayAts(pick(job, ['ats', 'atsName'], pick(item?.company, ['ats'], '')));
   const applicationUrl = pick(job, ['applicationUrl', 'applyUrl', 'atsUrl', 'jobUrl', 'url'], '');
-  const sponsorship = pick(job, ['sponsorship', 'sponsorshipStatus'], '');
-  const reasons = item?.explanation?.reasons || item?.reasons || item?.matchReasons || [];
-  const skills = item?.explanation?.matchedSkills || item?.matchedSkills || job?.matchedSkills || [];
+  const sponsorship = pick(item, ['sponsorship'], pick(job, ['sponsorship', 'sponsorshipStatus'], ''));
+  const reasons = item?.explanation?.reasons || item?.reasons || item?.matchReasons || item?.analysis?.reasons || [];
+  const skills = item?.explanation?.matchedSkills || item?.matchedSkills || item?.candidateScore?.matchedSkills || job?.matchedSkills || [];
   const reasonList = Array.isArray(reasons) ? reasons.slice(0, 3) : [];
   const skillList = Array.isArray(skills) ? skills.slice(0, 6) : [];
 
@@ -38,7 +48,7 @@ function MatchCard({ item }) {
           <div className="match-company">{company}</div>
           <h3>{title}</h3>
         </div>
-        {score !== null && (
+        {score !== null && score !== '' && (
           <div className="match-score" aria-label={`${score}% match`}>
             <strong>{Math.round(Number(score))}%</strong>
             <span>match</span>
@@ -53,7 +63,7 @@ function MatchCard({ item }) {
 
       <div className="match-badges">
         {sponsorship && <span className="match-badge">Sponsorship: {String(sponsorship)}</span>}
-        {skillList.map((skill) => <span className="match-badge" key={skill}>{skill}</span>)}
+        {skillList.map((skill) => <span className="match-badge" key={skill}>{String(skill)}</span>)}
       </div>
 
       {reasonList.length > 0 && (
@@ -79,6 +89,7 @@ export default function MyMatches({ profileId = 'default', limit = 20 }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -105,27 +116,61 @@ export default function MyMatches({ profileId = 'default', limit = 20 }) {
     return () => controller.abort();
   }, [profileId, limit]);
 
-  return (
-    <section className="my-matches">
-      <div className="my-matches-header">
-        <div>
-          <p className="eyebrow">PERSONALISED DISCOVERY</p>
-          <h2>My Matches</h2>
-          <p>Jobs ranked against your candidate profile.</p>
-        </div>
-        {!loading && !error && <span className="match-count">{matches.length} matches</span>}
-      </div>
+  useEffect(() => {
+    let observer;
+    const installNavigation = () => {
+      const sidebar = document.querySelector('.sidebar');
+      if (!sidebar) return;
+      const jobsButton = [...sidebar.querySelectorAll('.nav')].find((button) => button.textContent?.trim() === 'Jobs');
+      if (!jobsButton) return;
+      if (sidebar.querySelector('[data-my-matches-nav]')) return;
 
-      {loading && <div className="matches-state">Loading your matches…</div>}
-      {!loading && error && <div className="matches-state matches-error">{error}</div>}
-      {!loading && !error && matches.length === 0 && (
-        <div className="matches-state">No matches were returned for this profile.</div>
-      )}
-      {!loading && !error && matches.length > 0 && (
-        <div className="matches-grid">
-          {matches.map((item, index) => <MatchCard item={item} key={item?.job?._id || item?._id || item?.jobId || index} />)}
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'nav';
+      button.dataset.myMatchesNav = 'true';
+      button.textContent = 'My Matches';
+      button.setAttribute('aria-label', 'My Matches');
+      button.addEventListener('click', () => setOpen(true));
+      jobsButton.insertAdjacentElement('afterend', button);
+    };
+
+    installNavigation();
+    observer = new MutationObserver(installNavigation);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer?.disconnect();
+  }, []);
+
+  return (
+    <>
+      {open && (
+        <div className="my-matches-overlay" role="dialog" aria-modal="true" aria-label="My Matches">
+          <section className="my-matches my-matches-page">
+            <div className="my-matches-header">
+              <div>
+                <p className="eyebrow">PERSONALISED DISCOVERY</p>
+                <h2>My Matches</h2>
+                <p>Jobs ranked against your candidate profile using the global matching pipeline.</p>
+              </div>
+              <div className="my-matches-header-actions">
+                {!loading && !error && <span className="match-count">{matches.length} matches</span>}
+                <button type="button" className="match-close" onClick={() => setOpen(false)}>Close</button>
+              </div>
+            </div>
+
+            {loading && <div className="matches-state">Loading your matches…</div>}
+            {!loading && error && <div className="matches-state matches-error">{error}</div>}
+            {!loading && !error && matches.length === 0 && (
+              <div className="matches-state">No matches were returned for this profile.</div>
+            )}
+            {!loading && !error && matches.length > 0 && (
+              <div className="matches-grid">
+                {matches.map((item, index) => <MatchCard item={item} key={item?.job?._id || item?._id || item?.jobId || index} />)}
+              </div>
+            )}
+          </section>
         </div>
       )}
-    </section>
+    </>
   );
 }
