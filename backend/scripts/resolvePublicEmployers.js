@@ -21,14 +21,16 @@ function numericArgOrEnv(name, envName, fallback = 0) {
 }
 
 // CLI arguments override environment defaults. There is intentionally NO implicit scan cap.
-// Use --limit=N only when a bounded test is explicitly requested.
+// The scan limit is CLI-only so a stale PUBLIC_EMPLOYER_LIMIT=20 in .env cannot silently
+// cap production runs. Use --limit=N only when a bounded test is explicitly requested.
 const RUN_ID = argValue('run-id', process.env.PUBLIC_EMPLOYER_RUN_ID || 'public-employer-resolution-v1');
 const START = Math.max(1, numericArgOrEnv('start', 'PUBLIC_EMPLOYER_START', 1));
 const END = Math.max(START, numericArgOrEnv('end', 'PUBLIC_EMPLOYER_END', 0));
 const BATCH_SIZE = Math.max(1, numericArgOrEnv('batch-size', 'PUBLIC_EMPLOYER_BATCH_SIZE', 25));
 const CONCURRENCY = Math.max(1, numericArgOrEnv('concurrency', 'PUBLIC_EMPLOYER_CONCURRENCY', 3));
 const DELAY_MS = Math.max(0, numericArgOrEnv('delay-ms', 'PUBLIC_EMPLOYER_DELAY_MS', 300));
-const LIMIT = Math.max(0, numericArgOrEnv('limit', 'PUBLIC_EMPLOYER_LIMIT', 0));
+const CLI_LIMIT = argValue('limit', null);
+const LIMIT = CLI_LIMIT === null ? 0 : Math.max(0, Number(CLI_LIMIT) || 0);
 const TYPES = ['nhs', 'councils', 'universities'];
 
 const checkpointSchema = new mongoose.Schema({
@@ -113,8 +115,6 @@ async function main() {
       selectedCompanies.push(company);
     }
 
-    // Always advance the cursor through the fetched batch. This prevents a START offset
-    // from repeatedly fetching the same companies.
     if (!selectedCompanies.length) {
       lastCompanyId = String(companies[companies.length - 1].companyId);
       if (END && datasetIndex >= END) break;
