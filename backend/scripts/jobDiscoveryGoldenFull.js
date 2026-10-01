@@ -14,6 +14,7 @@ const DEFAULT_RESOLUTION_CONCURRENCY = Number(process.env.GOLDEN_RESOLUTION_CONC
 const DEFAULT_PROGRESS_EVERY = Number(process.env.GOLDEN_PROGRESS_EVERY || 100);
 const DEFAULT_BATCH_SIZE = Number(process.env.GOLDEN_BATCH_SIZE || 50);
 const CONTROLLED_TEST_IDS = new Set(['1', '3', '8', '11', '12']);
+const RUN_COLLECTION = 'golden_discovery_runs';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -60,6 +61,14 @@ const checkpointSchema = new mongoose.Schema({
 
 checkpointSchema.index({ runId: 1, companyId: 1 }, { unique: true });
 const GoldenDiscoveryCheckpoint = mongoose.models.GoldenDiscoveryCheckpoint || mongoose.model('GoldenDiscoveryCheckpoint', checkpointSchema);
+
+async function updateRunStatus(patch) {
+  await mongoose.connection.db.collection(RUN_COLLECTION).updateOne(
+    { runId: RUN_ID },
+    { $set: { runId: RUN_ID, updatedAt: new Date(), ...patch }, $setOnInsert: { startedAt: new Date() } },
+    { upsert: true }
+  );
+}
 
 async function loadCompleted(runId) {
   if (RETRY_COMPLETED) return new Set();
@@ -217,6 +226,7 @@ async function main() {
 
   await connectMongo();
   console.log(`MongoDB connected: ${mongoose.connection.name}`);
+  await updateRunStatus({ status: 'running', phase: 'loading', start: START, end: END_ARG || null, batchSize: BATCH_SIZE, resolutionConcurrency: RESOLUTION_CONCURRENCY, limit: LIMIT || null, currentBatchStart: null, currentBatchEnd: null, currentBatchCount: 0, currentCompanyId: null, currentCompanyName: null });
 
   const completed = await loadCompleted(RUN_ID);
   console.log(`Existing checkpoints for this run: ${completed.size}`);
@@ -247,7 +257,12 @@ async function main() {
 
     if (!companies.length) break;
 
+    const batchStart = offset + 1;
+    const batchEnd = offset + companies.length;
+    await updateRunStatus({ phase: 'resolving', currentBatchStart: batchStart, currentBatchEnd: batchEnd, currentBatchCount: companies.length, currentCompanyId: null, currentCompanyName: null, heartbeatAt: new Date() });
     const resolved = await resolveBatch(companies);
+
+    await updateRunStatus({ phase: 'discovering', currentBatchStart: batchStart, currentBatchEnd: batchEnd, currentBatchCount: companies.length, currentCompanyId: null, currentCompanyName: null, heartbeatAt: new Date() });
 
     for (const item of resolved) {
       if (stop) break;
@@ -257,8 +272,11 @@ async function main() {
 
       if (completed.has(companyId)) {
         stats.skippedCheckpoint += 1;
+        await updateRunStatus({ currentCompanyId: companyId, currentCompanyName: item.company.companyName || null, heartbeatAt: new Date() });
         continue;
       }
+
+      await updateRunStatus({ currentCompanyId: companyId, currentCompanyName: item.company.companyName || null, heartbeatAt: new Date() });
 
       if (item.source.status === 'resolved') stats.resolved += 1;
       else stats.unresolved += 1;
@@ -287,6 +305,8 @@ async function main() {
           error: error.message
         });
       }
+
+      await updateRunStatus({ currentCompanyId: companyId, currentCompanyName: item.company.companyName || null, heartbeatAt: new Date(), processedInRun: rangeScanned });
 
       if (stats.scanned % PROGRESS_EVERY === 0) {
         console.log(`[progress] scanned=${stats.scanned} rangeScanned=${rangeScanned} resolved=${stats.resolved} unresolved=${stats.unresolved} successful=${stats.successful} failed=${stats.failed} jobsAdded=${stats.jobsAdded} jobsUpdated=${stats.jobsUpdated}`);
@@ -323,11 +343,14 @@ async function main() {
     rejected: stats.rejected
   };
 
+  await updateRunStatus({ status: 'completed', phase: 'complete', currentBatchStart: null, currentBatchEnd: null, currentBatchCount: 0, currentCompanyId: null, currentCompanyName: null, heartbeatAt: new Date(), completedAt: new Date(), summary });
+
   console.log('');
   console.log('=== FULL DATASET SUMMARY ===');
   console.log(JSON.stringify(summary, null, 2));
   console.log('');
   console.log('Checkpoint collection: golden_discovery_checkpoints');
+  console.log('Run status collection: golden_discovery_runs');
   console.log('Resume with the same run ID.');
 
   await mongoose.disconnect();
@@ -336,6 +359,11 @@ async function main() {
 
 main().catch(async error => {
   console.error('FULL GOLDEN DISCOVERY FAILED:', error.message);
+  try {
+    if (mongoose.connection.readyState === 1) {
+      await updateRunStatus({ status: 'failed', phase: 'error', error: error.message, heartbeatAt: new Date(), failedAt: new Date() });
+    }
+  } catch {}
   try { await mongoose.disconnect(); } catch {}
   process.exit(1);
 });
