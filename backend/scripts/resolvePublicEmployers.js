@@ -6,25 +6,29 @@ import { resolveCareerSource } from '../services/careerSourceResolver.js';
 
 dotenv.config();
 
-function argValue(name, fallback = '') {
+function argValue(name, fallback = null) {
   const prefix = `--${name}=`;
   const arg = process.argv.slice(2).find(value => value.startsWith(prefix));
   return arg ? arg.slice(prefix.length) : fallback;
 }
 
-function argNumber(name, fallback = 0) {
-  const value = Number(argValue(name, fallback));
+function numericArgOrEnv(name, envName, fallback = 0) {
+  const cli = argValue(name, null);
+  const raw = cli !== null ? cli : process.env[envName];
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const value = Number(raw);
   return Number.isFinite(value) ? value : fallback;
 }
 
-// CLI arguments override environment defaults. This makes resumable test runs explicit.
+// CLI arguments override environment defaults. There is intentionally NO implicit scan cap.
+// Use --limit=N only when a bounded test is explicitly requested.
 const RUN_ID = argValue('run-id', process.env.PUBLIC_EMPLOYER_RUN_ID || 'public-employer-resolution-v1');
-const START = Math.max(1, argNumber('start', Number(process.env.PUBLIC_EMPLOYER_START || 1)));
-const END = Math.max(START, argNumber('end', Number(process.env.PUBLIC_EMPLOYER_END || 0)));
-const BATCH_SIZE = Math.max(1, argNumber('batch-size', Number(process.env.PUBLIC_EMPLOYER_BATCH_SIZE || 25)));
-const CONCURRENCY = Math.max(1, argNumber('concurrency', Number(process.env.PUBLIC_EMPLOYER_CONCURRENCY || 3)));
-const DELAY_MS = Math.max(0, argNumber('delay-ms', Number(process.env.PUBLIC_EMPLOYER_DELAY_MS || 300)));
-const LIMIT = Math.max(0, argNumber('limit', Number(process.env.PUBLIC_EMPLOYER_LIMIT || 0)));
+const START = Math.max(1, numericArgOrEnv('start', 'PUBLIC_EMPLOYER_START', 1));
+const END = Math.max(START, numericArgOrEnv('end', 'PUBLIC_EMPLOYER_END', 0));
+const BATCH_SIZE = Math.max(1, numericArgOrEnv('batch-size', 'PUBLIC_EMPLOYER_BATCH_SIZE', 25));
+const CONCURRENCY = Math.max(1, numericArgOrEnv('concurrency', 'PUBLIC_EMPLOYER_CONCURRENCY', 3));
+const DELAY_MS = Math.max(0, numericArgOrEnv('delay-ms', 'PUBLIC_EMPLOYER_DELAY_MS', 300));
+const LIMIT = Math.max(0, numericArgOrEnv('limit', 'PUBLIC_EMPLOYER_LIMIT', 0));
 const TYPES = ['nhs', 'councils', 'universities'];
 
 const checkpointSchema = new mongoose.Schema({
@@ -56,6 +60,7 @@ async function main() {
   console.log(`End: ${END || 'dataset end'}`);
   console.log(`Batch size: ${BATCH_SIZE}`);
   console.log(`Concurrency: ${CONCURRENCY}`);
+  console.log(`Limit: ${LIMIT || 'none'}`);
 
   await connectMongo();
   console.log(`MongoDB connected: ${mongoose.connection.name}`);
@@ -97,14 +102,22 @@ async function main() {
 
     if (!companies.length) break;
 
-    const selectedCompanies = companies.filter(() => {
+    const selectedCompanies = [];
+    for (const company of companies) {
       datasetIndex += 1;
-      return datasetIndex >= START && (!END || datasetIndex <= END);
-    });
+      if (datasetIndex < START) continue;
+      if (END && datasetIndex > END) {
+        stop = true;
+        break;
+      }
+      selectedCompanies.push(company);
+    }
 
-    if (datasetIndex > END && END) break;
+    // Always advance the cursor through the fetched batch. This prevents a START offset
+    // from repeatedly fetching the same companies.
     if (!selectedCompanies.length) {
       lastCompanyId = String(companies[companies.length - 1].companyId);
+      if (END && datasetIndex >= END) break;
       continue;
     }
 
