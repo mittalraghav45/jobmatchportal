@@ -57,7 +57,8 @@ async function main() {
   const companyIds = [...new Set(jobs.map(job => String(job.companyId || '')).filter(Boolean))];
   const companies = await Company.find({ companyId: { $in: companyIds } }).select('companyId companyName sponsorship').lean();
   const byCompany = new Map(companies.map(company => [String(company.companyId), company]));
-  const sent = new Set((await JobDigestDelivery.find({ sentAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }).select('fingerprint').lean()).map(x => x.fingerprint));
+  const sentRows = await JobDigestDelivery.find({ sentAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }).select('fingerprint').lean();
+  const sent = new Set(sentRows.map(x => x.fingerprint));
 
   const matches = [];
   for (const job of jobs) {
