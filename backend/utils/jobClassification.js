@@ -5,11 +5,13 @@ const NATION_PATTERNS = {
   England: /\b(england|london|southampton|manchester|birmingham|bristol|leeds|liverpool|sheffield|nottingham|newcastle|reading|oxford|cambridge|brighton|bath|exeter|portsmouth|coventry|leicester|hull|york|milton keynes|luton|watford|guildford|winchester|chester|derby|norwich|plymouth|swindon|slough|croydon|hounslow|bournemouth|canterbury|cheltenham|gloucester|ipswich|lincoln|middlesbrough|northampton|peterborough|preston|salisbury|stoke-on-trent|sunderland|wakefield|wolverhampton|worcester)\b/i
 };
 
+// Keep these deliberately organisation-focused. Generic words such as "city"
+// or "college" are not sufficient evidence on their own.
 const EMPLOYER_PATTERNS = {
+  nhs: /\bnhs\b|nhs trust|nhs foundation trust|health board|health and social care|nhs scotland|nhs england|nhs wales|nhs northern ireland/i,
+  dwp: /\bdepartment for work and pensions\b|\bdwp\b/i,
   councils: /\b(council|borough council|city council|county council|district council|metropolitan borough|unitary authority|local authority|local government)\b/i,
-  universities: /\b(university|universities|higher education|institute of technology|university of|college)\b/i,
-  dwp: /\b(department for work and pensions|dwp)\b/i,
-  nhs: /\bnhs\b|nhs trust|nhs foundation trust|health board|health and social care|nhs scotland|nhs england|nhs wales|nhs northern ireland/i
+  universities: /\b(university|universities|higher education|institute of technology|university of)\b/i
 };
 
 function flatten(value) {
@@ -30,7 +32,6 @@ function firstMatchingNation(signals) {
 export function classifyNation({ location = '', company = {}, raw = {} } = {}) {
   const metadata = company?.metadata || {};
 
-  // A specific job location takes precedence over a company's registered/office location.
   const jobLocationSignals = [location, raw.location, raw.region, raw.country]
     .map(flatten)
     .join(' ')
@@ -38,7 +39,6 @@ export function classifyNation({ location = '', company = {}, raw = {} } = {}) {
   const jobNation = firstMatchingNation(jobLocationSignals);
   if (jobNation) return jobNation;
 
-  // Only use company metadata when the job location itself does not identify a nation.
   const companySignals = [
     metadata.location,
     metadata.address,
@@ -50,7 +50,6 @@ export function classifyNation({ location = '', company = {}, raw = {} } = {}) {
   const companyNation = firstMatchingNation(companySignals);
   if (companyNation) return companyNation;
 
-  // Generic UK/United Kingdom is not evidence that a job is in England.
   const explicitCountry = flatten(metadata.country || raw.country).trim().toLowerCase();
   if (explicitCountry === 'england') return 'England';
 
@@ -77,6 +76,7 @@ export function classifyEmployerType({ company = {}, job = {}, raw = {} } = {}) 
     raw.organisation
   ].map(flatten).join(' ');
 
+  // Specific public-sector identities are checked before broader categories.
   if (EMPLOYER_PATTERNS.nhs.test(signals)) return 'nhs';
   if (EMPLOYER_PATTERNS.dwp.test(signals)) return 'dwp';
   if (EMPLOYER_PATTERNS.councils.test(signals)) return 'councils';
@@ -88,6 +88,6 @@ export function classifyJob({ job = {}, company = {}, raw = {} } = {}) {
   return {
     nation: classifyNation({ location: job.location || raw.location, company, raw }),
     employerType: classifyEmployerType({ company, job, raw }),
-    classificationVersion: 'v2'
+    classificationVersion: 'v3'
   };
 }
