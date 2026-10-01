@@ -75,6 +75,9 @@ export function normaliseJob(raw = {}) {
     raw.source?.url,
     raw.source?.applicationUrl,
     raw.source?.application_url,
+    raw.source?.application,
+    raw.source?.apply,
+    raw.source?.job,
     raw.raw
   );
 
