@@ -11,6 +11,9 @@ const matchesResponse = {
         nation: 'England',
         ats: 'greenhouse',
         applicationUrl: 'https://example.com/apply',
+        closingAt: '2026-10-15T23:59:59.000Z',
+        liveState: 'live',
+        isLive: true,
       },
       sponsorship: 'verified',
       candidateScore: {
@@ -50,6 +53,8 @@ test.describe('My Matches browser flow', () => {
     await expect(page.getByText('Sponsorship: verified')).toBeVisible();
     await expect(page.getByText('React')).toBeVisible();
     await expect(page.getByText('TypeScript')).toBeVisible();
+    await expect(page.getByText('Live')).toBeVisible();
+    await expect(page.getByText('Closes: 15 Oct 2026')).toBeVisible();
     await expect(page.getByLabel('92% match')).toBeVisible();
   });
 
