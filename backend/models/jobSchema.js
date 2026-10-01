@@ -1,4 +1,4 @@
-export const JOB_SCHEMA_VERSION = '1.1';
+export const JOB_SCHEMA_VERSION = '1.2';
 
 const clean = value => String(value ?? '').trim();
 
@@ -36,9 +36,6 @@ function firstHttpUrl(...values) {
     if (!value || typeof value !== 'object' || seen.has(value)) continue;
     seen.add(value);
 
-    // ATS/application payloads are not fully consistent across sources. Walk
-    // the common wrapper objects as well as direct URL fields so we never
-    // lose a real application URL merely because it is nested one level deeper.
     for (const key of [
       'application', 'apply', 'job', 'source',
       'applicationUrl', 'application_url', 'applyUrl', 'apply_url', 'atsUrl',
@@ -49,6 +46,12 @@ function firstHttpUrl(...values) {
   }
 
   return '';
+}
+
+function normaliseLiveState(raw) {
+  if (raw?.isLive === true || raw?.status === 'live' || raw?.status === 'open') return { isLive: true, liveState: 'live' };
+  if (raw?.isLive === false || raw?.status === 'closed' || raw?.status === 'expired') return { isLive: false, liveState: 'closed' };
+  return { isLive: null, liveState: 'unknown' };
 }
 
 export function normaliseJob(raw = {}) {
@@ -80,6 +83,7 @@ export function normaliseJob(raw = {}) {
     raw.source?.job,
     raw.raw
   );
+  const live = normaliseLiveState(raw);
 
   return {
     schemaVersion: JOB_SCHEMA_VERSION,
@@ -94,7 +98,7 @@ export function normaliseJob(raw = {}) {
     department: clean(raw.department || ''),
     source: { ats: source, url: applicationUrl },
     dates: { postedAt, closingAt, lastSeenAt: raw.lastSeenAt || new Date().toISOString() },
-    status: { isLive: raw.isLive !== false && raw.status !== 'closed' },
+    status: { ...live, verification: raw.verification || raw.status?.verification || {} },
     raw
   };
 }
