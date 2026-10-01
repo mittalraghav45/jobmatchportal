@@ -44,6 +44,21 @@ describe('MyMatches', () => {
     expect(screen.getByRole('link', { name: 'Apply' }).getAttribute('href')).toBe('https://example.com/apply');
   });
 
+  it('renders a match score when the API nests it under candidateScore', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        matches: [{
+          job: { title: 'Scored Engineer', companyName: 'Score Ltd', liveState: 'live' },
+          candidateScore: { score: 92 },
+        }],
+      }),
+    });
+    render(<MyMatches initiallyOpen />);
+    expect(await screen.findByLabelText('92% match')).toBeTruthy();
+    expect(screen.getByText('92%')).toBeTruthy();
+  });
+
   it('does not create a fake application URL when none exists', async () => {
     fetch.mockResolvedValue({ ok: true, json: async () => ({ jobs: [{ title: 'Backend Engineer', companyName: 'No ATS Ltd', liveState: 'live' }] }) });
     render(<MyMatches initiallyOpen />);
