@@ -37,6 +37,40 @@ function closingDateFromKnownFields(job) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function parseJsonLd(html) {
+  const records = [];
+  const scripts = String(html || '').match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) || [];
+  for (const script of scripts) {
+    const body = script.replace(/^<script[^>]*>/i, '').replace(/<\/script>$/i, '').trim();
+    try {
+      const parsed = JSON.parse(body);
+      const values = Array.isArray(parsed) ? parsed : [parsed];
+      for (const value of values) {
+        if (value?.['@graph'] && Array.isArray(value['@graph'])) records.push(...value['@graph']);
+        else records.push(value);
+      }
+    } catch {
+      // Some sites emit invalid JSON-LD. Fall back to visible page evidence.
+    }
+  }
+  return records;
+}
+
+function structuredJobPosting(html) {
+  return parseJsonLd(html).find(record => {
+    const type = record?.['@type'];
+    return type === 'JobPosting' || (Array.isArray(type) && type.includes('JobPosting'));
+  }) || null;
+}
+
+function structuredClosingDate(html) {
+  const posting = structuredJobPosting(html);
+  const value = posting?.validThrough || posting?.applicationDeadline || posting?.closingDate || null;
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function inferClosingDate(text) {
   const patterns = [
     /(?:application|applications|closing|deadline|closing date)[^\n]{0,100}?\b(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})\b/i,
@@ -65,6 +99,8 @@ function classifyHtml(html) {
   for (const pattern of LIVE_PATTERNS) {
     if (pattern.test(text)) return { state: 'live', reason: `source_text:${pattern.source}` };
   }
+  const posting = structuredJobPosting(html);
+  if (posting?.validThrough) return { state: 'live', reason: 'structured_data:JobPosting.validThrough' };
   return { state: 'unknown', reason: 'no_explicit_live_or_closed_signal' };
 }
 
@@ -108,14 +144,15 @@ export async function verifyJobLiveStatus(job, { timeoutMs = 10000, now = new Da
 
     const html = await response.text();
     const classification = classifyHtml(html);
+    const structuredDate = structuredClosingDate(html);
     const pageClosingDate = inferClosingDate(html);
-    const closingAt = pageClosingDate || knownClosingDate;
+    const closingAt = structuredDate || pageClosingDate || knownClosingDate;
 
     if (closingAt && closingAt.getTime() < now.getTime()) {
       return {
         state: 'closed',
         isLive: false,
-        reason: 'closing_date_passed_on_source',
+        reason: structuredDate ? 'structured_closing_date_passed' : 'closing_date_passed_on_source',
         checkedAt: now.toISOString(),
         url: response.url || url,
         closingAt: closingAt.toISOString()
