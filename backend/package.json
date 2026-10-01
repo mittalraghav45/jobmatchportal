@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "nodemon -r dotenv/config routes/registerJobs.js",
+    "dev": "node --watch -r dotenv/config routes/registerJobs.js",
     "dev:node20": "node --env-file=.env routes/registerJobs.js",
     "start": "node -r dotenv/config routes/registerJobs.js",
     "test": "node --check server.js && node --check routes/intelligenceRoutes.js && node --check routes/discoveryStatus.js && node --check services/companyDiscovery.js && node --check services/jobLiveVerifier.js && node --check scripts/jobDiscoveryGoldenFull.js && node --check scripts/enrichExistingJobs.js && node --check scripts/resolvePublicEmployers.js && node --check scripts/resolveMissingJobCompanies.js && node --check scripts/sendJobDigest.js && node --check scripts/verifyLiveJobs.js && node --test tests/*.test.js",
@@ -32,8 +32,5 @@
     "express": "^4.22.3",
     "mongoose": "^8.18.0",
     "openai": "^4.104.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.10"
   }
 }
