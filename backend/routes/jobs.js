@@ -46,9 +46,9 @@ async function resolveSponsorshipCompanyIds(value) {
   return companies.map(company => String(company.companyId));
 }
 
-async function resolveEmployerCompanyIds(value) {
+function addEmployerTypeFilter(filter, value) {
   const keys = parseList(value).map(x => x.toLowerCase());
-  if (!keys.length || keys.includes('all')) return null;
+  if (!keys.length || keys.includes('all')) return;
   for (const key of keys) {
     if (!EMPLOYER_TYPES.has(key)) {
       const error = new Error('employerType must be all, councils, universities, dwp, or nhs');
@@ -56,8 +56,11 @@ async function resolveEmployerCompanyIds(value) {
       throw error;
     }
   }
-  const companies = await Company.find({ employerType: { $in: keys } }).select({ companyId: 1 }).lean();
-  return companies.map(company => String(company.companyId));
+  // employerType is persisted on the Job document by the enrichment pipeline.
+  // Query it directly instead of translating through companyId. This avoids
+  // false zero-result filters when a feed's companyId does not match the
+  // company registry identifier exactly.
+  filter.$and.push({ employerType: { $in: keys } });
 }
 
 async function resolveNationCompanyIds(value) {
@@ -150,9 +153,8 @@ router.get('/', async (req, res) => {
     addNationFilter(filter, req.query.nation, nationCompanyIds);
 
     const sponsorshipCompanyIds = await resolveSponsorshipCompanyIds(req.query.sponsorship);
-    const employerCompanyIds = await resolveEmployerCompanyIds(req.query.employerType);
+    addEmployerTypeFilter(filter, req.query.employerType);
     if (sponsorshipCompanyIds) filter.$and.push({ companyId: { $in: sponsorshipCompanyIds } });
-    if (employerCompanyIds) filter.$and.push({ companyId: { $in: employerCompanyIds } });
 
     const live = parseBoolean(req.query.live);
     if (live === null) return res.status(400).json({ error: 'live must be true or false' });
