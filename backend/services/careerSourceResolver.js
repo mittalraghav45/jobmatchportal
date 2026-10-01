@@ -19,6 +19,27 @@ const COMMON_CAREER_PATHS = [
   '/join-us', '/join-our-team', '/current-vacancies', '/job-search'
 ];
 
+const ATS_HINTS = [
+  ['trac', /trac\.jobs|jobs\.trac\.jobs/i],
+  ['jobtrain', /jobtrain\.co\.uk/i],
+  ['nhs', /jobs\.nhs\.uk/i],
+  ['workday', /(?:myworkdayjobs\.com|\.myworkday\.com)/i],
+  ['smartrecruiters', /smartrecruiters\.com/i],
+  ['successfactors', /successfactors\.(?:com|eu|co\.uk)/i],
+  ['icims', /(?:\.icims\.com|icims\.com)/i],
+  ['oracle', /(?:taleo\.net|oraclecloud\.com\/hcm|oracle\.com\/.*careers)/i],
+  ['greenhouse', /(?:greenhouse\.io|greenhouse\.com)/i],
+  ['lever', /(?:jobs\.lever\.co|lever\.co)/i],
+  ['ashby', /ashbyhq\.com/i],
+  ['teamtailor', /teamtailor\.com/i],
+  ['recruitee', /recruitee\.com/i],
+  ['pinpoint', /pinpointhq\.com/i],
+  ['workable', /workable\.com/i],
+  ['bamboohr', /bamboohr\.com/i],
+  ['brassring', /brassring\.com/i],
+  ['civica', /civica(?:\.co\.uk|\.com)/i]
+];
+
 function firstNonEmpty(...values) {
   return values.find(value => typeof value === 'string' && value.trim())?.trim() || '';
 }
@@ -94,6 +115,27 @@ async function probe(url) {
   } catch { return null; }
 }
 
+function extractAbsoluteUrls(html = '') {
+  const urls = new Set();
+  const patterns = [
+    /(?:href|src|action|data-src|data-url|data-href|data-careers-url|data-jobs-url)\s*=\s*["']([^"']+)["']/gi,
+    /(?:https?:)?\/\/[^\s"'<>\\]+/gi
+  ];
+
+  for (const regex of patterns) {
+    let match;
+    while ((match = regex.exec(String(html))) !== null) {
+      let value = match[1] || match[0];
+      value = value.replace(/&amp;/g, '&').replace(/[),.;]+$/, '');
+      if (value.startsWith('//')) value = `https:${value}`;
+      if (!/^https?:\/\//i.test(value)) continue;
+      const normalised = normaliseUrl(value);
+      if (normalised && isUsableCareerUrl(normalised)) urls.add(normalised);
+    }
+  }
+  return [...urls];
+}
+
 function extractSearchLinks(html = '') {
   const links = [];
   const regex = /href=["']([^"']+)["']/gi;
@@ -150,7 +192,7 @@ async function discoverWebsite(company) {
 }
 
 function looksLikeCareerLink(url = '') {
-  return /career|jobs|join-us|joinourteam|work-with-us|vacanc|opportunit|recruit/i.test(String(url));
+  return /career|jobs|join-us|joinourteam|work-with-us|vacanc|opportunit|recruit|talent/i.test(String(url));
 }
 
 async function discoverCareerLinkFromHomepage(website) {
@@ -160,47 +202,62 @@ async function discoverCareerLinkFromHomepage(website) {
       validateStatus: status => status >= 200 && status < 400,
       headers: { 'User-Agent': 'SponsorTracker/1.0 career-source-resolver' }
     });
-    const links = extractSearchLinks(String(response.data || ''));
+    const html = String(response.data || '');
+    const links = [...extractSearchLinks(html), ...extractAbsoluteUrls(html)];
     for (const link of links) if (looksLikeCareerLink(link)) return link;
   } catch { return null; }
   return null;
+}
+
+function detectATSInText(text = '', candidateUrl = '') {
+  const inspectedUrls = [candidateUrl, ...extractAbsoluteUrls(text)];
+  for (const url of inspectedUrls) {
+    const detected = resolveATSConfig({ careersUrl: url });
+    if (detected.ats) return { ats: detected.ats, atsSlug: detected.slug || null, source: 'ats-url' };
+  }
+
+  for (const [ats, pattern] of ATS_HINTS) {
+    if (pattern.test(text)) return { ats, atsSlug: null, source: 'ats-page-hint' };
+  }
+  return { ats: null, atsSlug: null };
 }
 
 async function inspectATSFromPage(url) {
   if (!isUsableCareerUrl(url)) return { ats: null, atsSlug: null };
   try {
     const response = await axios.get(url, {
-      timeout: 7000,
-      maxRedirects: 5,
+      timeout: 9000,
+      maxRedirects: 8,
       validateStatus: status => status >= 200 && status < 400,
-      headers: { 'User-Agent': 'SponsorTracker/1.0 ats-detector' }
+      headers: { 'User-Agent': 'Mozilla/5.0 SponsorTracker/1.0 ats-detector' }
     });
+    const finalUrl = response.request?.res?.responseUrl || response.config?.url || url;
     const html = String(response.data || '');
-    const candidates = [url, ...extractSearchLinks(html)];
-    for (const candidate of candidates) {
-      const detected = resolveATSConfig({ careersUrl: candidate });
-      if (detected.ats) return { ats: detected.ats, atsSlug: detected.slug || null, source: 'ats-url' };
+    const detected = detectATSInText(html, finalUrl);
+    if (detected.ats) return detected;
+
+    // Inspect the first-level embedded/linked recruitment sources. Many public-sector
+    // careers pages keep the employer URL while loading the actual ATS in an iframe.
+    const embedded = extractAbsoluteUrls(html).filter(link => !isBlockedResult(link)).slice(0, 40);
+    for (const candidate of embedded) {
+      const fromUrl = resolveATSConfig({ careersUrl: candidate });
+      if (fromUrl.ats) return { ats: fromUrl.ats, atsSlug: fromUrl.slug || null, source: 'embedded-url' };
     }
 
-    const atsHints = [
-      ['trac', /trac\.jobs/i],
-      ['jobtrain', /jobtrain\.co\.uk/i],
-      ['nhs', /jobs\.nhs\.uk/i],
-      ['workday', /myworkdayjobs\.com/i],
-      ['smartrecruiters', /smartrecruiters\.com/i],
-      ['successfactors', /successfactors\.(?:com|eu|co\.uk)/i],
-      ['icims', /(?:\.icims\.com|icims\.com)/i],
-      ['oracle', /taleo\.net|oraclecloud\.com\/hcm/i],
-      ['greenhouse', /greenhouse\.io/i],
-      ['lever', /lever\.co/i],
-      ['ashby', /ashbyhq\.com/i],
-      ['teamtailor', /teamtailor\.com/i],
-      ['recruitee', /recruitee\.com/i],
-      ['pinpoint', /pinpointhq\.com/i],
-      ['workable', /workable\.com/i]
-    ];
-    for (const [ats, pattern] of atsHints) {
-      if (pattern.test(html)) return { ats, atsSlug: null, source: 'ats-page-hint' };
+    // Follow likely recruitment links one level deeper and inspect their HTML.
+    const recruitmentLinks = embedded.filter(looksLikeCareerLink).slice(0, 8);
+    for (const candidate of recruitmentLinks) {
+      try {
+        const child = await axios.get(candidate, {
+          timeout: 7000,
+          maxRedirects: 5,
+          validateStatus: status => status >= 200 && status < 400,
+          headers: { 'User-Agent': 'Mozilla/5.0 SponsorTracker/1.0 ats-detector' }
+        });
+        const childFinalUrl = child.request?.res?.responseUrl || child.config?.url || candidate;
+        const childDetected = detectATSInText(String(child.data || ''), childFinalUrl);
+        if (childDetected.ats) return { ...childDetected, source: 'linked-careers-page' };
+      } catch { /* continue inspecting other candidates */ }
     }
   } catch { /* ATS inspection is best-effort and must not fail resolution */ }
   return { ats: null, atsSlug: null };
