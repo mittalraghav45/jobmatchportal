@@ -6,7 +6,7 @@
     "dev": "nodemon -r dotenv/config routes/registerJobs.js",
     "dev:node20": "node --env-file=.env routes/registerJobs.js",
     "start": "node -r dotenv/config routes/registerJobs.js",
-    "test": "node --check server.js && node --check routes/intelligenceRoutes.js && node --check routes/discoveryStatus.js && node --check services/companyDiscovery.js && node --check scripts/jobDiscoveryGoldenFull.js && node --check scripts/enrichExistingJobs.js && node --check scripts/resolvePublicEmployers.js && node --check scripts/resolveMissingJobCompanies.js && node --check scripts/sendJobDigest.js && node --test tests/*.test.js",
+    "test": "node --check server.js && node --check routes/intelligenceRoutes.js && node --check routes/discoveryStatus.js && node --check services/companyDiscovery.js && node --check services/jobLiveVerifier.js && node --check scripts/jobDiscoveryGoldenFull.js && node --check scripts/enrichExistingJobs.js && node --check scripts/resolvePublicEmployers.js && node --check scripts/resolveMissingJobCompanies.js && node --check scripts/sendJobDigest.js && node --check scripts/verifyLiveJobs.js && node --test tests/*.test.js",
     "test:location": "node --test tests/locationClassification.test.js tests/locationApi.test.js",
     "test:employer": "node --test tests/employerClassification.test.js tests/companyClassification.test.js",
     "classify:companies": "node -r dotenv/config scripts/classifyCompanies.js",
@@ -19,6 +19,7 @@
     "resolve:public-employers": "node -r dotenv/config scripts/resolvePublicEmployers.js",
     "resolve:missing-job-companies": "node -r dotenv/config scripts/resolveMissingJobCompanies.js",
     "jobs:refresh": "node -r dotenv/config scripts/refreshVerifiedJobSources.js",
+    "jobs:verify-live": "node -r dotenv/config scripts/verifyLiveJobs.js",
     "jobs:enrich": "node -r dotenv/config scripts/enrichExistingJobs.js",
     "jobs:digest": "node -r dotenv/config scripts/sendJobDigest.js",
     "db:check": "node scripts/checkMongo.js"
