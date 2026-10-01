@@ -34,6 +34,18 @@ MongoDB repositories (optional/local integration)
 - Local application tracker with status progression.
 - MongoDB models and repositories for persistent company/job data.
 
+## Dashboard data contract
+
+The dashboard distinguishes three different counts rather than reusing one number for everything:
+
+- **UK jobs** - the number of UK technology jobs matching the current job query.
+- **Applications** - the candidate's tracked applications.
+- **Sponsor companies** - companies whose MongoDB sponsorship evidence is explicitly `verified`.
+
+`GET /api/companies/count` returns both `total` and `sponsorTotal`. This keeps the sponsor count visible on the dashboard without changing the broader company dataset used by the Sponsors page.
+
+Job cards also expose the canonical ATS value, live state and closing date. Unknown values are displayed as `Not available` / `Status not available`; the UI does not silently convert missing evidence into a positive status.
+
 ## My Matches contract
 
 The personalised matching endpoint is:
@@ -90,6 +102,8 @@ $env:JOB_VERIFY_CONCURRENCY="5"
 $env:JOB_VERIFY_LIMIT="100"
 npm run jobs:verify-live
 ```
+
+A successful HTTP response alone is not sufficient evidence that a vacancy is live. The verifier looks for explicit source-page signals, structured `JobPosting` evidence and closing-date evidence. A page that still exists but says applications are closed is classified as closed.
 
 ## Repository layout
 
