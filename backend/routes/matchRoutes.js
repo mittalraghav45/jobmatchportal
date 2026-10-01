@@ -9,6 +9,34 @@ import { techJobMongoFilter } from '../utils/techJobRole.js';
 
 const router = express.Router();
 
+function normaliseAts(value) {
+  if (value === undefined || value === null || value === '') return 'unknown';
+  if (typeof value === 'string' || typeof value === 'number') return String(value).trim() || 'unknown';
+  if (typeof value === 'object') {
+    const candidate = value.name || value.type || value.platform || value.ats || value.provider || value.slug || value.id;
+    return candidate !== undefined && candidate !== null && String(candidate).trim()
+      ? String(candidate).trim()
+      : 'unknown';
+  }
+  return String(value).trim() || 'unknown';
+}
+
+function resolveApplicationUrl(job) {
+  const candidates = [
+    job?.applicationUrl,
+    job?.applyUrl,
+    job?.atsUrl,
+    job?.jobUrl,
+    job?.url,
+    job?.source?.url,
+    job?.raw?.applyUrl,
+    job?.raw?.applicationUrl,
+    job?.raw?.job_url,
+    job?.raw?.url
+  ];
+  return candidates.find(value => typeof value === 'string' && /^https?:\/\//i.test(value.trim()))?.trim() || '';
+}
+
 function resolveSponsorship(value) {
   if (value === undefined || value === '') return null;
   const sponsorship = String(value).trim().toLowerCase();
@@ -47,7 +75,6 @@ function addToTopMatches(topMatches, match, maxItems) {
   if (topMatches.length > maxItems) topMatches.pop();
 }
 
-// Single-job endpoint used by the existing frontend match modal.
 router.post('/', async (req, res) => {
   try {
     const profileId = String(req.body?.profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
@@ -67,6 +94,8 @@ router.post('/', async (req, res) => {
       ? await Company.findOne({ companyId }).select('companyId companyName sponsorship website careersUrl ats').lean()
       : null;
 
+    const ats = normaliseAts(job.ats || job.source?.ats || company?.ats);
+    const applicationUrl = resolveApplicationUrl(job);
     const result = await matchJobToProfile({
       profileId,
       job: {
@@ -74,14 +103,18 @@ router.post('/', async (req, res) => {
         companyName: company?.companyName || job.companyName || '',
         postedAt: job.postedAt || job.dates?.postedAt,
         closingAt: job.closingAt || job.dates?.closingAt,
-        ats: job.ats || job.source?.ats,
-        source: job.source?.url || job.source || ''
+        ats,
+        source: applicationUrl
       }
     });
 
     return res.json({
       profileId,
-      job: result.job,
+      job: {
+        ...result.job,
+        ats: normaliseAts(result.job?.ats || ats),
+        applicationUrl: resolveApplicationUrl(result.job) || applicationUrl
+      },
       analysis: result.analysis,
       candidateScore: result.candidateScore,
       match: {
@@ -94,7 +127,7 @@ router.post('/', async (req, res) => {
       company: {
         website: company?.website || '',
         careersUrl: company?.careersUrl || '',
-        ats: company?.ats || job.source?.ats || 'unknown'
+        ats: normaliseAts(company?.ats || ats)
       }
     });
   } catch (error) {
@@ -129,13 +162,10 @@ router.post('/jobs', async (req, res) => {
       loadCandidateProfile(profileId)
     ]);
 
-    // Score the complete eligible pool before pagination. The previous
-    // implementation paginated first, which meant page 1 was simply the
-    // newest jobs rather than the best matches across the eligible pool.
     const cursor = Job.find(filter)
       .select({
         fingerprint: 1, companyId: 1, companyName: 1, title: 1, description: 1,
-        location: 1, nation: 1, employmentType: 1, source: 1, dates: 1, status: 1
+        location: 1, nation: 1, employmentType: 1, source: 1, dates: 1, status: 1, raw: 1
       })
       .lean()
       .cursor();
@@ -152,19 +182,18 @@ router.post('/jobs', async (req, res) => {
       .lean();
     const companyMap = new Map(companies.map(company => [String(company.companyId), company]));
 
-    // Keep only the best page*limit results in memory. This preserves global
-    // ranking without retaining every scored match after it falls outside the
-    // requested page window.
     const topMatches = [];
     for (const job of jobs) {
       const company = companyMap.get(String(job.companyId));
+      const ats = normaliseAts(job.source?.ats || company?.ats || job.raw?.ats);
+      const applicationUrl = resolveApplicationUrl(job);
       const analysis = analyseJob({
         title: job.title || '',
         description: job.description || '',
         location: job.location,
         employmentType: job.employmentType,
-        source: job.source?.url || '',
-        ats: job.source?.ats,
+        source: applicationUrl,
+        ats,
         postedAt: job.dates?.postedAt,
         closingAt: job.dates?.closingAt
       });
@@ -183,9 +212,9 @@ router.post('/jobs', async (req, res) => {
           location: job.location,
           nation: job.nation,
           employmentType: job.employmentType,
-          url: job.source?.url || '',
-          applicationUrl: job.source?.url || '',
-          ats: job.source?.ats || company?.ats || 'unknown',
+          url: applicationUrl,
+          applicationUrl,
+          ats,
           postedAt: job.dates?.postedAt || null,
           closingAt: job.dates?.closingAt || null,
           isLive: job.status?.isLive !== false
@@ -194,7 +223,7 @@ router.post('/jobs', async (req, res) => {
         company: {
           website: company?.website || '',
           careersUrl: company?.careersUrl || '',
-          ats: company?.ats || job.source?.ats || 'unknown'
+          ats: normaliseAts(company?.ats || ats)
         },
         analysis,
         candidateScore,
