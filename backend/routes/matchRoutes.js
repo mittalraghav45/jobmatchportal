@@ -98,6 +98,14 @@ async function companyIdsForSponsorship(sponsorship) {
   return companies.map(company => String(company.companyId));
 }
 
+function verifiedLiveState(job) {
+  const state = job?.status?.liveState;
+  const checkedAt = job?.status?.verification?.checkedAt;
+  if (state === 'closed') return 'closed';
+  if (state === 'live' && checkedAt) return 'live';
+  return 'unknown';
+}
+
 function compareRankedMatches(a, b) {
   const scoreDelta = Number(b.candidateScore?.score || 0) - Number(a.candidateScore?.score || 0);
   if (scoreDelta) return scoreDelta;
@@ -194,7 +202,7 @@ router.post('/jobs', async (req, res) => {
 
     const filter = {
       $and: [
-        { 'status.isLive': { $ne: false } },
+        { 'status.liveState': { $ne: 'closed' } },
         ukJobMongoFilter(),
         techJobMongoFilter()
       ]
@@ -231,6 +239,7 @@ router.post('/jobs', async (req, res) => {
       const company = companyMap.get(String(job.companyId));
       const ats = resolveAts(job.source?.ats, company?.ats, job.raw?.ats, job.raw?.source?.ats, job.raw?.atsName, job.raw?.atsSlug);
       const applicationUrl = resolveApplicationUrl(job);
+      const liveState = verifiedLiveState(job);
       const analysis = analyseJob({
         title: job.title || '',
         description: job.description || '',
@@ -261,7 +270,13 @@ router.post('/jobs', async (req, res) => {
           ats,
           postedAt: job.dates?.postedAt || null,
           closingAt: job.dates?.closingAt || null,
-          isLive: job.status?.isLive !== false
+          isLive: liveState === 'live' ? true : liveState === 'closed' ? false : null,
+          liveState,
+          liveVerification: {
+            checkedAt: job.status?.verification?.checkedAt || null,
+            reason: job.status?.verification?.reason || 'not_verified',
+            url: job.status?.verification?.url || applicationUrl || ''
+          }
         },
         sponsorship: company?.sponsorship || 'unknown',
         company: {
@@ -294,9 +309,10 @@ router.post('/jobs', async (req, res) => {
       roleType: 'Technology',
       sponsorshipFilter: sponsorship || 'all',
       ranking: {
-        version: 'v2',
+        version: 'v3',
         strategy: 'global-score-then-paginate',
-        tieBreakers: ['sponsorship', 'postedAt', 'jobId']
+        tieBreakers: ['sponsorship', 'postedAt', 'jobId'],
+        liveStatus: 'source-verified-or-unknown'
       }
     });
   } catch (error) {
