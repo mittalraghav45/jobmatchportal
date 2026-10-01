@@ -13,7 +13,6 @@ const NATION_PATTERNS = {
   'Northern Ireland': 'northern ireland|belfast|derry|londonderry|lisburn|newry|armagh|craigavon|newtownabbey|carrickfergus|antrim|newtownards|omagh|coleraine',
   England: 'england|london|southampton|manchester|birmingham|bristol|leeds|liverpool|sheffield|nottingham|newcastle|reading|oxford|cambridge|brighton|bath|exeter|portsmouth|coventry|leicester|hull|york|milton keynes|luton|watford|guildford|winchester|chester|derby|norwich|plymouth|swindon|slough|croydon|hounslow|bournemouth|canterbury|cheltenham|gloucester|ipswich|lincoln|middlesbrough|northampton|peterborough|preston|salisbury|stoke-on-trent|sunderland|wakefield|wolverhampton|worcester'
 };
-
 const EMPLOYER_PATTERNS = {
   councils: 'council|borough council|city council|county council|district council|metropolitan borough|unitary authority|local authority|local government',
   universities: 'university|universities|higher education|institute of technology|university of|college',
@@ -27,21 +26,13 @@ function parseBoolean(value) {
   if (value === 'false') return false;
   return null;
 }
-
 function clampInteger(value, fallback, min, max) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(Math.max(parsed, min), max);
 }
-
-function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function parseList(value) {
-  if (value === undefined || value === null || value === '') return [];
-  return String(value).split(',').map(x => x.trim()).filter(Boolean);
-}
+function escapeRegex(value) { return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function parseList(value) { return value === undefined || value === null || value === '' ? [] : String(value).split(',').map(x => x.trim()).filter(Boolean); }
 
 async function resolveSponsorshipCompanyIds(value) {
   if (value === undefined || value === '') return null;
@@ -68,16 +59,10 @@ async function resolveEmployerCompanyIds(value) {
   const ids = new Set();
   for (const key of keys) {
     const regex = new RegExp(EMPLOYER_PATTERNS[key], 'i');
-    const companies = await Company.find({
-      $or: [
-        { companyName: regex },
-        { 'metadata.industry': regex },
-        { 'metadata.category': regex },
-        { 'metadata.organisationType': regex },
-        { 'metadata.organizationType': regex },
-        { 'metadata.sector': regex }
-      ]
-    }).select({ companyId: 1 }).lean();
+    const companies = await Company.find({ $or: [
+      { companyName: regex }, { 'metadata.industry': regex }, { 'metadata.category': regex },
+      { 'metadata.organisationType': regex }, { 'metadata.organizationType': regex }, { 'metadata.sector': regex }
+    ] }).select({ companyId: 1 }).lean();
     companies.forEach(company => ids.add(String(company.companyId)));
   }
   return [...ids];
@@ -86,7 +71,6 @@ async function resolveEmployerCompanyIds(value) {
 async function resolveNationCompanyIds(value) {
   const nations = parseList(value);
   if (!nations.length || nations.some(x => x.toLowerCase() === 'all')) return null;
-
   for (const key of nations) {
     if (!Object.prototype.hasOwnProperty.call(NATION_PATTERNS, key)) {
       const error = new Error('nation must be all, England, Scotland, Wales, or Northern Ireland');
@@ -94,20 +78,13 @@ async function resolveNationCompanyIds(value) {
       throw error;
     }
   }
-
   const ids = new Set();
   for (const key of nations) {
     const regex = new RegExp(NATION_PATTERNS[key], 'i');
-    const companies = await Company.find({
-      $or: [
-        { 'metadata.location': regex },
-        { 'metadata.address': regex },
-        { 'metadata.region': regex },
-        { 'metadata.country': regex },
-        { 'metadata.city': regex },
-        { 'metadata.postcode': regex }
-      ]
-    }).select({ companyId: 1 }).lean();
+    const companies = await Company.find({ $or: [
+      { 'metadata.location': regex }, { 'metadata.address': regex }, { 'metadata.region': regex },
+      { 'metadata.country': regex }, { 'metadata.city': regex }, { 'metadata.postcode': regex }
+    ] }).select({ companyId: 1 }).lean();
     companies.forEach(company => ids.add(String(company.companyId)));
   }
   return [...ids];
@@ -116,49 +93,28 @@ async function resolveNationCompanyIds(value) {
 function addNationFilter(filter, value, nationCompanyIds = null) {
   const nations = parseList(value);
   if (!nations.length || nations.some(x => x.toLowerCase() === 'all')) return;
-
   const locationClauses = [];
   for (const key of nations) {
     if (key === 'England') {
-      const nonEngland = Object.entries(NATION_PATTERNS)
-        .filter(([name]) => name !== 'England')
-        .map(([, pattern]) => pattern)
-        .join('|');
-      locationClauses.push({
-        $and: [
-          { location: { $regex: NATION_PATTERNS.England, $options: 'i' } },
-          { location: { $not: { $regex: nonEngland, $options: 'i' } } }
-        ]
-      });
-    } else {
-      locationClauses.push({ location: { $regex: NATION_PATTERNS[key], $options: 'i' } });
-    }
+      const nonEngland = Object.entries(NATION_PATTERNS).filter(([name]) => name !== 'England').map(([, pattern]) => pattern).join('|');
+      locationClauses.push({ $and: [{ location: { $regex: NATION_PATTERNS.England, $options: 'i' } }, { location: { $not: { $regex: nonEngland, $options: 'i' } } }] });
+    } else locationClauses.push({ location: { $regex: NATION_PATTERNS[key], $options: 'i' } });
   }
-
   const clauses = [];
   if (locationClauses.length) clauses.push(locationClauses.length === 1 ? locationClauses[0] : { $or: locationClauses });
+  if (nations.length) clauses.push({ nation: { $in: nations } });
   if (nationCompanyIds?.length) clauses.push({ companyId: { $in: nationCompanyIds } });
-
-  // Many sources only provide a generic "UK" job location. In those cases
-  // use the company's stored location metadata as the fallback nation signal.
-  if (clauses.length) filter.$and.push(clauses.length === 1 ? clauses[0] : { $or: clauses });
+  if (clauses.length) filter.$and.push({ $or: clauses });
 }
 
 async function enrichJobs(jobs) {
   const companyIds = [...new Set(jobs.map(job => String(job.companyId || '').trim()).filter(Boolean))];
   if (!companyIds.length) return jobs;
-  const companies = await Company.find({ companyId: { $in: companyIds } })
-    .select({ companyId: 1, companyName: 1, sponsorship: 1, careersUrl: 1, metadata: 1 })
-    .lean();
+  const companies = await Company.find({ companyId: { $in: companyIds } }).select({ companyId: 1, companyName: 1, sponsorship: 1, careersUrl: 1, metadata: 1 }).lean();
   const byId = new Map(companies.map(company => [String(company.companyId), company]));
   return jobs.map(job => {
     const company = byId.get(String(job.companyId || ''));
-    return {
-      ...job,
-      companyName: company?.companyName || 'Unknown company',
-      sponsorship: company?.sponsorship || 'unknown',
-      company: company ? { id: company.companyId, name: company.companyName, sponsorship: company.sponsorship, careersUrl: company.careersUrl, metadata: company.metadata || {} } : null
-    };
+    return { ...job, companyName: company?.companyName || 'Unknown company', sponsorship: company?.sponsorship || 'unknown', company: company ? { id: company.companyId, name: company.companyName, sponsorship: company.sponsorship, careersUrl: company.careersUrl, metadata: company.metadata || {} } : null };
   });
 }
 
@@ -178,19 +134,15 @@ router.get('/', async (req, res) => {
 
     const sponsorshipCompanyIds = await resolveSponsorshipCompanyIds(req.query.sponsorship);
     const employerCompanyIds = await resolveEmployerCompanyIds(req.query.employerType);
-    const companyIdSets = [sponsorshipCompanyIds, employerCompanyIds].filter(Boolean);
-    if (companyIdSets.length) {
-      const allowed = companyIdSets.reduce((acc, ids) => acc ? ids.filter(id => acc.includes(id)) : ids, null);
-      if (!allowed.length) return res.json({ jobs: [], pagination: { page, limit, total: 0, pages: 0 }, market: 'United Kingdom', roleType: 'Technology' });
-      if (filter.companyId) {
-        if (!allowed.includes(String(filter.companyId))) return res.json({ jobs: [], pagination: { page, limit, total: 0, pages: 0 }, market: 'United Kingdom', roleType: 'Technology' });
-      } else filter.companyId = { $in: allowed };
+    if (sponsorshipCompanyIds) filter.$and.push({ companyId: { $in: sponsorshipCompanyIds } });
+    if (employerCompanyIds) {
+      const employerTypes = parseList(req.query.employerType).map(x => x.toLowerCase());
+      filter.$and.push({ $or: [{ employerType: { $in: employerTypes } }, { companyId: { $in: employerCompanyIds } }] });
     }
 
     const live = parseBoolean(req.query.live);
     if (live === null) return res.status(400).json({ error: 'live must be true or false' });
     if (live !== undefined) filter['status.isLive'] = live;
-
     if (req.query.q) {
       const search = escapeRegex(String(req.query.q).trim());
       if (search) filter.$and.push({ $or: [{ title: { $regex: search, $options: 'i' } }, { description: { $regex: search, $options: 'i' } }, { location: { $regex: search, $options: 'i' } }] });
@@ -214,8 +166,14 @@ router.get('/stats', async (req, res) => {
   try {
     await connectMongo();
     const filter = { $and: [ukJobMongoFilter(), techJobMongoFilter()] };
-    const [total, live, companies] = await Promise.all([Job.countDocuments(filter), Job.countDocuments({ $and: [filter, { 'status.isLive': true }] }), Job.distinct('companyId', filter)]);
-    return res.json({ total, live, closed: total - live, companies: companies.length, market: 'United Kingdom', roleType: 'Technology' });
+    const [total, live, companies, byNation, byEmployer] = await Promise.all([
+      Job.countDocuments(filter),
+      Job.countDocuments({ $and: [filter, { 'status.isLive': true }] }),
+      Job.distinct('companyId', filter),
+      Job.aggregate([{ $match: filter }, { $group: { _id: '$nation', count: { $sum: 1 } } }]),
+      Job.aggregate([{ $match: filter }, { $group: { _id: '$employerType', count: { $sum: 1 } } }])
+    ]);
+    return res.json({ total, live, closed: total - live, companies: companies.length, byNation, byEmployer, market: 'United Kingdom', roleType: 'Technology' });
   } catch (error) {
     console.error('Jobs stats error:', error.message);
     return res.status(503).json({ error: 'Unable to query job statistics', message: error.message });
