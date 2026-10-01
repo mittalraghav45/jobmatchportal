@@ -4,6 +4,7 @@ import { connectMongo } from '../db/mongoose.js';
 import { Job } from '../models/Job.js';
 import { Company } from '../models/Company.js';
 import { classifyJob } from '../utils/jobClassification.js';
+import { extractCompanyName } from '../utils/companyName.js';
 
 dotenv.config();
 
@@ -41,8 +42,12 @@ async function main() {
     for (const job of jobs) {
       const company = byId.get(String(job.companyId));
       const classification = classifyJob({ job, company, raw: job.raw || {} });
-      if (job.nation === classification.nation && job.employerType === classification.employerType && job.classificationVersion === classification.classificationVersion) continue;
-      operations.push({ updateOne: { filter: { _id: job._id }, update: { $set: classification } } });
+      const companyName = company?.companyName || job.companyName || extractCompanyName(job.raw || '');
+      const set = { ...classification };
+      if (companyName && companyName !== job.companyName) set.companyName = companyName;
+      if (job.nation !== classification.nation || job.employerType !== classification.employerType || job.classificationVersion !== classification.classificationVersion || (companyName && companyName !== job.companyName)) {
+        operations.push({ updateOne: { filter: { _id: job._id }, update: { $set: set } } });
+      }
     }
 
     if (operations.length) {
