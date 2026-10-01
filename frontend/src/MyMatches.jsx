@@ -21,8 +21,12 @@ function displayAts(value) {
   return String(value);
 }
 
+function firstUrl(...values) {
+  return values.find(value => typeof value === 'string' && /^https?:\/\//i.test(value.trim()))?.trim() || '';
+}
+
 function normaliseMatches(payload) {
-  const candidates = payload?.jobs || payload?.matches || payload?.data || payload?.results || [];
+  const candidates = payload?.matches || payload?.jobs || payload?.data || payload?.results || [];
   return Array.isArray(candidates) ? candidates : [];
 }
 
@@ -30,14 +34,21 @@ function MatchCard({ item }) {
   const job = item?.job || item;
   const score = pick(item, ['matchScore', 'score', 'matchPercentage'], pick(job, ['matchScore', 'score'], null));
   const title = pick(job, ['title', 'jobTitle'], 'Untitled role');
-  const company = pick(job, ['companyName', 'employerName', 'company'], 'Company being resolved');
+  const companyValue = pick(job, ['companyName', 'employerName', 'company'], pick(item?.company, ['name'], 'Company being resolved'));
+  const company = typeof companyValue === 'object' ? pick(companyValue, ['name', 'companyName'], 'Company being resolved') : companyValue;
   const location = pick(job, ['location', 'city'], 'Location not specified');
   const nation = pick(job, ['nation'], '');
-  const ats = displayAts(pick(job, ['ats', 'atsName'], pick(item?.company, ['ats'], '')));
-  const applicationUrl = pick(job, ['applicationUrl', 'applyUrl', 'atsUrl', 'jobUrl', 'url'], '');
+  const atsValue = pick(job, ['ats', 'atsName'], pick(job?.source, ['ats'], pick(item?.company, ['ats'], '')));
+  const ats = displayAts(atsValue);
+  const applicationUrl = firstUrl(
+    pick(job, ['applicationUrl', 'applyUrl', 'atsUrl', 'jobUrl', 'url'], ''),
+    pick(job?.source, ['url'], ''),
+    pick(job?.raw, ['applyUrl', 'applicationUrl', 'job_url', 'url'], ''),
+    pick(item?.company, ['careersUrl', 'website'], '')
+  );
   const sponsorship = pick(item, ['sponsorship'], pick(job, ['sponsorship', 'sponsorshipStatus'], ''));
   const reasons = item?.explanation?.reasons || item?.reasons || item?.matchReasons || item?.analysis?.reasons || [];
-  const skills = item?.explanation?.matchedSkills || item?.matchedSkills || item?.candidateScore?.matchedSkills || job?.matchedSkills || [];
+  const skills = item?.explanation?.matchedSkills || item?.matchedSkills || item?.candidateScore?.matchedSkills || item?.match?.matchedSkills || job?.matchedSkills || [];
   const reasonList = Array.isArray(reasons) ? reasons.slice(0, 3) : [];
   const skillList = Array.isArray(skills) ? skills.slice(0, 6) : [];
 
@@ -58,7 +69,7 @@ function MatchCard({ item }) {
 
       <div className="match-meta">
         <span>{location}{nation ? ` · ${nation}` : ''}</span>
-        {ats && <span>ATS: {ats}</span>}
+        {ats && ats !== 'unknown' && <span>ATS: {ats}</span>}
       </div>
 
       <div className="match-badges">
@@ -122,8 +133,7 @@ export default function MyMatches({ profileId = 'default', limit = 20 }) {
       const sidebar = document.querySelector('.sidebar');
       if (!sidebar) return;
       const jobsButton = [...sidebar.querySelectorAll('.nav')].find((button) => button.textContent?.trim() === 'Jobs');
-      if (!jobsButton) return;
-      if (sidebar.querySelector('[data-my-matches-nav]')) return;
+      if (!jobsButton || sidebar.querySelector('[data-my-matches-nav]')) return;
 
       const button = document.createElement('button');
       button.type = 'button';
@@ -165,7 +175,7 @@ export default function MyMatches({ profileId = 'default', limit = 20 }) {
             )}
             {!loading && !error && matches.length > 0 && (
               <div className="matches-grid">
-                {matches.map((item, index) => <MatchCard item={item} key={item?.job?._id || item?._id || item?.jobId || index} />)}
+                {matches.map((item, index) => <MatchCard item={item} key={item?.job?.id || item?.job?._id || item?._id || item?.jobId || index} />)}
               </div>
             )}
           </section>
