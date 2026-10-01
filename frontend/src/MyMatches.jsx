@@ -12,17 +12,28 @@ function pick(obj, keys, fallback = '') {
 }
 
 function displayAts(value) {
-  if (value === undefined || value === null || value === '') return '';
+  if (value === undefined || value === null || value === '' || value === '[object Object]') return '';
   if (typeof value === 'string' || typeof value === 'number') return String(value);
   if (typeof value === 'object') {
     const candidate = value.name || value.type || value.platform || value.provider || value.ats || value.slug || value.id;
-    return candidate ? String(candidate) : 'Unknown ATS';
+    if (candidate && candidate !== '[object Object]') return String(candidate);
   }
-  return String(value);
+  return '';
 }
 
 function firstUrl(...values) {
   return values.find(value => typeof value === 'string' && /^https?:\/\//i.test(value.trim()))?.trim() || '';
+}
+
+function formatClosingDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
 }
 
 function normaliseMatches(payload) {
@@ -47,6 +58,9 @@ function MatchCard({ item }) {
     pick(item?.company, ['careersUrl', 'website'], '')
   );
   const sponsorship = pick(item, ['sponsorship'], pick(job, ['sponsorship', 'sponsorshipStatus'], ''));
+  const closingAt = pick(job, ['closingAt', 'closingDate'], pick(job?.dates, ['closingAt', 'closingDate'], ''));
+  const postedAt = pick(job, ['postedAt', 'postedDate'], pick(job?.dates, ['postedAt', 'postedDate'], ''));
+  const isLive = job?.isLive !== false && job?.status?.isLive !== false;
   const reasons = item?.explanation?.reasons || item?.reasons || item?.matchReasons || item?.analysis?.reasons || [];
   const skills = item?.explanation?.matchedSkills || item?.matchedSkills || item?.candidateScore?.matchedSkills || item?.match?.matchedSkills || job?.matchedSkills || [];
   const reasonList = Array.isArray(reasons) ? reasons.slice(0, 3) : [];
@@ -73,6 +87,9 @@ function MatchCard({ item }) {
       </div>
 
       <div className="match-badges">
+        <span className="match-badge">{isLive ? 'Live' : 'Closed'}</span>
+        {closingAt && <span className="match-badge">Closes: {formatClosingDate(closingAt)}</span>}
+        {postedAt && <span className="match-badge">Posted: {formatClosingDate(postedAt)}</span>}
         {sponsorship && <span className="match-badge">Sponsorship: {String(sponsorship)}</span>}
         {skillList.map((skill) => <span className="match-badge" key={skill}>{String(skill)}</span>)}
       </div>
@@ -85,10 +102,10 @@ function MatchCard({ item }) {
       )}
 
       <div className="match-actions">
-        {applicationUrl ? (
+        {applicationUrl && isLive ? (
           <a href={applicationUrl} target="_blank" rel="noreferrer" className="match-primary">Apply</a>
         ) : (
-          <button type="button" className="match-primary" disabled>No application link</button>
+          <button type="button" className="match-primary" disabled>{isLive ? 'No application link' : 'Job closed'}</button>
         )}
         <button type="button" className="match-secondary">Save</button>
       </div>
