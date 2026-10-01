@@ -2,6 +2,7 @@
 .my-matches-header { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-bottom:20px; }
 .my-matches-header h2 { margin:4px 0; font-size:28px; }
 .my-matches-header p { margin:0; opacity:.72; }
+.my-matches-header-actions { display:flex; align-items:center; gap:10px; }
 .eyebrow { font-size:11px !important; font-weight:700; letter-spacing:.12em; }
 .match-count { white-space:nowrap; font-size:13px; opacity:.7; }
 .matches-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px; }
@@ -19,10 +20,15 @@
 .match-reasons ul { margin:8px 0 0; padding-left:18px; }
 .match-reasons li { margin:4px 0; opacity:.78; }
 .match-actions { display:flex; gap:9px; margin-top:18px; }
-.match-actions a, .match-actions button { border-radius:9px; padding:9px 14px; font:inherit; font-size:13px; cursor:pointer; text-decoration:none; }
+.match-actions a, .match-actions button, .match-close { border-radius:9px; padding:9px 14px; font:inherit; font-size:13px; cursor:pointer; text-decoration:none; }
 .match-primary { background:currentColor; color:Canvas; border:1px solid currentColor; }
-.match-secondary { background:transparent; border:1px solid rgba(127,127,127,.3); }
+.match-secondary, .match-close { background:transparent; border:1px solid rgba(127,127,127,.3); }
 .match-actions button:disabled { opacity:.45; cursor:not-allowed; }
 .matches-state { border:1px dashed rgba(127,127,127,.3); border-radius:14px; padding:28px; text-align:center; opacity:.75; }
 .matches-error { color:#b91c1c; }
-@media (max-width:640px) { .my-matches-header { align-items:flex-start; flex-direction:column; } .matches-grid { grid-template-columns:1fr; } }
+.my-matches-overlay { position:fixed; z-index:1200; top:56px; left:265px; right:0; bottom:0; overflow:auto; padding:32px; background:var(--page-bg,#0b0d14); }
+.my-matches-page { max-width:1400px; margin:0 auto; }
+.sidebar .nav[data-my-matches-nav="true"] { position:relative; }
+.sidebar .nav[data-my-matches-nav="true"]::before { content:'✦'; margin-right:8px; opacity:.8; }
+@media (max-width:900px) { .my-matches-overlay { left:0; padding:20px; } }
+@media (max-width:640px) { .my-matches-header { align-items:flex-start; flex-direction:column; } .my-matches-header-actions { width:100%; justify-content:space-between; } .matches-grid { grid-template-columns:1fr; } }
