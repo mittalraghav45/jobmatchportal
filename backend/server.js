@@ -17,6 +17,7 @@ import matchRoutes from './routes/matchRoutes.js';
 import jobsRoutes from './routes/jobs.js';
 import companiesRoutes from './routes/companies.js';
 import applicationRoutes from './routes/applications.js';
+import discoveryStatusRoutes from './routes/discoveryStatus.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -41,6 +42,7 @@ app.use('/api/match', matchRoutes);
 app.use('/api/jobs', jobsRoutes);
 app.use('/api/companies', companiesRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/discovery', discoveryStatusRoutes);
 
 app.get('/api/health', (req, res) => res.json({
   ok: true,
@@ -51,7 +53,7 @@ app.get('/api/health', (req, res) => res.json({
   ats: ATS_LIST,
   timestamp: new Date().toISOString(),
   nodeVersion: process.version,
-  routes: { jobs: true, companies: true, profile: true, match: true, applications: true }
+  routes: { jobs: true, companies: true, profile: true, match: true, applications: true, discoveryStatus: true }
 }));
 
 function getSkills(req) {
