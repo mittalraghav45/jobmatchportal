@@ -129,40 +129,49 @@ async function processCompany(company, source) {
       status: 'unresolved',
       sourceStatus: source.status,
       source: source.source,
+      careersUrl: source.careersUrl || null,
+      ats: source.ats || null,
+      atsSlug: source.atsSlug || null,
       error: source.reason || null
     });
     return { status: 'unresolved', companyId: company.companyId, jobs: 0, added: 0, updated: 0, duplicatesRemoved: 0, rejected: 0 };
   }
 
-  const resolved = resolveATSConfig({
+  // A resolved source is already a usable career source. ATS detection is
+  // enrichment here, not a reason to discard an otherwise valid source.
+  const detected = resolveATSConfig({
     ats: source.ats || company.ats,
     atsSlug: source.atsSlug || company.metadata?.atsSlug,
-    careersUrl: source.careersUrl
+    careersUrl: source.careersUrl || ''
   });
 
-  const prepared = {
-    ...company,
-    careersUrl: source.careersUrl,
-    ats: resolved.ats || 'custom',
-    atsSlug: resolved.slug || source.atsSlug || company.companyId,
-    atsSite: resolved.site || null,
-    atsDetectionSource: source.source
-  };
+  const ats = detected.ats || source.ats || null;
+  const atsSlug = detected.slug || source.atsSlug || company.metadata?.atsSlug || company.companyId;
+  const atsSite = detected.site || null;
 
-  if (resolved.error || !resolved.ats) {
+  if (!ats && !source.careersUrl) {
     await saveCheckpoint({
       companyId: company.companyId,
       companyName: company.companyName,
       status: 'invalid',
       sourceStatus: source.status,
       source: source.source,
-      careersUrl: source.careersUrl,
-      ats: resolved.ats || null,
-      atsSlug: resolved.slug || source.atsSlug || null,
-      error: resolved.error || 'ATS could not be resolved'
+      careersUrl: source.careersUrl || null,
+      ats: null,
+      atsSlug: null,
+      error: detected.error || 'No usable ATS or careers URL'
     });
     return { status: 'invalid', companyId: company.companyId, jobs: 0, added: 0, updated: 0, duplicatesRemoved: 0, rejected: 0 };
   }
+
+  const prepared = {
+    ...company,
+    careersUrl: source.careersUrl || company.careersUrl || '',
+    ats: ats || 'custom',
+    atsSlug,
+    atsSite,
+    atsDetectionSource: source.source
+  };
 
   const result = await discoverCompanyJobs(prepared, { persist: true, now: new Date() });
   const status = result.status === 'ok' ? 'completed' : result.status === 'error' ? 'failed' : 'invalid';
@@ -173,7 +182,7 @@ async function processCompany(company, source) {
     status,
     sourceStatus: source.status,
     source: source.source,
-    careersUrl: source.careersUrl,
+    careersUrl: prepared.careersUrl,
     ats: prepared.ats,
     atsSlug: prepared.atsSlug,
     jobsDiscovered: result.jobs?.length || 0,
@@ -260,6 +269,8 @@ async function main() {
           sourceStatus: item.source.status,
           source: item.source.source,
           careersUrl: item.source.careersUrl || null,
+          ats: item.source.ats || null,
+          atsSlug: item.source.atsSlug || null,
           error: error.message
         });
       }
