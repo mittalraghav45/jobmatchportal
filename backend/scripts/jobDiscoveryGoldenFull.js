@@ -12,6 +12,7 @@ const DEFAULT_RUN_ID = process.env.GOLDEN_RUN_ID || 'golden-full-v1';
 const DEFAULT_DELAY_MS = Number(process.env.GOLDEN_DELAY_MS || 750);
 const DEFAULT_RESOLUTION_CONCURRENCY = Number(process.env.GOLDEN_RESOLUTION_CONCURRENCY || 5);
 const DEFAULT_PROGRESS_EVERY = Number(process.env.GOLDEN_PROGRESS_EVERY || 100);
+const DEFAULT_BATCH_SIZE = Number(process.env.GOLDEN_BATCH_SIZE || 50);
 const CONTROLLED_TEST_IDS = new Set(['1', '3', '8', '11', '12']);
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -29,9 +30,12 @@ function toInt(value, fallback) {
 
 const RUN_ID = arg('run-id', DEFAULT_RUN_ID);
 const LIMIT = toInt(arg('limit', ''), 0);
+const START = Math.max(1, toInt(arg('start', '1'), 1));
+const END_ARG = toInt(arg('end', ''), 0);
 const DELAY_MS = toInt(arg('delay', DEFAULT_DELAY_MS), DEFAULT_DELAY_MS);
 const RESOLUTION_CONCURRENCY = Math.max(1, toInt(arg('resolution-concurrency', DEFAULT_RESOLUTION_CONCURRENCY), DEFAULT_RESOLUTION_CONCURRENCY));
 const PROGRESS_EVERY = Math.max(1, toInt(arg('progress-every', DEFAULT_PROGRESS_EVERY), DEFAULT_PROGRESS_EVERY));
+const BATCH_SIZE = Math.max(RESOLUTION_CONCURRENCY, toInt(arg('batch-size', DEFAULT_BATCH_SIZE), DEFAULT_BATCH_SIZE));
 const INCLUDE_CONTROLLED = arg('include-controlled', 'false') === 'true';
 const RETRY_COMPLETED = arg('retry-completed', 'false') === 'true';
 
@@ -137,8 +141,6 @@ async function processCompany(company, source) {
     return { status: 'unresolved', companyId: company.companyId, jobs: 0, added: 0, updated: 0, duplicatesRemoved: 0, rejected: 0 };
   }
 
-  // A resolved source is already a usable career source. ATS detection is
-  // enrichment here, not a reason to discard an otherwise valid source.
   const detected = resolveATSConfig({
     ats: source.ats || company.ats,
     atsSlug: source.atsSlug || company.metadata?.atsSlug,
@@ -210,6 +212,7 @@ async function main() {
   console.log('Mode: checkpointed/resumable');
   console.log(`Resolution concurrency: ${RESOLUTION_CONCURRENCY}`);
   console.log(`Delay between job-source discoveries: ${DELAY_MS}ms`);
+  console.log(`Company range: ${START}-${END_ARG || 'end'}`);
   if (LIMIT) console.log(`TEST LIMIT: ${LIMIT} companies`);
 
   await connectMongo();
@@ -221,26 +224,36 @@ async function main() {
   const query = { enabled: true };
   if (!INCLUDE_CONTROLLED) query.companyId = { $nin: [...CONTROLLED_TEST_IDS] };
 
-  const cursor = Company.find(query)
-    .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
-    .sort({ companyId: 1 })
-    .lean()
-    .cursor();
-
   const stats = emptyStats();
-  let batch = [];
   let stop = false;
+  let offset = START - 1;
+  let rangeScanned = 0;
 
-  const flush = async () => {
-    if (!batch.length || stop) return;
-    const work = batch;
-    batch = [];
-    const resolved = await resolveBatch(work);
+  while (!stop) {
+    if (END_ARG && offset >= END_ARG) break;
+    if (LIMIT && rangeScanned >= LIMIT) break;
+
+    const remainingByEnd = END_ARG ? END_ARG - offset : BATCH_SIZE;
+    const remainingByLimit = LIMIT ? LIMIT - rangeScanned : BATCH_SIZE;
+    const pageSize = Math.max(0, Math.min(BATCH_SIZE, remainingByEnd, remainingByLimit));
+    if (!pageSize) break;
+
+    const companies = await Company.find(query)
+      .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
+      .sort({ companyId: 1 })
+      .skip(offset)
+      .limit(pageSize)
+      .lean();
+
+    if (!companies.length) break;
+
+    const resolved = await resolveBatch(companies);
 
     for (const item of resolved) {
       if (stop) break;
       const companyId = String(item.company.companyId);
       stats.scanned += 1;
+      rangeScanned += 1;
 
       if (completed.has(companyId)) {
         stats.skippedCheckpoint += 1;
@@ -276,34 +289,26 @@ async function main() {
       }
 
       if (stats.scanned % PROGRESS_EVERY === 0) {
-        console.log(`[progress] scanned=${stats.scanned} resolved=${stats.resolved} unresolved=${stats.unresolved} successful=${stats.successful} failed=${stats.failed} jobsAdded=${stats.jobsAdded} jobsUpdated=${stats.jobsUpdated}`);
+        console.log(`[progress] scanned=${stats.scanned} rangeScanned=${rangeScanned} resolved=${stats.resolved} unresolved=${stats.unresolved} successful=${stats.successful} failed=${stats.failed} jobsAdded=${stats.jobsAdded} jobsUpdated=${stats.jobsUpdated}`);
       }
 
       if (DELAY_MS) await sleep(DELAY_MS);
 
-      if (LIMIT && stats.scanned >= LIMIT) {
+      if (LIMIT && rangeScanned >= LIMIT) {
         stop = true;
         break;
       }
     }
-  };
 
-  for await (const company of cursor) {
-    if (LIMIT && stats.scanned + batch.length >= LIMIT) break;
-    if (completed.has(String(company.companyId))) {
-      stats.scanned += 1;
-      stats.skippedCheckpoint += 1;
-      continue;
-    }
-    batch.push(company);
-    if (batch.length >= RESOLUTION_CONCURRENCY) await flush();
+    offset += companies.length;
   }
-  await flush();
 
   const summary = {
     generatedAt: new Date().toISOString(),
     runId: RUN_ID,
     limitedTest: Boolean(LIMIT),
+    start: START,
+    end: END_ARG || null,
     scanned: stats.scanned,
     skippedCheckpoint: stats.skippedCheckpoint,
     resolved: stats.resolved,
