@@ -33,6 +33,9 @@ function toMongoJob(rawJob, now) {
       source: job.source,
       'dates.postedAt': postedAt,
       'dates.closingAt': closingAt,
+      nation: job.nation,
+      employerType: job.employerType,
+      classificationVersion: job.classificationVersion,
       'dates.lastSeenAt': seenAt,
       'status.isLive': job.status?.isLive !== false,
       raw: job.raw
