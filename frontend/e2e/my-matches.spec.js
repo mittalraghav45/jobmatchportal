@@ -1,21 +1,33 @@
 import { test, expect } from '@playwright/test';
 
 const matchesResponse = {
-  jobs: [
+  matches: [
     {
-      _id: 'e2e-job-1',
-      title: 'Frontend Software Engineer',
-      companyName: 'E2E Technology',
-      location: 'London',
-      nation: 'England',
+      job: {
+        id: 'e2e-job-1',
+        title: 'Frontend Software Engineer',
+        companyName: 'E2E Technology',
+        location: 'London',
+        nation: 'England',
+        ats: 'greenhouse',
+        applicationUrl: 'https://example.com/apply',
+      },
       sponsorship: 'verified',
-      ats: 'greenhouse',
-      applicationUrl: 'https://example.com/apply',
-      matchedSkills: ['React', 'TypeScript'],
-      matchScore: 92,
+      candidateScore: {
+        score: 92,
+        matchedSkills: ['React', 'TypeScript'],
+      },
     },
   ],
 };
+
+async function openMyMatches(page) {
+  await page.goto('/');
+  const nav = page.getByRole('button', { name: 'My Matches' });
+  await expect(nav).toBeVisible();
+  await nav.click();
+  await expect(page.getByRole('heading', { name: 'My Matches' })).toBeVisible();
+}
 
 test.describe('My Matches browser flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -28,13 +40,13 @@ test.describe('My Matches browser flow', () => {
     });
   });
 
-  test('loads personalised matches and renders the job card', async ({ page }) => {
-    await page.goto('/');
+  test('sidebar exposes My Matches and the page renders the ranked job card', async ({ page }) => {
+    await openMyMatches(page);
 
-    await expect(page.getByRole('heading', { name: 'My Matches' })).toBeVisible();
     await expect(page.getByText('Frontend Software Engineer')).toBeVisible();
     await expect(page.getByText('E2E Technology')).toBeVisible();
     await expect(page.getByText('London · England')).toBeVisible();
+    await expect(page.getByText('ATS: greenhouse')).toBeVisible();
     await expect(page.getByText('Sponsorship: verified')).toBeVisible();
     await expect(page.getByText('React')).toBeVisible();
     await expect(page.getByText('TypeScript')).toBeVisible();
@@ -42,7 +54,7 @@ test.describe('My Matches browser flow', () => {
   });
 
   test('uses the ATS application URL from the matching response', async ({ page }) => {
-    await page.goto('/');
+    await openMyMatches(page);
 
     const applyLink = page.getByRole('link', { name: 'Apply' });
     await expect(applyLink).toHaveAttribute('href', 'https://example.com/apply');
@@ -59,9 +71,8 @@ test.describe('My Matches browser flow', () => {
       });
     });
 
-    await page.goto('/');
+    await openMyMatches(page);
     await expect(page.getByText('Matching API returned 500')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'My Matches' })).toBeVisible();
   });
 
   test('shows the empty state when no matches are returned', async ({ page }) => {
@@ -70,11 +81,11 @@ test.describe('My Matches browser flow', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ jobs: [] }),
+        body: JSON.stringify({ matches: [] }),
       });
     });
 
-    await page.goto('/');
+    await openMyMatches(page);
     await expect(page.getByText('No matches were returned for this profile.')).toBeVisible();
   });
 });
