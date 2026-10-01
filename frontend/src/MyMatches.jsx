@@ -43,16 +43,14 @@ function normaliseMatches(payload) {
 }
 
 function liveLabel(job) {
-  const state = job?.liveState;
-  if (state === 'live' || job?.isLive === true) return 'Live';
-  if (state === 'closed' || job?.isLive === false) return 'Closed';
+  if (job?.liveState === 'live') return 'Live';
+  if (job?.liveState === 'closed') return 'Closed';
   return 'Status not available';
 }
 
 function liveClass(job) {
-  const state = job?.liveState;
-  if (state === 'live' || job?.isLive === true) return 'match-badge match-badge-live';
-  if (state === 'closed' || job?.isLive === false) return 'match-badge match-badge-closed';
+  if (job?.liveState === 'live') return 'match-badge match-badge-live';
+  if (job?.liveState === 'closed') return 'match-badge match-badge-closed';
   return 'match-badge match-badge-unknown';
 }
 
@@ -76,8 +74,8 @@ function MatchCard({ item }) {
   const closingAt = pick(job, ['closingAt', 'closingDate'], pick(job?.dates, ['closingAt', 'closingDate'], ''));
   const postedAt = pick(job, ['postedAt', 'postedDate'], pick(job?.dates, ['postedAt', 'postedDate'], ''));
   const liveState = job?.liveState || 'unknown';
-  const isLive = liveState === 'live' || job?.isLive === true;
-  const isClosed = liveState === 'closed' || job?.isLive === false;
+  const isLive = liveState === 'live';
+  const isClosed = liveState === 'closed';
   const reasons = item?.explanation?.reasons || item?.reasons || item?.matchReasons || item?.analysis?.reasons || [];
   const skills = item?.explanation?.matchedSkills || item?.matchedSkills || item?.candidateScore?.matchedSkills || item?.match?.matchedSkills || job?.matchedSkills || [];
   const reasonList = Array.isArray(reasons) ? reasons.slice(0, 3) : [];
