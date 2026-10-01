@@ -20,9 +20,6 @@ function numericArgOrEnv(name, envName, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
 }
 
-// CLI arguments override environment defaults. There is intentionally NO implicit scan cap.
-// The scan limit is CLI-only so a stale PUBLIC_EMPLOYER_LIMIT=20 in .env cannot silently
-// cap production runs. Use --limit=N only when a bounded test is explicitly requested.
 const RUN_ID = argValue('run-id', process.env.PUBLIC_EMPLOYER_RUN_ID || 'public-employer-resolution-v1');
 const START = Math.max(1, numericArgOrEnv('start', 'PUBLIC_EMPLOYER_START', 1));
 const END = Math.max(START, numericArgOrEnv('end', 'PUBLIC_EMPLOYER_END', 0));
@@ -54,6 +51,11 @@ const Checkpoint = mongoose.models.PublicEmployerResolutionCheckpoint ||
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+function increment(map, key) {
+  const normalised = String(key || 'unknown').trim() || 'unknown';
+  map[normalised] = (map[normalised] || 0) + 1;
+}
+
 async function main() {
   console.log('=== Public Employer Resolution ===');
   console.log(`Run ID: ${RUN_ID}`);
@@ -63,6 +65,7 @@ async function main() {
   console.log(`Batch size: ${BATCH_SIZE}`);
   console.log(`Concurrency: ${CONCURRENCY}`);
   console.log(`Limit: ${LIMIT || 'none'}`);
+  console.log('ATS diagnostics: enabled');
 
   await connectMongo();
   console.log(`MongoDB connected: ${mongoose.connection.name}`);
@@ -82,7 +85,13 @@ async function main() {
     careersResolved: 0,
     atsResolved: 0,
     failed: 0,
-    byType: { nhs: 0, councils: 0, universities: 0 }
+    byType: { nhs: 0, councils: 0, universities: 0 },
+    diagnostics: {
+      bySource: {},
+      byAts: {},
+      unresolvedReason: {},
+      resolvedWithoutAts: 0
+    }
   };
 
   let lastCompanyId = '';
@@ -90,10 +99,7 @@ async function main() {
   let datasetIndex = 0;
 
   while (!stop) {
-    const query = {
-      enabled: true,
-      employerType: { $in: TYPES }
-    };
+    const query = { enabled: true, employerType: { $in: TYPES } };
     if (lastCompanyId) query.companyId = { $gt: lastCompanyId };
 
     const companies = await Company.find(query)
@@ -138,6 +144,7 @@ async function main() {
           const source = await resolveCareerSource(company);
           results[index] = { company, source };
         } catch (error) {
+          stats.failed += 1;
           results[index] = {
             company,
             source: {
@@ -174,6 +181,12 @@ async function main() {
       const careersUrl = source.careersUrl || company.careersUrl || '';
       const ats = source.ats || company.ats || 'unknown';
       const atsSlug = source.atsSlug || company.metadata?.atsSlug || '';
+      const resolutionSource = source.source || 'unknown';
+
+      increment(stats.diagnostics.bySource, resolutionSource);
+      if (ats && ats !== 'unknown') increment(stats.diagnostics.byAts, ats);
+      if (isResolved && (!ats || ats === 'unknown')) stats.diagnostics.resolvedWithoutAts += 1;
+      if (!isResolved) increment(stats.diagnostics.unresolvedReason, source.reason || 'unknown');
 
       await Company.updateOne(
         { companyId },
@@ -187,7 +200,7 @@ async function main() {
               publicEmployerResolution: {
                 runId: RUN_ID,
                 status: isResolved ? 'resolved' : 'unresolved',
-                source: source.source || '',
+                source: resolutionSource,
                 reason: source.reason || '',
                 website,
                 careersUrl,
@@ -213,7 +226,7 @@ async function main() {
             careersUrl: careersUrl || null,
             ats: ats || null,
             atsSlug: atsSlug || null,
-            source: source.source || '',
+            source: resolutionSource,
             reason: source.reason || null,
             processedAt: new Date()
           }
