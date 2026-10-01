@@ -14,6 +14,13 @@ const NATION_PATTERNS = {
   'Northern Ireland': 'northern ireland|belfast|derry|londonderry|lisburn|newry|armagh|craigavon|newtownabbey|carrickfergus|antrim|newtownards|omagh|coleraine',
   England: 'england|london|southampton|manchester|birmingham|bristol|leeds|liverpool|sheffield|nottingham|newcastle|reading|oxford|cambridge|brighton|bath|exeter|portsmouth|coventry|leicester|hull|york|milton keynes|luton|watford|guildford|winchester|chester|derby|norwich|plymouth|swindon|slough|croydon|hounslow|bournemouth|canterbury|cheltenham|gloucester|ipswich|lincoln|middlesbrough|northampton|peterborough|preston|salisbury|stoke-on-trent|sunderland|wakefield|wolverhampton|worcester'
 };
+
+// Explicit non-UK locations must never enter a UK nation result merely because
+// the employing company is UK-based. This prevents e.g. "Dindigul, India"
+// from appearing in an England/Scotland/Wales/NI result.
+const FOREIGN_LOCATION_PATTERN = 'india|indonesia|pakistan|bangladesh|nepal|sri lanka|china|japan|singapore|malaysia|philippines|australia|new zealand|canada|united states|usa|u\.s\.a\.|ireland|france|germany|spain|italy|portugal|netherlands|belgium|switzerland|sweden|norway|denmark|finland|poland|romania|bulgaria|ukraine|czech republic|czechia|south africa|nigeria|kenya|ghana|uae|united arab emirates|dubai';
+const GENERIC_UK_LOCATION_PATTERN = '^\\s*(uk|u\\.k\\.|united kingdom|great britain|gb|remote(?:,|\\s|$)|hybrid(?:,|\\s|$)|remote uk|uk wide|uk-wide)\\s*$';
+
 const EMPLOYER_PATTERNS = {
   councils: 'council|borough council|city council|county council|district council|metropolitan borough|unitary authority|local authority|local government',
   universities: 'university|universities|higher education|institute of technology|university of|college',
@@ -94,20 +101,41 @@ async function resolveNationCompanyIds(value) {
 function addNationFilter(filter, value, nationCompanyIds = null) {
   const nations = parseList(value);
   if (!nations.length || nations.some(x => x.toLowerCase() === 'all')) return;
-  const locationClauses = [];
-  for (const key of nations) {
-    if (key === 'England') {
-      const nonEngland = Object.entries(NATION_PATTERNS).filter(([name]) => name !== 'England').map(([, pattern]) => pattern).join('|');
-      locationClauses.push({ $and: [{ location: { $regex: NATION_PATTERNS.England, $options: 'i' } }, { location: { $not: { $regex: nonEngland, $options: 'i' } } }] });
-    } else {
-      locationClauses.push({ location: { $regex: NATION_PATTERNS[key], $options: 'i' } });
-    }
-  }
+
+  const nationRegexes = nations.map(key => NATION_PATTERNS[key]);
+  const directLocationClauses = nationRegexes.map(pattern => ({
+    $and: [
+      { location: { $regex: pattern, $options: 'i' } },
+      { location: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } }
+    ]
+  }));
+
   const clauses = [];
-  if (locationClauses.length) clauses.push(locationClauses.length === 1 ? locationClauses[0] : { $or: locationClauses });
-  if (nations.length) clauses.push({ nation: { $in: nations } });
-  if (nationCompanyIds?.length) clauses.push({ companyId: { $in: nationCompanyIds } });
-  if (clauses.length) filter.$and.push({ $or: clauses });
+
+  // Prefer an explicitly stored classification, but only when the raw location
+  // is not explicitly outside the UK.
+  clauses.push({
+    $and: [
+      { nation: { $in: nations } },
+      { location: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } }
+    ]
+  });
+
+  // Specific UK city/region in the job location.
+  clauses.push(...directLocationClauses);
+
+  // Company metadata is only a fallback for genuinely generic UK/remote jobs.
+  // It must NOT override an explicit job location such as "Dindigul, India".
+  if (nationCompanyIds?.length) {
+    clauses.push({
+      $and: [
+        { companyId: { $in: nationCompanyIds } },
+        { location: { $regex: GENERIC_UK_LOCATION_PATTERN, $options: 'i' } }
+      ]
+    });
+  }
+
+  filter.$and.push({ $or: clauses });
 }
 
 async function enrichJobs(jobs) {
