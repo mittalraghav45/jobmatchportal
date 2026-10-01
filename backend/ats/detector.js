@@ -9,7 +9,14 @@ const RULES = [
   { ats: 'pinpoint', patterns: [/^https?:\/\/([^.]+)\.pinpointhq\.com/i] },
   { ats: 'recruitee', patterns: [/^https?:\/\/([^.]+)\.recruitee\.com/i] },
   { ats: 'bamboohr', patterns: [/^https?:\/\/([^.]+)\.bamboohr\.com/i] },
-  { ats: 'nhs', patterns: [/jobs\.nhs\.uk/i] }
+  { ats: 'nhs', patterns: [/jobs\.nhs\.uk/i] },
+  { ats: 'trac', patterns: [/(?:^|[./])trac\.jobs(?:[./]|\/)/i, /jobs\.trac\.jobs/i] },
+  { ats: 'jobtrain', patterns: [/(?:^|[./])jobtrain\.co\.uk(?:[./]|\/)/i, /jobtrain\.co\.uk/i] },
+  { ats: 'civica', patterns: [/(?:^|[./])civica(?:\.co\.uk|\.com)(?:[./]|\/)/i, /civica\.com\/careers/i] },
+  { ats: 'oracle', patterns: [/taleo\.net/i, /oraclecloud\.com\/hcm/i, /oracle\.com\/.*careers/i] },
+  { ats: 'successfactors', patterns: [/successfactors\.(?:com|eu|co\.uk)/i, /successfactors\.com/i] },
+  { ats: 'icims', patterns: [/\.icims\.com(?:\/|$)/i] },
+  { ats: 'recruitment-portal', patterns: [/myworkdayjobs\.com/i, /jobs\.brassring\.com/i, /brassring\.com/i] }
 ];
 
 const SUPPORTED_ATS = new Set([...RULES.map(rule => rule.ats), 'custom']);
@@ -40,7 +47,9 @@ export function extractATSConfig(careersUrl = '') {
       if (rule.ats === 'workday') {
         return { ats: rule.ats, slug: match[1] || null, site: match[2] || null };
       }
-      if (rule.ats === 'nhs') return { ats: rule.ats, slug: null };
+      if (['nhs', 'trac', 'jobtrain', 'civica', 'oracle', 'successfactors', 'icims', 'recruitment-portal'].includes(rule.ats)) {
+        return { ats: rule.ats, slug: match[1] || null };
+      }
       return { ats: rule.ats, slug: match[1] || null };
     }
   }
@@ -53,7 +62,7 @@ export function resolveATSConfig({ ats = '', atsSlug = '', careersUrl = '' } = {
   const explicitSlug = String(atsSlug || '').trim();
   const detected = extractATSConfig(careersUrl);
 
-  if (explicitATS && explicitATS !== 'auto') {
+  if (explicitATS && explicitATS !== 'auto' && explicitATS !== 'unknown') {
     if (!isSupportedATS(explicitATS)) {
       return { ats: null, slug: explicitSlug || null, source: 'invalid-explicit-ats', error: `Unsupported ATS: ${explicitATS}` };
     }
