@@ -17,11 +17,49 @@ function buildJobPayload(job, company) {
 }
 
 async function discoveryStats(runId) {
-  const connection = await connectMongo(); const collection = connection.db.collection('golden_discovery_checkpoints');
-  const [companyTotal, processed, resolved, unresolved, failed, jobsAdded, jobsUpdated] = await Promise.all([
-    Company.countDocuments({ enabled: true }), collection.countDocuments({ runId, status: { $in: ['completed', 'unresolved', 'invalid', 'failed'] } }), collection.countDocuments({ runId, status: 'completed' }), collection.countDocuments({ runId, status: 'unresolved' }), collection.countDocuments({ runId, status: 'failed' }), collection.aggregate([{ $match: { runId } }, { $group: { _id: null, value: { $sum: '$jobsAdded' } } }]).toArray(), collection.aggregate([{ $match: { runId } }, { $group: { _id: null, value: { $sum: '$jobsUpdated' } } }]).toArray()
+  const connection = await connectMongo();
+  const collection = connection.db.collection('golden_discovery_checkpoints');
+  const runs = connection.db.collection('golden_discovery_runs');
+  const [companyTotal, processed, resolved, unresolved, failed, jobsAdded, jobsUpdated, run] = await Promise.all([
+    Company.countDocuments({ enabled: true }),
+    collection.countDocuments({ runId, status: { $in: ['completed', 'unresolved', 'invalid', 'failed'] } }),
+    collection.countDocuments({ runId, status: 'completed' }),
+    collection.countDocuments({ runId, status: 'unresolved' }),
+    collection.countDocuments({ runId, status: 'failed' }),
+    collection.aggregate([{ $match: { runId } }, { $group: { _id: null, value: { $sum: '$jobsAdded' } } }]).toArray(),
+    collection.aggregate([{ $match: { runId } }, { $group: { _id: null, value: { $sum: '$jobsUpdated' } } }]).toArray(),
+    runs.findOne({ runId })
   ]);
-  return { runId, companyTotal, processed, remaining: Math.max(0, companyTotal - processed), progressPercent: companyTotal ? Number((processed / companyTotal * 100).toFixed(2)) : 0, resolved, unresolved, failed, jobsAdded: jobsAdded[0]?.value || 0, jobsUpdated: jobsUpdated[0]?.value || 0, checkedAt: new Date().toISOString() };
+
+  const heartbeatAt = run?.heartbeatAt ? new Date(run.heartbeatAt) : null;
+  const heartbeatAgeMs = heartbeatAt ? Date.now() - heartbeatAt.getTime() : null;
+  const heartbeatFresh = heartbeatAgeMs !== null && heartbeatAgeMs <= 120000;
+  const active = run?.status === 'running' && heartbeatFresh;
+  const currentBatchCount = active ? Number(run.currentBatchCount || 0) : 0;
+  const currentBatchStart = active && run.currentBatchStart ? Number(run.currentBatchStart) : null;
+  const currentBatchEnd = active && run.currentBatchEnd ? Number(run.currentBatchEnd) : null;
+  const processedInBatch = currentBatchStart ? Math.max(0, Math.min(currentBatchCount, processed - Math.max(0, currentBatchStart - 1))) : 0;
+
+  return {
+    runId,
+    status: active ? 'running' : (run?.status || 'idle'),
+    phase: active ? (run.phase || 'processing') : (run?.status === 'running' ? 'stale' : (run?.phase || 'idle')),
+    companyTotal,
+    processed,
+    processing: currentBatchCount,
+    processingRemaining: Math.max(0, currentBatchCount - processedInBatch),
+    currentBatch: currentBatchStart && currentBatchEnd ? { start: currentBatchStart, end: currentBatchEnd, size: currentBatchCount, processed: processedInBatch } : null,
+    currentCompany: active && run.currentCompanyId ? { companyId: String(run.currentCompanyId), companyName: run.currentCompanyName || null } : null,
+    remaining: Math.max(0, companyTotal - processed),
+    progressPercent: companyTotal ? Number((processed / companyTotal * 100).toFixed(2)) : 0,
+    resolved,
+    unresolved,
+    failed,
+    jobsAdded: jobsAdded[0]?.value || 0,
+    jobsUpdated: jobsUpdated[0]?.value || 0,
+    heartbeatAt: run?.heartbeatAt || null,
+    checkedAt: new Date().toISOString()
+  };
 }
 
 router.get('/dashboard', async (req, res) => {
