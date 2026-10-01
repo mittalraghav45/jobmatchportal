@@ -11,7 +11,7 @@ const NATION_PATTERNS = {
   Scotland: 'scotland|edinburgh|glasgow|aberdeen|dundee|stirling|inverness|perth|falkirk|paisley|livingston|hamilton|motherwell|cumbernauld|east kilbride|kilmarnock|ayr|coatbridge|greenock',
   Wales: 'wales|cardiff|swansea|newport|wrexham|bangor|aberystwyth|llanelli|bridgend|neath|caerphilly|merthyr|pontypridd|port talbot|cwmbran',
   'Northern Ireland': 'northern ireland|belfast|derry|londonderry|lisburn|newry|armagh|craigavon|newtownabbey|carrickfergus|antrim|newtownards|omagh|coleraine',
-  England: 'england|london|southampton|manchester|birmingham|bristol|leeds|liverpool|sheffield|nottingham|newcastle|reading|oxford|cambridge|brighton|bath|exeter|portsmouth|coventry|leicester|hull|york|milton keynes|luton|watford|guildford|winchester|chester|derby|norwich|plymouth|swindon|slough|croydon|hounslow'
+  England: 'england|london|southampton|manchester|birmingham|bristol|leeds|liverpool|sheffield|nottingham|newcastle|reading|oxford|cambridge|brighton|bath|exeter|portsmouth|coventry|leicester|hull|york|milton keynes|luton|watford|guildford|winchester|chester|derby|norwich|plymouth|swindon|slough|croydon|hounslow|bournemouth|canterbury|cheltenham|gloucester|ipswich|lincoln|middlesbrough|northampton|peterborough|preston|salisbury|stoke-on-trent|sunderland|wakefield|wolverhampton|worcester'
 };
 
 const EMPLOYER_PATTERNS = {
@@ -83,27 +83,65 @@ async function resolveEmployerCompanyIds(value) {
   return [...ids];
 }
 
-function addNationFilter(filter, value) {
+async function resolveNationCompanyIds(value) {
   const nations = parseList(value);
-  if (!nations.length || nations.some(x => x.toLowerCase() === 'all')) return;
-  const clauses = [];
+  if (!nations.length || nations.some(x => x.toLowerCase() === 'all')) return null;
+
   for (const key of nations) {
     if (!Object.prototype.hasOwnProperty.call(NATION_PATTERNS, key)) {
       const error = new Error('nation must be all, England, Scotland, Wales, or Northern Ireland');
       error.code = 'INVALID_NATION_FILTER';
       throw error;
     }
+  }
+
+  const ids = new Set();
+  for (const key of nations) {
+    const regex = new RegExp(NATION_PATTERNS[key], 'i');
+    const companies = await Company.find({
+      $or: [
+        { 'metadata.location': regex },
+        { 'metadata.address': regex },
+        { 'metadata.region': regex },
+        { 'metadata.country': regex },
+        { 'metadata.city': regex },
+        { 'metadata.postcode': regex }
+      ]
+    }).select({ companyId: 1 }).lean();
+    companies.forEach(company => ids.add(String(company.companyId)));
+  }
+  return [...ids];
+}
+
+function addNationFilter(filter, value, nationCompanyIds = null) {
+  const nations = parseList(value);
+  if (!nations.length || nations.some(x => x.toLowerCase() === 'all')) return;
+
+  const locationClauses = [];
+  for (const key of nations) {
     if (key === 'England') {
       const nonEngland = Object.entries(NATION_PATTERNS)
         .filter(([name]) => name !== 'England')
         .map(([, pattern]) => pattern)
         .join('|');
-      clauses.push({ location: { $not: { $regex: nonEngland, $options: 'i' } } });
+      locationClauses.push({
+        $and: [
+          { location: { $regex: NATION_PATTERNS.England, $options: 'i' } },
+          { location: { $not: { $regex: nonEngland, $options: 'i' } } }
+        ]
+      });
     } else {
-      clauses.push({ location: { $regex: NATION_PATTERNS[key], $options: 'i' } });
+      locationClauses.push({ location: { $regex: NATION_PATTERNS[key], $options: 'i' } });
     }
   }
-  filter.$and.push(clauses.length === 1 ? clauses[0] : { $or: clauses });
+
+  const clauses = [];
+  if (locationClauses.length) clauses.push(locationClauses.length === 1 ? locationClauses[0] : { $or: locationClauses });
+  if (nationCompanyIds?.length) clauses.push({ companyId: { $in: nationCompanyIds } });
+
+  // Many sources only provide a generic "UK" job location. In those cases
+  // use the company's stored location metadata as the fallback nation signal.
+  if (clauses.length) filter.$and.push(clauses.length === 1 ? clauses[0] : { $or: clauses });
 }
 
 async function enrichJobs(jobs) {
@@ -134,7 +172,9 @@ router.get('/', async (req, res) => {
     if (req.query.ats) filter['source.ats'] = String(req.query.ats).trim().toLowerCase();
     if (req.query.location) filter.location = { $regex: escapeRegex(req.query.location), $options: 'i' };
     if (req.query.employmentType) filter.employmentType = String(req.query.employmentType).trim();
-    addNationFilter(filter, req.query.nation);
+
+    const nationCompanyIds = await resolveNationCompanyIds(req.query.nation);
+    addNationFilter(filter, req.query.nation, nationCompanyIds);
 
     const sponsorshipCompanyIds = await resolveSponsorshipCompanyIds(req.query.sponsorship);
     const employerCompanyIds = await resolveEmployerCompanyIds(req.query.employerType);
