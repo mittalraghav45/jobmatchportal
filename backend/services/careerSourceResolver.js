@@ -75,15 +75,9 @@ function candidateDomains(companyName = '', employerType = '') {
     `${compact}.com`, `${hyphenated}.com`
   ];
 
-  if (employerType === 'universities') {
-    return candidates.sort((a, b) => Number(b.endsWith('.ac.uk')) - Number(a.endsWith('.ac.uk')));
-  }
-  if (employerType === 'nhs') {
-    return candidates.sort((a, b) => Number(b.endsWith('.nhs.uk')) - Number(a.endsWith('.nhs.uk')));
-  }
-  if (employerType === 'councils' || employerType === 'dwp') {
-    return candidates.sort((a, b) => Number(b.endsWith('.gov.uk')) - Number(a.endsWith('.gov.uk')));
-  }
+  if (employerType === 'universities') return candidates.sort((a, b) => Number(b.endsWith('.ac.uk')) - Number(a.endsWith('.ac.uk')));
+  if (employerType === 'nhs') return candidates.sort((a, b) => Number(b.endsWith('.nhs.uk')) - Number(a.endsWith('.nhs.uk')));
+  if (employerType === 'councils' || employerType === 'dwp') return candidates.sort((a, b) => Number(b.endsWith('.gov.uk')) - Number(a.endsWith('.gov.uk')));
   return candidates;
 }
 
@@ -172,6 +166,46 @@ async function discoverCareerLinkFromHomepage(website) {
   return null;
 }
 
+async function inspectATSFromPage(url) {
+  if (!isUsableCareerUrl(url)) return { ats: null, atsSlug: null };
+  try {
+    const response = await axios.get(url, {
+      timeout: 7000,
+      maxRedirects: 5,
+      validateStatus: status => status >= 200 && status < 400,
+      headers: { 'User-Agent': 'SponsorTracker/1.0 ats-detector' }
+    });
+    const html = String(response.data || '');
+    const candidates = [url, ...extractSearchLinks(html)];
+    for (const candidate of candidates) {
+      const detected = resolveATSConfig({ careersUrl: candidate });
+      if (detected.ats) return { ats: detected.ats, atsSlug: detected.slug || null, source: 'ats-url' };
+    }
+
+    const atsHints = [
+      ['trac', /trac\.jobs/i],
+      ['jobtrain', /jobtrain\.co\.uk/i],
+      ['nhs', /jobs\.nhs\.uk/i],
+      ['workday', /myworkdayjobs\.com/i],
+      ['smartrecruiters', /smartrecruiters\.com/i],
+      ['successfactors', /successfactors\.(?:com|eu|co\.uk)/i],
+      ['icims', /(?:\.icims\.com|icims\.com)/i],
+      ['oracle', /taleo\.net|oraclecloud\.com\/hcm/i],
+      ['greenhouse', /greenhouse\.io/i],
+      ['lever', /lever\.co/i],
+      ['ashby', /ashbyhq\.com/i],
+      ['teamtailor', /teamtailor\.com/i],
+      ['recruitee', /recruitee\.com/i],
+      ['pinpoint', /pinpointhq\.com/i],
+      ['workable', /workable\.com/i]
+    ];
+    for (const [ats, pattern] of atsHints) {
+      if (pattern.test(html)) return { ats, atsSlug: null, source: 'ats-page-hint' };
+    }
+  } catch { /* ATS inspection is best-effort and must not fail resolution */ }
+  return { ats: null, atsSlug: null };
+}
+
 function resolvedResult({ website = '', careersUrl = '', ats = null, atsSlug = null, source = '' }) {
   return { website: website || null, careersUrl: careersUrl || null, ats: ats || null, atsSlug: atsSlug || null, source, status: 'resolved' };
 }
@@ -180,9 +214,11 @@ export async function resolveCareerSource(company = {}) {
   const metadata = company.metadata && typeof company.metadata === 'object' ? company.metadata : {};
   const override = getCareerSourceOverride(company);
   if (override && isUsableCareerUrl(override.careersUrl)) {
+    const inspected = await inspectATSFromPage(override.careersUrl);
     return resolvedResult({
       website: company.website || '', careersUrl: override.careersUrl,
-      ats: override.ats, atsSlug: override.atsSlug, source: 'curated'
+      ats: override.ats || inspected.ats, atsSlug: override.atsSlug || inspected.atsSlug,
+      source: 'curated'
     });
   }
 
@@ -191,13 +227,15 @@ export async function resolveCareerSource(company = {}) {
   const configuredSlug = firstNonEmpty(company.atsSlug, company.ats_slug, company.slug, metadata.atsSlug, metadata.ats_slug, metadata.slug);
 
   if (isUsableCareerUrl(careersUrl)) {
+    const detected = await inspectATSFromPage(careersUrl);
     return resolvedResult({
       website: company.website || '', careersUrl: normaliseUrl(careersUrl),
-      ats: configuredATS, atsSlug: configuredSlug, source: 'dataset-careers-url'
+      ats: detected.ats || configuredATS, atsSlug: detected.atsSlug || configuredSlug,
+      source: detected.ats ? `dataset-careers-url+${detected.source}` : 'dataset-careers-url'
     });
   }
 
-  if (configuredATS && configuredSlug) {
+  if (configuredATS && configuredATS !== 'unknown' && configuredSlug) {
     const resolved = resolveATSConfig({ ats: configuredATS, atsSlug: configuredSlug, careersUrl: '' });
     if (!resolved.error && resolved.ats) {
       return resolvedResult({ website: company.website || '', careersUrl: '', ats: resolved.ats, atsSlug: resolved.slug || configuredSlug, source: 'dataset-ats-config' });
@@ -211,11 +249,17 @@ export async function resolveCareerSource(company = {}) {
 
   for (const path of COMMON_CAREER_PATHS) {
     const resolved = await probe(new URL(path, website).toString());
-    if (resolved) return resolvedResult({ website, careersUrl: resolved, ats: configuredATS, atsSlug: configuredSlug, source: 'website-probe' });
+    if (resolved) {
+      const detected = await inspectATSFromPage(resolved);
+      return resolvedResult({ website, careersUrl: resolved, ats: detected.ats || configuredATS, atsSlug: detected.atsSlug || configuredSlug, source: detected.ats ? `website-probe+${detected.source}` : 'website-probe' });
+    }
   }
 
   const homepageCareerLink = await discoverCareerLinkFromHomepage(website);
-  if (homepageCareerLink) return resolvedResult({ website, careersUrl: homepageCareerLink, ats: configuredATS, atsSlug: configuredSlug, source: 'homepage-career-link' });
+  if (homepageCareerLink) {
+    const detected = await inspectATSFromPage(homepageCareerLink);
+    return resolvedResult({ website, careersUrl: homepageCareerLink, ats: detected.ats || configuredATS, atsSlug: detected.atsSlug || configuredSlug, source: detected.ats ? `homepage-career-link+${detected.source}` : 'homepage-career-link' });
+  }
 
   return { website, careersUrl: null, ats: configuredATS || null, atsSlug: configuredSlug || null, source: 'website-no-careers', status: 'unresolved', reason: 'Company website resolved but no usable careers/jobs source was found' };
 }
