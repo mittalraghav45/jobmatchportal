@@ -40,17 +40,17 @@ if (!available) {
       assert.ok(body.pagination);
       assert.equal(typeof body.pagination.total, 'number');
 
-      // If data exists, every returned job must carry either the requested nation
-      // or a location signal consistent with it. A zero-result filter is valid data.
-      const patterns = {
-        England: /\b(england|london|southampton|manchester|birmingham|bristol|leeds|liverpool|sheffield|nottingham|newcastle|reading|oxford|cambridge|brighton|bath|exeter|portsmouth|coventry|leicester|york)\b/i,
-        Scotland: /\b(scotland|edinburgh|glasgow|aberdeen|dundee|stirling|inverness|perth)\b/i,
-        Wales: /\b(wales|cardiff|swansea|newport|wrexham|bangor|aberystwyth)\b/i,
-        'Northern Ireland': /\b(northern ireland|belfast|derry|londonderry|lisburn|newry|armagh)\b/i
-      };
+      // The API's canonical geographic field is `nation`.
+      // A job may legitimately have a generic source location such as `UK`
+      // while its company metadata identifies the nation. The API enriches
+      // the response with the resolved nation, so do not require the raw
+      // `location` string itself to contain a city/country name.
       for (const job of body.jobs) {
-        const signal = `${job.nation || ''} ${job.location || ''}`;
-        assert.match(signal, patterns[nation], `Returned job does not match ${nation}: ${job.title} / ${job.location}`);
+        assert.equal(
+          job.nation,
+          nation,
+          `Returned job does not match ${nation}: ${job.title} / raw location=${job.location} / nation=${job.nation}`
+        );
       }
     });
   }
@@ -60,6 +60,11 @@ if (!available) {
     assert.equal(response.status, 200);
     assert.ok(Array.isArray(body.jobs));
     assert.ok(body.pagination);
+
+    for (const job of body.jobs) {
+      assert.equal(job.nation, 'England');
+      assert.equal(String(job.employerType || '').toLowerCase(), 'nhs');
+    }
   });
 }
 
