@@ -1,0 +1,39 @@
+name: JobMatch email digest
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * *'
+
+jobs:
+  digest:
+    if: vars.JOB_DIGEST_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Send matching job digest
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: ${{ vars.MONGODB_DB_NAME || 'jobmatchportal' }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          JOB_DIGEST_TO: ${{ secrets.JOB_DIGEST_TO }}
+          JOB_DIGEST_FROM: ${{ secrets.JOB_DIGEST_FROM }}
+          JOB_DIGEST_HOURS: '24'
+          JOB_DIGEST_MIN_SCORE: '65'
+          JOB_DIGEST_LIMIT: '20'
+        run: npm run jobs:digest
