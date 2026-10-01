@@ -22,12 +22,48 @@ MongoDB repositories (optional/local integration)
 
 - Live job discovery across supported ATS platforms.
 - Candidate-to-job matching using skills, CV text and experience.
+- **My Matches** view with globally ranked personalised results.
+- Match cards expose the canonical application URL, ATS, sponsorship evidence, live/closed status and closing date when available.
 - Sponsorship evidence represented as `verified`, `not-sponsor` or `unknown`.
 - Unknown sponsorship is never converted into a negative sponsorship claim.
 - CV, cover-letter and application-pack optimisation.
 - Separate NHS / DWP / Civil Service / university / council optimisation rules.
 - Local application tracker with status progression.
 - MongoDB models and repositories for persistent company/job data.
+
+## My Matches contract
+
+The personalised matching endpoint is:
+
+```text
+POST http://localhost:3001/api/match/jobs
+```
+
+Example request:
+
+```json
+{
+  "profileId": "default",
+  "page": 1,
+  "limit": 20
+}
+```
+
+Each returned `match.job` should use the canonical display fields:
+
+```text
+companyName
+title
+location
+nation
+ats
+applicationUrl
+postedAt
+closingAt
+isLive
+```
+
+`applicationUrl` is recovered from direct and nested ATS/application payloads. The UI must never display `[object Object]` as an ATS value and must not invent an application URL when one cannot be found.
 
 ## Repository layout
 
@@ -42,12 +78,13 @@ backend/
   applicationValidator.js         output validation
   prompts/                        commercial + public-sector prompts
   config/companies.csv             editable company discovery seed list
-  models/                         MongoDB models
+  models/                         MongoDB models + job canonicalisation
   repositories/                  MongoDB persistence
   tests/                          Node test suite
 
 frontend/
   src/App.jsx                    React sponsor explorer/tracker
+  src/MyMatches.jsx              personalised matching UI
   src/sponsorsOld.json           small demo dataset
   .env.example                   frontend API configuration
 
@@ -131,14 +168,24 @@ cd backend
 npm test
 ```
 
-Frontend production build:
+Frontend unit tests and production build:
 
 ```bash
 cd frontend
+npm test
 npm run build
 ```
 
-GitHub Actions now runs both automatically when backend/frontend code changes.
+Browser end-to-end tests:
+
+```bash
+cd frontend
+npm run test:e2e
+```
+
+The E2E suite uses Playwright and should be run after the frontend and backend are available locally. If Playwright browser installation times out, the failure is an environment/browser-install issue rather than a test assertion failure.
+
+GitHub Actions runs the repository checks automatically when backend/frontend code changes.
 
 ## Security rules
 
@@ -151,10 +198,13 @@ GitHub Actions now runs both automatically when backend/frontend code changes.
 ## Development workflow
 
 1. Make a focused change.
-2. Run `npm test` in `backend`.
-3. Run `npm run build` in `frontend` when frontend code changes.
-4. Review `git diff --check`.
-5. Commit with a clear message.
-6. Push only after tests/build pass.
+2. Add or update a regression test for the changed behaviour.
+3. Run `npm test` in `backend`.
+4. Run `npm test` and `npm run build` in `frontend` when frontend code changes.
+5. Run `npm run test:e2e` for UI/API flow changes.
+6. Review `git diff --check`.
+7. Update the architecture/feature documentation when a user-visible or API/data-contract feature is added.
+8. Commit with a clear message.
+9. Push only after tests/build pass.
 
 See `docs/ARCHITECTURE.md` for the detailed design and data model.
