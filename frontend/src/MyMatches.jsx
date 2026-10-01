@@ -136,11 +136,11 @@ function MatchCard({ item }) {
   );
 }
 
-export default function MyMatches({ profileId = 'default', limit = 20 }) {
+export default function MyMatches({ profileId = 'default', limit = 20, initiallyOpen = false }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
 
   useEffect(() => {
     const controller = new AbortController();
