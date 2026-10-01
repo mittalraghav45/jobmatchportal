@@ -1,8 +1,9 @@
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import { fileURLToPath } from 'node:url';
 import { connectMongo, disconnectMongo } from '../db/mongoose.js';
 
-const result = dotenv.config({ path: new URL('../.env', import.meta.url) });
+const result = dotenv.config({ path: fileURLToPath(new URL('../.env', import.meta.url)) });
 if (result.error && result.error.code !== 'ENOENT') throw result.error;
 
 try {
