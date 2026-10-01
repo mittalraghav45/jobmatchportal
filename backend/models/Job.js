@@ -8,6 +8,9 @@ const JobSchema = new mongoose.Schema({
   title: { type: String, required: true, index: true },
   description: { type: String, default: '' },
   location: { type: String, default: '', index: true },
+  nation: { type: String, enum: ['England', 'Scotland', 'Wales', 'Northern Ireland', 'UK-wide'], default: 'UK-wide', index: true },
+  employerType: { type: String, enum: ['private', 'nhs', 'councils', 'universities', 'dwp'], default: 'private', index: true },
+  classificationVersion: { type: String, default: 'v1' },
   employmentType: { type: String, default: '' },
   department: { type: String, default: '' },
   source: {
@@ -28,5 +31,7 @@ const JobSchema = new mongoose.Schema({
 
 JobSchema.index({ companyId: 1, 'status.isLive': 1 });
 JobSchema.index({ 'source.ats': 1, externalId: 1 });
+JobSchema.index({ nation: 1, employerType: 1, 'status.isLive': 1 });
+JobSchema.index({ nation: 1, 'dates.lastSeenAt': -1 });
 
 export const Job = mongoose.models.Job || mongoose.model('Job', JobSchema);
