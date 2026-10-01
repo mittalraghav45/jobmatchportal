@@ -26,7 +26,7 @@ function firstUrl(...values) {
 }
 
 function formatClosingDate(value) {
-  if (!value) return '';
+  if (!value) return 'Not available';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return new Intl.DateTimeFormat('en-GB', {
@@ -40,6 +40,20 @@ function formatClosingDate(value) {
 function normaliseMatches(payload) {
   const candidates = payload?.matches || payload?.jobs || payload?.data || payload?.results || [];
   return Array.isArray(candidates) ? candidates : [];
+}
+
+function liveLabel(job) {
+  const state = job?.liveState;
+  if (state === 'live' || job?.isLive === true) return 'Live';
+  if (state === 'closed' || job?.isLive === false) return 'Closed';
+  return 'Status not available';
+}
+
+function liveClass(job) {
+  const state = job?.liveState;
+  if (state === 'live' || job?.isLive === true) return 'match-badge match-badge-live';
+  if (state === 'closed' || job?.isLive === false) return 'match-badge match-badge-closed';
+  return 'match-badge match-badge-unknown';
 }
 
 function MatchCard({ item }) {
@@ -61,7 +75,9 @@ function MatchCard({ item }) {
   const sponsorship = pick(item, ['sponsorship'], pick(job, ['sponsorship', 'sponsorshipStatus'], ''));
   const closingAt = pick(job, ['closingAt', 'closingDate'], pick(job?.dates, ['closingAt', 'closingDate'], ''));
   const postedAt = pick(job, ['postedAt', 'postedDate'], pick(job?.dates, ['postedAt', 'postedDate'], ''));
-  const isLive = job?.isLive !== false && job?.status?.isLive !== false;
+  const liveState = job?.liveState || 'unknown';
+  const isLive = liveState === 'live' || job?.isLive === true;
+  const isClosed = liveState === 'closed' || job?.isLive === false;
   const reasons = item?.explanation?.reasons || item?.reasons || item?.matchReasons || item?.analysis?.reasons || [];
   const skills = item?.explanation?.matchedSkills || item?.matchedSkills || item?.candidateScore?.matchedSkills || item?.match?.matchedSkills || job?.matchedSkills || [];
   const reasonList = Array.isArray(reasons) ? reasons.slice(0, 3) : [];
@@ -88,12 +104,18 @@ function MatchCard({ item }) {
       </div>
 
       <div className="match-badges">
-        <span className="match-badge">{isLive ? 'Live' : 'Closed'}</span>
-        {closingAt && <span className="match-badge">Closes: {formatClosingDate(closingAt)}</span>}
+        <span className={liveClass(job)}>{liveLabel(job)}</span>
+        <span className="match-badge">Closes: {formatClosingDate(closingAt)}</span>
         {postedAt && <span className="match-badge">Posted: {formatClosingDate(postedAt)}</span>}
         {sponsorship && <span className="match-badge">Sponsorship: {String(sponsorship)}</span>}
         {skillList.map((skill) => <span className="match-badge" key={skill}>{String(skill)}</span>)}
       </div>
+
+      {liveState === 'unknown' && (
+        <div className="match-verification-note">
+          Live status could not be verified from the job source. Treat this listing as unverified.
+        </div>
+      )}
 
       {reasonList.length > 0 && (
         <div className="match-reasons">
@@ -106,7 +128,9 @@ function MatchCard({ item }) {
         {applicationUrl && isLive ? (
           <a href={applicationUrl} target="_blank" rel="noreferrer" className="match-primary">Apply</a>
         ) : (
-          <button type="button" className="match-primary" disabled>{isLive ? 'No application link' : 'Job closed'}</button>
+          <button type="button" className="match-primary" disabled>
+            {isClosed ? 'Job closed' : 'Application not verified'}
+          </button>
         )}
         <button type="button" className="match-secondary">Save</button>
       </div>
