@@ -56,7 +56,11 @@ function liveClass(job) {
 
 function MatchCard({ item }) {
   const job = item?.job || item;
-  const score = pick(item, ['matchScore', 'score', 'matchPercentage'], pick(job, ['matchScore', 'score'], null));
+  const score = pick(
+    item,
+    ['matchScore', 'score', 'matchPercentage'],
+    pick(item?.candidateScore, ['score', 'matchScore', 'matchPercentage'], pick(item?.match, ['score', 'matchScore', 'matchPercentage'], pick(job, ['matchScore', 'score'], null)))
+  );
   const title = pick(job, ['title', 'jobTitle'], 'Untitled role');
   const companyValue = pick(job, ['companyName', 'employerName', 'company'], pick(item?.company, ['name'], 'Company being resolved'));
   const company = typeof companyValue === 'object' ? pick(companyValue, ['name', 'companyName'], 'Company being resolved') : companyValue;
@@ -88,8 +92,8 @@ function MatchCard({ item }) {
           <div className="match-company">{company}</div>
           <h3>{title}</h3>
         </div>
-        {score !== null && score !== '' && (
-          <div className="match-score" aria-label={`${score}% match`}>
+        {score !== null && score !== '' && Number.isFinite(Number(score)) && (
+          <div className="match-score" aria-label={`${Math.round(Number(score))}% match`}>
             <strong>{Math.round(Number(score))}%</strong>
             <span>match</span>
           </div>
