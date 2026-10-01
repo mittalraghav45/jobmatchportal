@@ -13,6 +13,9 @@ const apiPayload = {
     applicationUrl: 'https://example.com/apply',
     ats: 'greenhouse',
     matchedSkills: ['React', 'TypeScript'],
+    closingAt: '2026-10-15T23:59:59.000Z',
+    postedAt: '2026-09-25T09:00:00.000Z',
+    isLive: true,
   }],
 };
 
@@ -26,7 +29,7 @@ describe('MyMatches', () => {
     expect(screen.getByText(/Loading your matches/i)).toBeTruthy();
   });
 
-  it('renders job details, sponsorship, skills and the application link', async () => {
+  it('renders job details, sponsorship, skills, status, closing date and the application link', async () => {
     fetch.mockResolvedValue({ ok: true, json: async () => apiPayload });
     render(<MyMatches />);
     expect(await screen.findByText('Frontend Software Engineer')).toBeTruthy();
@@ -35,6 +38,8 @@ describe('MyMatches', () => {
     expect(screen.getByText(/Sponsorship: verified/i)).toBeTruthy();
     expect(screen.getByText('React')).toBeTruthy();
     expect(screen.getByText('TypeScript')).toBeTruthy();
+    expect(screen.getByText('Live')).toBeTruthy();
+    expect(screen.getByText('Closes: 15 Oct 2026')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Apply' }).getAttribute('href')).toBe('https://example.com/apply');
   });
 
@@ -44,6 +49,28 @@ describe('MyMatches', () => {
     await waitFor(() => expect(screen.getByText('Backend Engineer')).toBeTruthy());
     expect(screen.queryByRole('link', { name: 'Apply' })).toBeNull();
     expect(screen.getByRole('button', { name: /No application link/i })).toBeTruthy();
+  });
+
+  it('shows a closed status and disables Apply for a closed job', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ jobs: [{ title: 'Closed Engineer', companyName: 'Example Ltd', isLive: false, closingAt: '2026-09-30T23:59:59.000Z', applicationUrl: 'https://example.com/apply' }] }),
+    });
+    render(<MyMatches />);
+    expect(await screen.findByText('Closed')).toBeTruthy();
+    expect(screen.getByText('Closes: 30 Sept 2026')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Job closed' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Apply' })).toBeNull();
+  });
+
+  it('does not render a fake ATS object marker', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ jobs: [{ title: 'ATS Engineer', companyName: 'Example Ltd', ats: { platform: 'greenhouse' } }] }),
+    });
+    render(<MyMatches />);
+    expect(await screen.findByText('ATS: greenhouse')).toBeTruthy();
+    expect(screen.queryByText(/\[object Object\]/i)).toBeNull();
   });
 
   it('shows an empty state when the API returns no jobs', async () => {
