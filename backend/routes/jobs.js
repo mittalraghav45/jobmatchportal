@@ -46,9 +46,9 @@ async function resolveSponsorshipCompanyIds(value) {
   return companies.map(company => String(company.companyId));
 }
 
-function addEmployerTypeFilter(filter, value) {
+async function resolveEmployerTypeCompanyIds(value) {
   const keys = parseList(value).map(x => x.toLowerCase());
-  if (!keys.length || keys.includes('all')) return;
+  if (!keys.length || keys.includes('all')) return null;
   for (const key of keys) {
     if (!EMPLOYER_TYPES.has(key)) {
       const error = new Error('employerType must be all, councils, universities, dwp, or nhs');
@@ -56,11 +56,16 @@ function addEmployerTypeFilter(filter, value) {
       throw error;
     }
   }
-  // employerType is persisted on the Job document by the enrichment pipeline.
-  // Query it directly instead of translating through companyId. This avoids
-  // false zero-result filters when a feed's companyId does not match the
-  // company registry identifier exactly.
-  filter.$and.push({ employerType: { $in: keys } });
+  const companies = await Company.find({ employerType: { $in: keys } }).select({ companyId: 1 }).lean();
+  return companies.map(company => String(company.companyId));
+}
+
+function addEmployerTypeFilter(filter, value, employerCompanyIds = null) {
+  const keys = parseList(value).map(x => x.toLowerCase());
+  if (!keys.length || keys.includes('all')) return;
+  const clauses = [{ employerType: { $in: keys } }];
+  if (employerCompanyIds?.length) clauses.push({ companyId: { $in: employerCompanyIds } });
+  filter.$and.push({ $or: clauses });
 }
 
 async function resolveNationCompanyIds(value) {
@@ -93,14 +98,18 @@ function addNationFilter(filter, value, nationCompanyIds = null) {
   const directLocationClauses = nationRegexes.map(pattern => ({
     $and: [
       { location: { $regex: pattern, $options: 'i' } },
-      { location: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } }
+      { location: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } },
+      { title: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } },
+      { description: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } }
     ]
   }));
 
   const clauses = [{
     $and: [
       { nation: { $in: nations } },
-      { location: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } }
+      { location: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } },
+      { title: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } },
+      { description: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } }
     ]
   }, ...directLocationClauses];
 
@@ -108,7 +117,9 @@ function addNationFilter(filter, value, nationCompanyIds = null) {
     clauses.push({
       $and: [
         { companyId: { $in: nationCompanyIds } },
-        { location: { $regex: GENERIC_UK_LOCATION_PATTERN, $options: 'i' } }
+        { location: { $regex: GENERIC_UK_LOCATION_PATTERN, $options: 'i' } },
+        { title: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } },
+        { description: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } }
       ]
     });
   }
@@ -153,7 +164,8 @@ router.get('/', async (req, res) => {
     addNationFilter(filter, req.query.nation, nationCompanyIds);
 
     const sponsorshipCompanyIds = await resolveSponsorshipCompanyIds(req.query.sponsorship);
-    addEmployerTypeFilter(filter, req.query.employerType);
+    const employerCompanyIds = await resolveEmployerTypeCompanyIds(req.query.employerType);
+    addEmployerTypeFilter(filter, req.query.employerType, employerCompanyIds);
     if (sponsorshipCompanyIds) filter.$and.push({ companyId: { $in: sponsorshipCompanyIds } });
 
     const live = parseBoolean(req.query.live);
