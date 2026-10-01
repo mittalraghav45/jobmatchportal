@@ -10,6 +10,8 @@ const CompanySchema = new mongoose.Schema({
   priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium', index: true },
   ats: { type: String, default: 'unknown', index: true },
   sponsorship: { type: String, enum: ['verified', 'not-sponsor', 'unknown'], default: 'unknown', index: true },
+  employerType: { type: String, enum: ['nhs', 'councils', 'universities', 'dwp', 'private'], default: 'private', index: true },
+  classificationVersion: { type: String, default: 'company-v1', index: true },
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true, versionKey: false });
 
