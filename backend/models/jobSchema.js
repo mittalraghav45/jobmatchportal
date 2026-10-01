@@ -36,7 +36,11 @@ function firstHttpUrl(...values) {
     if (!value || typeof value !== 'object' || seen.has(value)) continue;
     seen.add(value);
 
+    // ATS/application payloads are not fully consistent across sources. Walk
+    // the common wrapper objects as well as direct URL fields so we never
+    // lose a real application URL merely because it is nested one level deeper.
     for (const key of [
+      'application', 'apply', 'job', 'source',
       'applicationUrl', 'application_url', 'applyUrl', 'apply_url', 'atsUrl',
       'ats_url', 'jobUrl', 'job_url', 'url'
     ]) {
@@ -57,7 +61,7 @@ export function normaliseJob(raw = {}) {
   const location = clean(raw.location || raw.job_location || '');
   const description = clean(raw.description || raw.job_description || '');
   const postedAt = raw.postedAt || raw.posted_date || raw.posting_date || raw.posted || null;
-  const closingAt = raw.closingAt || raw.closing_date || raw.closing_date_time || null;
+  const closingAt = raw.closingAt || raw.closing_date || raw.closing_date_time || raw.closing || null;
   const applicationUrl = firstHttpUrl(
     raw.applicationUrl,
     raw.application_url,
