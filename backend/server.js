@@ -14,6 +14,9 @@ import { evaluateSponsorship } from './sponsorRegistry.js';
 import { analyseJob, scoreCandidateAgainstJob } from './jobIntelligence.js';
 import profileRoutes from './routes/profileRoutes.js';
 import matchRoutes from './routes/matchRoutes.js';
+import jobsRoutes from './routes/jobs.js';
+import companiesRoutes from './routes/companies.js';
+import applicationRoutes from './routes/applicationRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -35,6 +38,9 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use('/api/profile', profileRoutes);
 app.use('/api/match', matchRoutes);
+app.use('/api/jobs', jobsRoutes);
+app.use('/api/companies', companiesRoutes);
+app.use('/api/applications', applicationRoutes);
 
 app.get('/api/health', (req, res) => res.json({
   ok: true,
@@ -44,7 +50,8 @@ app.get('/api/health', (req, res) => res.json({
   port: PORT,
   ats: ATS_LIST,
   timestamp: new Date().toISOString(),
-  nodeVersion: process.version
+  nodeVersion: process.version,
+  routes: { jobs: true, companies: true, profile: true, match: true, applications: true }
 }));
 
 function getSkills(req) {
@@ -85,13 +92,7 @@ function enrichJobs(jobs, skills, sponsorshipRecord = {}, cvText = '', yearsExpe
         cvText,
         yearsExperience
       });
-      return {
-        ...job,
-        ...analysis,
-        match,
-        sponsorship: sponsorship.decision,
-        visaSponsors
-      };
+      return { ...job, ...analysis, match, sponsorship: sponsorship.decision, visaSponsors };
     });
 }
 
