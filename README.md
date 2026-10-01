@@ -11,7 +11,7 @@ Frontend (React/Vite)
 Express API
   |     |      |
   |     |      +--> Application optimiser (OpenAI)
-  |     +---------> ATS discovery / live jobs
+  |     +---------> ATS discovery / source-backed live verification
   +---------------> Sponsorship + job intelligence
         |
         v
@@ -20,10 +20,13 @@ MongoDB repositories (optional/local integration)
 
 ### Main capabilities
 
-- Live job discovery across supported ATS platforms.
+- Job discovery across supported ATS platforms.
+- Source-backed live/closed/unknown job verification.
 - Candidate-to-job matching using skills, CV text and experience.
 - **My Matches** view with globally ranked personalised results.
-- Match cards expose the canonical application URL, ATS, sponsorship evidence, live/closed status and closing date when available.
+- Match cards expose the canonical application URL, ATS, sponsorship evidence, verified live/closed/unavailable status and closing date when available.
+- Closing date shows `Not available` when the source does not provide a reliable value.
+- Unknown live status is never presented as live and never enables Apply.
 - Sponsorship evidence represented as `verified`, `not-sponsor` or `unknown`.
 - Unknown sponsorship is never converted into a negative sponsorship claim.
 - CV, cover-letter and application-pack optimisation.
@@ -61,9 +64,32 @@ applicationUrl
 postedAt
 closingAt
 isLive
+liveState
+liveVerification
 ```
 
 `applicationUrl` is recovered from direct and nested ATS/application payloads. The UI must never display `[object Object]` as an ATS value and must not invent an application URL when one cannot be found.
+
+`liveState` is `live`, `closed`, or `unknown`. Only a source-verified `live` state can enable the Apply action.
+
+## Live verification
+
+Run a verification pass against stored job sources with:
+
+```bash
+cd backend
+npm run jobs:verify-live
+```
+
+The verifier uses known closing dates, HTTP responses and explicit source-page signals. Ambiguous or unreachable pages remain `unknown` rather than being guessed as live.
+
+Optional controls:
+
+```powershell
+$env:JOB_VERIFY_CONCURRENCY="5"
+$env:JOB_VERIFY_LIMIT="100"
+npm run jobs:verify-live
+```
 
 ## Repository layout
 
@@ -74,6 +100,8 @@ backend/
   liveJobsScraper_new.js          ATS discovery
   jobIntelligence.js              job analysis and candidate scoring
   sponsorRegistry.js              sponsorship evidence rules
+  services/jobLiveVerifier.js     source-backed live verification
+  scripts/verifyLiveJobs.js      bulk live-status refresh
   applicationEngine.js            structured application prompts
   applicationValidator.js         output validation
   prompts/                        commercial + public-sector prompts
@@ -192,6 +220,7 @@ GitHub Actions runs the repository checks automatically when backend/frontend co
 - Never put OpenAI, Perplexity or MongoDB credentials in source files.
 - Never commit `.env` files.
 - Do not treat an unverified sponsor as a confirmed sponsor.
+- Do not treat an unverified job as live.
 - Do not invent job vacancies, sponsorship status, salaries, metrics or candidate achievements.
 - Public-sector application outputs must remain grounded in supplied evidence.
 
@@ -202,9 +231,10 @@ GitHub Actions runs the repository checks automatically when backend/frontend co
 3. Run `npm test` in `backend`.
 4. Run `npm test` and `npm run build` in `frontend` when frontend code changes.
 5. Run `npm run test:e2e` for UI/API flow changes.
-6. Review `git diff --check`.
-7. Update the architecture/feature documentation when a user-visible or API/data-contract feature is added.
-8. Commit with a clear message.
-9. Push only after tests/build pass.
+6. Run `npm run jobs:verify-live` when changing job source/liveness behaviour.
+7. Review `git diff --check`.
+8. Update the architecture/feature documentation when a user-visible or API/data-contract feature is added.
+9. Commit with a clear message.
+10. Push only after tests/build pass.
 
 See `docs/ARCHITECTURE.md` for the detailed design and data model.
