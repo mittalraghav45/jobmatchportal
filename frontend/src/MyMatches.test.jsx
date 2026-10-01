@@ -16,6 +16,7 @@ const apiPayload = {
     closingAt: '2026-10-15T23:59:59.000Z',
     postedAt: '2026-09-25T09:00:00.000Z',
     isLive: true,
+    liveState: 'live',
   }],
 };
 
@@ -44,17 +45,17 @@ describe('MyMatches', () => {
   });
 
   it('does not create a fake application URL when none exists', async () => {
-    fetch.mockResolvedValue({ ok: true, json: async () => ({ jobs: [{ title: 'Backend Engineer', companyName: 'No ATS Ltd' }] }) });
+    fetch.mockResolvedValue({ ok: true, json: async () => ({ jobs: [{ title: 'Backend Engineer', companyName: 'No ATS Ltd', liveState: 'live' }] }) });
     render(<MyMatches />);
     await waitFor(() => expect(screen.getByText('Backend Engineer')).toBeTruthy());
     expect(screen.queryByRole('link', { name: 'Apply' })).toBeNull();
-    expect(screen.getByRole('button', { name: /No application link/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Application not verified/i })).toBeTruthy();
   });
 
   it('shows a closed status and disables Apply for a closed job', async () => {
     fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ jobs: [{ title: 'Closed Engineer', companyName: 'Example Ltd', isLive: false, closingAt: '2026-09-30T23:59:59.000Z', applicationUrl: 'https://example.com/apply' }] }),
+      json: async () => ({ jobs: [{ title: 'Closed Engineer', companyName: 'Example Ltd', isLive: false, liveState: 'closed', closingAt: '2026-09-30T23:59:59.000Z', applicationUrl: 'https://example.com/apply' }] }),
     });
     render(<MyMatches />);
     expect(await screen.findByText('Closed')).toBeTruthy();
@@ -63,10 +64,22 @@ describe('MyMatches', () => {
     expect(screen.queryByRole('link', { name: 'Apply' })).toBeNull();
   });
 
+  it('shows unavailable status and closing date when the source cannot verify them', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ jobs: [{ title: 'Unverified Engineer', companyName: 'Unknown Ltd', liveState: 'unknown' }] }),
+    });
+    render(<MyMatches />);
+    expect(await screen.findByText('Status not available')).toBeTruthy();
+    expect(screen.getByText('Closes: Not available')).toBeTruthy();
+    expect(screen.getByText(/Live status could not be verified/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Application not verified' })).toBeTruthy();
+  });
+
   it('does not render a fake ATS object marker', async () => {
     fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ jobs: [{ title: 'ATS Engineer', companyName: 'Example Ltd', ats: { platform: 'greenhouse' } }] }),
+      json: async () => ({ jobs: [{ title: 'ATS Engineer', companyName: 'Example Ltd', ats: { platform: 'greenhouse' }, liveState: 'unknown' }] }),
     });
     render(<MyMatches />);
     expect(await screen.findByText('ATS: greenhouse')).toBeTruthy();
