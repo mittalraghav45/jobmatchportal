@@ -4,6 +4,7 @@ import { Job } from '../models/Job.js';
 import { Company } from '../models/Company.js';
 import { ukJobMongoFilter } from '../utils/ukJobLocation.js';
 import { techJobMongoFilter } from '../utils/techJobRole.js';
+import { classifyJob } from '../utils/jobClassification.js';
 
 const router = express.Router();
 
@@ -98,7 +99,9 @@ function addNationFilter(filter, value, nationCompanyIds = null) {
     if (key === 'England') {
       const nonEngland = Object.entries(NATION_PATTERNS).filter(([name]) => name !== 'England').map(([, pattern]) => pattern).join('|');
       locationClauses.push({ $and: [{ location: { $regex: NATION_PATTERNS.England, $options: 'i' } }, { location: { $not: { $regex: nonEngland, $options: 'i' } } }] });
-    } else locationClauses.push({ location: { $regex: NATION_PATTERNS[key], $options: 'i' } });
+    } else {
+      locationClauses.push({ location: { $regex: NATION_PATTERNS[key], $options: 'i' } });
+    }
   }
   const clauses = [];
   if (locationClauses.length) clauses.push(locationClauses.length === 1 ? locationClauses[0] : { $or: locationClauses });
@@ -110,11 +113,20 @@ function addNationFilter(filter, value, nationCompanyIds = null) {
 async function enrichJobs(jobs) {
   const companyIds = [...new Set(jobs.map(job => String(job.companyId || '').trim()).filter(Boolean))];
   if (!companyIds.length) return jobs;
-  const companies = await Company.find({ companyId: { $in: companyIds } }).select({ companyId: 1, companyName: 1, sponsorship: 1, careersUrl: 1, metadata: 1 }).lean();
+  const companies = await Company.find({ companyId: { $in: companyIds } }).select({ companyId: 1, companyName: 1, companyNumber: 1, sponsorship: 1, careersUrl: 1, metadata: 1 }).lean();
   const byId = new Map(companies.map(company => [String(company.companyId), company]));
   return jobs.map(job => {
     const company = byId.get(String(job.companyId || ''));
-    return { ...job, companyName: company?.companyName || 'Unknown company', sponsorship: company?.sponsorship || 'unknown', company: company ? { id: company.companyId, name: company.companyName, sponsorship: company.sponsorship, careersUrl: company.careersUrl, metadata: company.metadata || {} } : null };
+    const classification = classifyJob({ job, company, raw: job.raw || {} });
+    return {
+      ...job,
+      nation: classification.nation,
+      employerType: classification.employerType,
+      classificationVersion: classification.classificationVersion,
+      companyName: company?.companyName || 'Unknown company',
+      sponsorship: company?.sponsorship || 'unknown',
+      company: company ? { id: company.companyId, name: company.companyName, companyNumber: company.companyNumber, sponsorship: company.sponsorship, careersUrl: company.careersUrl, metadata: company.metadata || {} } : null
+    };
   });
 }
 
