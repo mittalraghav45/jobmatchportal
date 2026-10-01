@@ -21,9 +21,19 @@ const EMPLOYER_TYPES = new Set(['all', 'private', 'councils', 'universities', 'd
 
 function parseBoolean(value){if(value===undefined)return undefined;if(value==='true')return true;if(value==='false')return false;return null;}
 function clampInteger(value,fallback,min,max){const parsed=Number.parseInt(value,10);if(!Number.isFinite(parsed))return fallback;return Math.min(Math.max(parsed,min),max);}
-function escapeRegex(value){return String(value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function escapeRegex(value){return String(value).replace(/[.*+?^${}()|[\\]\\]/g,'\\$&');}
 function parseList(value){return value===undefined||value===null||value===''?[]:String(value).split(',').map(x=>x.trim()).filter(Boolean);}
 function invalid(code,message){const error=new Error(message);error.code=code;return error;}
+
+function normaliseAts(value){
+  if(value===undefined||value===null||value==='') return 'unknown';
+  if(typeof value==='string') return value.trim()||'unknown';
+  if(typeof value==='object'){
+    const candidate=value.name||value.type||value.platform||value.ats||value.provider||value.slug||value.id;
+    if(candidate!==undefined&&candidate!==null&&String(candidate).trim()) return String(candidate).trim();
+  }
+  return String(value).trim()||'unknown';
+}
 
 async function resolveSponsorshipCompanyIds(value){if(value===undefined||value==='')return null;const sponsorship=String(value).trim().toLowerCase();if(!['verified','not-sponsor','unknown'].includes(sponsorship))throw invalid('INVALID_SPONSORSHIP_FILTER','sponsorship must be verified, not-sponsor, or unknown');const companies=await Company.find({sponsorship}).select({companyId:1}).lean();return companies.map(company=>String(company.companyId));}
 async function resolveEmployerTypeCompanyIds(value){const keys=parseList(value).map(x=>x.toLowerCase());if(!keys.length||keys.includes('all'))return null;for(const key of keys)if(!EMPLOYER_TYPES.has(key))throw invalid('INVALID_EMPLOYER_TYPE','employerType must be all, private, councils, universities, dwp, or nhs');const companies=await Company.find({employerType:{$in:keys}}).select({companyId:1}).lean();return companies.map(company=>String(company.companyId));}
@@ -34,7 +44,20 @@ function addWorkModeFilter(filter,value){if(value===undefined||value==='all')ret
 function addEmploymentTypeFilter(filter,value){if(value===undefined||value==='')return;const allowed=['full-time','part-time','contract','temporary','permanent'];const key=String(value).toLowerCase();if(!allowed.includes(key))throw invalid('INVALID_EMPLOYMENT_TYPE',`employmentType must be one of ${allowed.join(', ')}`);filter.$and.push({employmentType:{$regex:`^${escapeRegex(key)}$`,$options:'i'}});}
 function addTextSearchFilter(filter,value){const search=escapeRegex(String(value||'').trim());if(!search)return;filter.$and.push({$or:[{title:{$regex:search,$options:'i'}},{description:{$regex:search,$options:'i'}},{location:{$regex:search,$options:'i'}},{department:{$regex:search,$options:'i'}},{companyId:{$regex:search,$options:'i'}},{companyName:{$regex:search,$options:'i'}}]});}
 
-async function enrichJobs(jobs){const companyIds=[...new Set(jobs.map(job=>String(job.companyId||'').trim()).filter(Boolean))];if(!companyIds.length)return jobs;const companies=await Company.find({companyId:{$in:companyIds}}).select({companyId:1,companyName:1,companyNumber:1,sponsorship:1,employerType:1,careersUrl:1,metadata:1,website:1}).lean();const byId=new Map(companies.map(company=>[String(company.companyId),company]));return jobs.map(job=>{const company=byId.get(String(job.companyId||''));const raw=job.raw||{};const fallbackCompanyName=job.companyName||extractCompanyName(raw);const classification=classifyJob({job,company,raw});return {...job,nation:classification.nation,employerType:classification.employerType,classificationVersion:classification.classificationVersion,companyName:company?.companyName||fallbackCompanyName||'Company being resolved',sponsorship:company?.sponsorship||'unknown',applyUrl:job.applyUrl||raw.applyUrl||raw.job_url||job.source?.url||'',company:company?{id:company.companyId,name:company.companyName,companyNumber:company.companyNumber,sponsorship:company.sponsorship,employerType:company.employerType||classification.employerType,careersUrl:company.careersUrl,website:company.website,metadata:company.metadata||{}}:fallbackCompanyName?{id:job.companyId,name:fallbackCompanyName,sponsorship:'unknown',employerType:classification.employerType,careersUrl:'',website:'',metadata:{resolutionStatus:'pending'}}:null};});}
+async function enrichJobs(jobs){
+  const companyIds=[...new Set(jobs.map(job=>String(job.companyId||'').trim()).filter(Boolean))];
+  if(!companyIds.length)return jobs;
+  const companies=await Company.find({companyId:{$in:companyIds}}).select({companyId:1,companyName:1,companyNumber:1,sponsorship:1,employerType:1,careersUrl:1,metadata:1,website:1,ats:1}).lean();
+  const byId=new Map(companies.map(company=>[String(company.companyId),company]));
+  return jobs.map(job=>{
+    const company=byId.get(String(job.companyId||''));
+    const raw=job.raw||{};
+    const fallbackCompanyName=job.companyName||extractCompanyName(raw);
+    const classification=classifyJob({job,company,raw});
+    const ats=normaliseAts(job.source?.ats||company?.ats||raw.ats);
+    return {...job,ats,source:{...(job.source||{}),ats},nation:classification.nation,employerType:classification.employerType,classificationVersion:classification.classificationVersion,companyName:company?.companyName||fallbackCompanyName||'Company being resolved',sponsorship:company?.sponsorship||'unknown',applyUrl:job.applyUrl||raw.applyUrl||raw.job_url||job.source?.url||'',company:company?{id:company.companyId,name:company.companyName,companyNumber:company.companyNumber,sponsorship:company.sponsorship,employerType:company.employerType||classification.employerType,careersUrl:company.careersUrl,website:company.website,metadata:company.metadata||{},ats:normaliseAts(company.ats)}:fallbackCompanyName?{id:job.companyId,name:fallbackCompanyName,sponsorship:'unknown',employerType:classification.employerType,careersUrl:'',website:'',metadata:{resolutionStatus:'pending'},ats}:null};
+  });
+}
 
 router.get('/',async(req,res)=>{try{await connectMongo();const page=clampInteger(req.query.page,1,1,100000);const limit=clampInteger(req.query.limit,25,1,100);const filter={$and:[ukJobMongoFilter(),techJobMongoFilter()]};if(req.query.company)filter.companyId=String(req.query.company).trim();if(req.query.ats)filter['source.ats']=String(req.query.ats).trim().toLowerCase();if(req.query.location)filter.location={$regex:escapeRegex(req.query.location),$options:'i'};addEmploymentTypeFilter(filter,req.query.employmentType);addWorkModeFilter(filter,req.query.workMode);addTextSearchFilter(filter,req.query.q);const nationCompanyIds=await resolveNationCompanyIds(req.query.nation);addNationFilter(filter,req.query.nation,nationCompanyIds);const sponsorshipCompanyIds=await resolveSponsorshipCompanyIds(req.query.sponsorship);const employerCompanyIds=await resolveEmployerTypeCompanyIds(req.query.employerType);addEmployerTypeFilter(filter,req.query.employerType,employerCompanyIds);if(sponsorshipCompanyIds)filter.$and.push({companyId:{$in:sponsorshipCompanyIds}});const live=parseBoolean(req.query.live);if(live===null)return res.status(400).json({error:'live must be true or false'});if(live!==undefined)filter['status.isLive']=live;let sort={'dates.lastSeenAt':-1};if(req.query.sort==='oldest')sort={'dates.lastSeenAt':1};if(req.query.sort==='posted')sort={'dates.postedAt':-1,'dates.lastSeenAt':-1};const [rawJobs,total]=await Promise.all([Job.find(filter).sort(sort).skip((page-1)*limit).limit(limit).lean(),Job.countDocuments(filter)]);const jobs=await enrichJobs(rawJobs);return res.json({jobs,pagination:{page,limit,total,pages:Math.ceil(total/limit)},market:'United Kingdom',roleType:'Technology'});}catch(error){console.error('Jobs list error:',error.message);if(['INVALID_SPONSORSHIP_FILTER','INVALID_EMPLOYER_TYPE','INVALID_NATION_FILTER','INVALID_WORK_MODE','INVALID_EMPLOYMENT_TYPE'].includes(error.code))return res.status(400).json({error:error.message});return res.status(503).json({error:'Unable to query jobs',message:error.message});}});
 
