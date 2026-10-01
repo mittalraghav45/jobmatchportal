@@ -5,6 +5,7 @@ const JobSchema = new mongoose.Schema({
   schemaVersion: { type: String, required: true },
   externalId: { type: String, default: '', index: true },
   companyId: { type: String, required: true, index: true },
+  companyName: { type: String, default: '', index: true },
   title: { type: String, required: true, index: true },
   description: { type: String, default: '' },
   location: { type: String, default: '', index: true },
@@ -30,6 +31,7 @@ const JobSchema = new mongoose.Schema({
 }, { timestamps: true, versionKey: false });
 
 JobSchema.index({ companyId: 1, 'status.isLive': 1 });
+JobSchema.index({ companyName: 1, title: 1 });
 JobSchema.index({ 'source.ats': 1, externalId: 1 });
 JobSchema.index({ nation: 1, employerType: 1, 'status.isLive': 1 });
 JobSchema.index({ nation: 1, 'dates.lastSeenAt': -1 });
