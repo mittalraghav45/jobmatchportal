@@ -4,6 +4,7 @@ import { detectATS, normaliseCompanyConfig } from '../services/companyDiscovery.
 import { extractATSConfig, resolveATSConfig, isSupportedATS } from '../ats/detector.js';
 import { getSupportedATS } from '../ats/registry.js';
 import { ingestJobs } from '../services/jobIngestion.js';
+import { jobFingerprint } from '../models/jobSchema.js';
 
 const NOW = '2026-09-29T00:00:00.000Z';
 
@@ -82,7 +83,7 @@ test('ingestJobs deduplicates records and preserves first-seen data', () => {
   assert.equal(first.jobs[0].dates.lastSeenAt, NOW);
 
   const later = '2026-09-30T00:00:00.000Z';
-  const existing = new Map(first.jobs.map(job => [job.fingerprint || `${job.companyId}|${job.externalId}|${job.location}`, job]));
+  const existing = new Map(first.jobs.map(job => [jobFingerprint(job), job]));
   const second = ingestJobs([raw[0]], { existing, now: later });
   assert.equal(second.added, 0);
   assert.equal(second.updated, 1);
