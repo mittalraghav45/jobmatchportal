@@ -15,18 +15,10 @@ const NATION_PATTERNS = {
   England: 'england|london|southampton|manchester|birmingham|bristol|leeds|liverpool|sheffield|nottingham|newcastle|reading|oxford|cambridge|brighton|bath|exeter|portsmouth|coventry|leicester|hull|york|milton keynes|luton|watford|guildford|winchester|chester|derby|norwich|plymouth|swindon|slough|croydon|hounslow|bournemouth|canterbury|cheltenham|gloucester|ipswich|lincoln|middlesbrough|northampton|peterborough|preston|salisbury|stoke-on-trent|sunderland|wakefield|wolverhampton|worcester'
 };
 
-// Explicit non-UK locations must never enter a UK nation result merely because
-// the employing company is UK-based. This prevents e.g. "Dindigul, India"
-// from appearing in an England/Scotland/Wales/NI result.
-const FOREIGN_LOCATION_PATTERN = 'india|indonesia|pakistan|bangladesh|nepal|sri lanka|china|japan|singapore|malaysia|philippines|australia|new zealand|canada|united states|usa|u\.s\.a\.|ireland|france|germany|spain|italy|portugal|netherlands|belgium|switzerland|sweden|norway|denmark|finland|poland|romania|bulgaria|ukraine|czech republic|czechia|south africa|nigeria|kenya|ghana|uae|united arab emirates|dubai';
+const FOREIGN_LOCATION_PATTERN = 'india|indonesia|pakistan|bangladesh|nepal|sri lanka|china|japan|singapore|malaysia|philippines|australia|new zealand|canada|united states|usa|u\\.s\\.a\\.|ireland|france|germany|spain|italy|portugal|netherlands|belgium|switzerland|sweden|norway|denmark|finland|poland|romania|bulgaria|ukraine|czech republic|czechia|south africa|nigeria|kenya|ghana|uae|united arab emirates|dubai';
 const GENERIC_UK_LOCATION_PATTERN = '^\\s*(uk|u\\.k\\.|united kingdom|great britain|gb|remote(?:,|\\s|$)|hybrid(?:,|\\s|$)|remote uk|uk wide|uk-wide)\\s*$';
 
-const EMPLOYER_PATTERNS = {
-  councils: 'council|borough council|city council|county council|district council|metropolitan borough|unitary authority|local authority|local government',
-  universities: 'university|universities|higher education|institute of technology|university of|college',
-  dwp: '^department for work and pensions$|department for work and pensions|dwp',
-  nhs: '(^|\\s)nhs($|\\s)|nhs trust|nhs foundation trust|health board|health and social care|nhs scotland|nhs england|nhs wales|nhs northern ireland'
-};
+const EMPLOYER_TYPES = new Set(['all', 'councils', 'universities', 'dwp', 'nhs']);
 
 function parseBoolean(value) {
   if (value === undefined) return undefined;
@@ -58,22 +50,14 @@ async function resolveEmployerCompanyIds(value) {
   const keys = parseList(value).map(x => x.toLowerCase());
   if (!keys.length || keys.includes('all')) return null;
   for (const key of keys) {
-    if (!Object.prototype.hasOwnProperty.call(EMPLOYER_PATTERNS, key)) {
+    if (!EMPLOYER_TYPES.has(key)) {
       const error = new Error('employerType must be all, councils, universities, dwp, or nhs');
       error.code = 'INVALID_EMPLOYER_TYPE';
       throw error;
     }
   }
-  const ids = new Set();
-  for (const key of keys) {
-    const regex = new RegExp(EMPLOYER_PATTERNS[key], 'i');
-    const companies = await Company.find({ $or: [
-      { companyName: regex }, { 'metadata.industry': regex }, { 'metadata.category': regex },
-      { 'metadata.organisationType': regex }, { 'metadata.organizationType': regex }, { 'metadata.sector': regex }
-    ] }).select({ companyId: 1 }).lean();
-    companies.forEach(company => ids.add(String(company.companyId)));
-  }
-  return [...ids];
+  const companies = await Company.find({ employerType: { $in: keys } }).select({ companyId: 1 }).lean();
+  return companies.map(company => String(company.companyId));
 }
 
 async function resolveNationCompanyIds(value) {
@@ -110,22 +94,13 @@ function addNationFilter(filter, value, nationCompanyIds = null) {
     ]
   }));
 
-  const clauses = [];
-
-  // Prefer an explicitly stored classification, but only when the raw location
-  // is not explicitly outside the UK.
-  clauses.push({
+  const clauses = [{
     $and: [
       { nation: { $in: nations } },
       { location: { $not: { $regex: FOREIGN_LOCATION_PATTERN, $options: 'i' } } }
     ]
-  });
+  }, ...directLocationClauses];
 
-  // Specific UK city/region in the job location.
-  clauses.push(...directLocationClauses);
-
-  // Company metadata is only a fallback for genuinely generic UK/remote jobs.
-  // It must NOT override an explicit job location such as "Dindigul, India".
   if (nationCompanyIds?.length) {
     clauses.push({
       $and: [
@@ -141,7 +116,9 @@ function addNationFilter(filter, value, nationCompanyIds = null) {
 async function enrichJobs(jobs) {
   const companyIds = [...new Set(jobs.map(job => String(job.companyId || '').trim()).filter(Boolean))];
   if (!companyIds.length) return jobs;
-  const companies = await Company.find({ companyId: { $in: companyIds } }).select({ companyId: 1, companyName: 1, companyNumber: 1, sponsorship: 1, careersUrl: 1, metadata: 1 }).lean();
+  const companies = await Company.find({ companyId: { $in: companyIds } })
+    .select({ companyId: 1, companyName: 1, companyNumber: 1, sponsorship: 1, employerType: 1, careersUrl: 1, metadata: 1 })
+    .lean();
   const byId = new Map(companies.map(company => [String(company.companyId), company]));
   return jobs.map(job => {
     const company = byId.get(String(job.companyId || ''));
@@ -153,7 +130,7 @@ async function enrichJobs(jobs) {
       classificationVersion: classification.classificationVersion,
       companyName: company?.companyName || 'Unknown company',
       sponsorship: company?.sponsorship || 'unknown',
-      company: company ? { id: company.companyId, name: company.companyName, companyNumber: company.companyNumber, sponsorship: company.sponsorship, careersUrl: company.careersUrl, metadata: company.metadata || {} } : null
+      company: company ? { id: company.companyId, name: company.companyName, companyNumber: company.companyNumber, sponsorship: company.sponsorship, employerType: company.employerType || classification.employerType, careersUrl: company.careersUrl, metadata: company.metadata || {} } : null
     };
   });
 }
@@ -175,10 +152,7 @@ router.get('/', async (req, res) => {
     const sponsorshipCompanyIds = await resolveSponsorshipCompanyIds(req.query.sponsorship);
     const employerCompanyIds = await resolveEmployerCompanyIds(req.query.employerType);
     if (sponsorshipCompanyIds) filter.$and.push({ companyId: { $in: sponsorshipCompanyIds } });
-    if (employerCompanyIds) {
-      const employerTypes = parseList(req.query.employerType).map(x => x.toLowerCase());
-      filter.$and.push({ $or: [{ employerType: { $in: employerTypes } }, { companyId: { $in: employerCompanyIds } }] });
-    }
+    if (employerCompanyIds) filter.$and.push({ companyId: { $in: employerCompanyIds } });
 
     const live = parseBoolean(req.query.live);
     if (live === null) return res.status(400).json({ error: 'live must be true or false' });
