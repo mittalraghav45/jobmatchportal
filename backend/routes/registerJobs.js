@@ -1,10 +1,9 @@
 import { app } from '../server.js';
 import aiRouter from './ai.js';
-import intelligenceRouter from './intelligenceRoutes.js';
 
-// server.js owns the core route registration. This module only mounts
-// compatibility/optional routers used by the existing npm start scripts.
+// server.js owns all core API registration. This file remains as the
+// compatibility entrypoint used by the existing npm scripts.
 app.use('/api/ai', aiRouter);
-app.use('/api/intelligence', intelligenceRouter);
 
-console.log('APIs mounted: /api/jobs, /api/companies, /api/profile, /api/match, /api/applications, /api/discovery, /api/intelligence, /api/ai');
+console.log('APIs mounted by server.js: /api/jobs, /api/companies, /api/profile, /api/match, /api/applications, /api/discovery, /api/intelligence');
+console.log('Compatibility API mounted: /api/ai');
