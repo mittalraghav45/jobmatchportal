@@ -7,6 +7,7 @@ export function normaliseJob(raw = {}) {
   const externalId = clean(raw.externalId || raw.id || raw.job_id || raw.jobId || '');
   const title = clean(raw.title || raw.job_title || '');
   const companyId = clean(raw.companyId || raw.company_id || raw.slug || '');
+  const companyName = clean(raw.companyName || raw.company_name || raw.employerName || raw.employer_name || raw.company?.name || raw.employer?.name || '');
   const location = clean(raw.location || raw.job_location || '');
   const description = clean(raw.description || raw.job_description || '');
   const postedAt = raw.postedAt || raw.posted_date || raw.posting_date || raw.posted || null;
@@ -16,6 +17,7 @@ export function normaliseJob(raw = {}) {
     id: clean(raw.id || externalId),
     externalId,
     companyId,
+    companyName,
     title,
     description,
     location,
