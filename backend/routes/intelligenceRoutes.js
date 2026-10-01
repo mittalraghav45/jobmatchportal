@@ -10,51 +10,16 @@ import { connectMongo } from '../db/mongoose.js';
 const router = express.Router();
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-function list(value) {
-  if (!value) return [];
-  return String(value).split(',').map(x => x.trim()).filter(Boolean);
-}
+function list(value) { return value ? String(value).split(',').map(x => x.trim()).filter(Boolean) : []; }
 
 function buildJobPayload(job, company) {
-  const analysis = analyseJob({
-    title: job.title,
-    description: job.description || '',
-    location: job.location,
-    employmentType: job.employmentType,
-    source: job.source?.url || '',
-    ats: job.source?.ats || '',
-    postedAt: job.dates?.postedAt,
-    closingAt: job.dates?.closingAt
-  });
-  return {
-    id: String(job._id), companyId: job.companyId, companyName: company?.companyName || 'Unknown company',
-    title: job.title, description: job.description || '', location: job.location, nation: job.nation,
-    employerType: job.employerType, employmentType: job.employmentType, url: job.source?.url || '',
-    sponsorship: company?.sponsorship || 'unknown', dates: job.dates, ...analysis
-  };
+  const analysis = analyseJob({ title: job.title, description: job.description || '', location: job.location, employmentType: job.employmentType, source: job.source?.url || '', ats: job.source?.ats || '', postedAt: job.dates?.postedAt, closingAt: job.dates?.closingAt });
+  return { id: String(job._id), companyId: job.companyId, companyName: company?.companyName || 'Unknown company', title: job.title, description: job.description || '', location: job.location, nation: job.nation, employerType: job.employerType, employmentType: job.employmentType, url: job.source?.url || '', sponsorship: company?.sponsorship || 'unknown', dates: job.dates, ...analysis };
 }
 
-router.get('/dashboard', async (req, res) => {
-  try {
-    await connectMongo();
-    const runId = String(req.query.runId || process.env.GOLDEN_RUN_ID || 'golden-full-v1000');
-    const [jobs, live, companies, applications, discovery] = await Promise.all([
-      Job.countDocuments(),
-      Job.countDocuments({ 'status.isLive': true }),
-      Company.countDocuments({ enabled: true }),
-      Application.find({ profileId: DEFAULT_PROFILE_ID }).select('status').lean(),
-      mongooseCollectionCount(runId)
-    ]);
-    const appCounts = applications.reduce((acc, item) => { acc[item.status] = (acc[item.status] || 0) + 1; return acc; }, {});
-    return res.json({ jobs: { total: jobs, live }, companies, applications: appCounts, discovery });
-  } catch (error) {
-    return res.status(503).json({ error: 'Unable to load intelligence dashboard', message: error.message });
-  }
-});
-
-async function mongooseCollectionCount(runId) {
-  const db = (await connectMongo()).connection.db;
-  const collection = db.collection('golden_discovery_checkpoints');
+async function discoveryStats(runId) {
+  const connection = await connectMongo();
+  const collection = connection.db.collection('golden_discovery_checkpoints');
   const [companyTotal, processed, resolved, unresolved, failed, jobsAdded, jobsUpdated] = await Promise.all([
     Company.countDocuments({ enabled: true }),
     collection.countDocuments({ runId, status: { $in: ['completed', 'unresolved', 'invalid', 'failed'] } }),
@@ -64,13 +29,21 @@ async function mongooseCollectionCount(runId) {
     collection.aggregate([{ $match: { runId } }, { $group: { _id: null, value: { $sum: '$jobsAdded' } } }]).toArray(),
     collection.aggregate([{ $match: { runId } }, { $group: { _id: null, value: { $sum: '$jobsUpdated' } } }]).toArray()
   ]);
-  return {
-    runId, companyTotal, processed, remaining: Math.max(0, companyTotal - processed),
-    progressPercent: companyTotal ? Number((processed / companyTotal * 100).toFixed(2)) : 0,
-    resolved, unresolved, failed, jobsAdded: jobsAdded[0]?.value || 0, jobsUpdated: jobsUpdated[0]?.value || 0,
-    checkedAt: new Date().toISOString()
-  };
+  return { runId, companyTotal, processed, remaining: Math.max(0, companyTotal - processed), progressPercent: companyTotal ? Number((processed / companyTotal * 100).toFixed(2)) : 0, resolved, unresolved, failed, jobsAdded: jobsAdded[0]?.value || 0, jobsUpdated: jobsUpdated[0]?.value || 0, checkedAt: new Date().toISOString() };
 }
+
+router.get('/dashboard', async (req, res) => {
+  try {
+    await connectMongo();
+    const runId = String(req.query.runId || process.env.GOLDEN_RUN_ID || 'golden-full-v1000');
+    const [jobs, live, companies, applications, discovery] = await Promise.all([
+      Job.countDocuments(), Job.countDocuments({ 'status.isLive': true }), Company.countDocuments({ enabled: true }),
+      Application.find({ profileId: DEFAULT_PROFILE_ID }).select('status').lean(), discoveryStats(runId)
+    ]);
+    const appCounts = applications.reduce((acc, item) => { acc[item.status] = (acc[item.status] || 0) + 1; return acc; }, {});
+    return res.json({ jobs: { total: jobs, live }, companies, applications: appCounts, discovery });
+  } catch (error) { return res.status(503).json({ error: 'Unable to load intelligence dashboard', message: error.message }); }
+});
 
 router.post('/job/:id', async (req, res) => {
   try {
@@ -94,9 +67,7 @@ router.post('/job/:id', async (req, res) => {
       try { semantic = JSON.parse(completion.choices?.[0]?.message?.content || '{}'); } catch { semantic = { error: 'Invalid semantic response' }; }
     }
     return res.json({ job: payload, deterministic, semantic, openAIUsed: Boolean(semantic) });
-  } catch (error) {
-    return res.status(503).json({ error: 'Job intelligence failed', message: error.message });
-  }
+  } catch (error) { return res.status(503).json({ error: 'Job intelligence failed', message: error.message }); }
 });
 
 router.post('/top-matches', async (req, res) => {
@@ -107,8 +78,7 @@ router.post('/top-matches', async (req, res) => {
     if (!profile) return res.status(404).json({ error: 'Candidate profile not found' });
     const limit = Math.min(50, Math.max(1, Number(req.body?.limit || 20)));
     const filter = { 'status.isLive': { $ne: false } };
-    const nations = list(req.body?.nation);
-    const employers = list(req.body?.employerType);
+    const nations = list(req.body?.nation); const employers = list(req.body?.employerType);
     if (nations.length) filter.nation = { $in: nations };
     if (employers.length) filter.employerType = { $in: employers };
     if (req.body?.sponsorship === 'verified') {
@@ -119,15 +89,9 @@ router.post('/top-matches', async (req, res) => {
     const companyIds = [...new Set(jobs.map(x => String(x.companyId)))];
     const companies = await Company.find({ companyId: { $in: companyIds } }).lean();
     const byId = new Map(companies.map(x => [String(x.companyId), x]));
-    const matches = jobs.map(job => {
-      const company = byId.get(String(job.companyId));
-      const payload = buildJobPayload(job, company);
-      return { job: payload, match: scoreCandidateAgainstJob({ cvSkills: profile.skills, yearsExperience: profile.yearsExperience, cvText: profile.cvText, job: payload }) };
-    }).sort((a, b) => b.match.score - a.match.score).slice(0, limit);
+    const matches = jobs.map(job => { const company = byId.get(String(job.companyId)); const payload = buildJobPayload(job, company); return { job: payload, match: scoreCandidateAgainstJob({ cvSkills: profile.skills, yearsExperience: profile.yearsExperience, cvText: profile.cvText, job: payload }) }; }).sort((a, b) => b.match.score - a.match.score).slice(0, limit);
     return res.json({ profileId, matches, totalConsidered: jobs.length });
-  } catch (error) {
-    return res.status(503).json({ error: 'Unable to calculate top matches', message: error.message });
-  }
+  } catch (error) { return res.status(503).json({ error: 'Unable to calculate top matches', message: error.message }); }
 });
 
 export default router;
