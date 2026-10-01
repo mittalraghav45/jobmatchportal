@@ -12,7 +12,7 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    channel: 'chrome',
+    channel: process.env.CI ? undefined : 'chrome',
   },
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1',
@@ -22,7 +22,7 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chrome',
+      name: process.env.CI ? 'chromium' : 'chrome',
       use: { ...devices['Desktop Chrome'] },
     },
   ],
