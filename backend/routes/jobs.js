@@ -25,14 +25,19 @@ function escapeRegex(value){return String(value).replace(/[.*+?^${}()|[\\]\\]/g,
 function parseList(value){return value===undefined||value===null||value===''?[]:String(value).split(',').map(x=>x.trim()).filter(Boolean);}
 function invalid(code,message){const error=new Error(message);error.code=code;return error;}
 
-function normaliseAts(value){
-  if(value===undefined||value===null||value==='') return 'unknown';
-  if(typeof value==='string') return value.trim()||'unknown';
-  if(typeof value==='object'){
-    const candidate=value.name||value.type||value.platform||value.ats||value.provider||value.slug||value.id;
-    if(candidate!==undefined&&candidate!==null&&String(candidate).trim()) return String(candidate).trim();
+function normaliseAts(value, depth = 0){
+  if(depth > 5 || value===undefined || value===null || value==='') return 'unknown';
+  if(typeof value==='string' || typeof value==='number'){
+    const text=String(value).trim();
+    return text && text !== '[object Object]' ? text.toLowerCase() : 'unknown';
   }
-  return String(value).trim()||'unknown';
+  if(typeof value==='object'){
+    for(const key of ['ats','name','type','platform','provider','slug','id']){
+      const candidate=normaliseAts(value[key], depth + 1);
+      if(candidate !== 'unknown') return candidate;
+    }
+  }
+  return 'unknown';
 }
 
 async function resolveSponsorshipCompanyIds(value){if(value===undefined||value==='')return null;const sponsorship=String(value).trim().toLowerCase();if(!['verified','not-sponsor','unknown'].includes(sponsorship))throw invalid('INVALID_SPONSORSHIP_FILTER','sponsorship must be verified, not-sponsor, or unknown');const companies=await Company.find({sponsorship}).select({companyId:1}).lean();return companies.map(company=>String(company.companyId));}
@@ -54,8 +59,11 @@ async function enrichJobs(jobs){
     const raw=job.raw||{};
     const fallbackCompanyName=job.companyName||extractCompanyName(raw);
     const classification=classifyJob({job,company,raw});
-    const ats=normaliseAts(job.source?.ats||company?.ats||raw.ats);
-    return {...job,ats,source:{...(job.source||{}),ats},nation:classification.nation,employerType:classification.employerType,classificationVersion:classification.classificationVersion,companyName:company?.companyName||fallbackCompanyName||'Company being resolved',sponsorship:company?.sponsorship||'unknown',applyUrl:job.applyUrl||raw.applyUrl||raw.job_url||job.source?.url||'',company:company?{id:company.companyId,name:company.companyName,companyNumber:company.companyNumber,sponsorship:company.sponsorship,employerType:company.employerType||classification.employerType,careersUrl:company.careersUrl,website:company.website,metadata:company.metadata||{},ats:normaliseAts(company.ats)}:fallbackCompanyName?{id:job.companyId,name:fallbackCompanyName,sponsorship:'unknown',employerType:classification.employerType,careersUrl:'',website:'',metadata:{resolutionStatus:'pending'},ats}:null};
+    const jobAts=normaliseAts(job.source?.ats,0);
+    const companyAts=normaliseAts(company?.ats,0);
+    const rawAts=normaliseAts(raw.ats,0);
+    const ats=jobAts!=='unknown'?jobAts:companyAts!=='unknown'?companyAts:rawAts;
+    return {...job,ats,source:{...(job.source||{}),ats},nation:classification.nation,employerType:classification.employerType,classificationVersion:classification.classificationVersion,companyName:company?.companyName||fallbackCompanyName||'Company being resolved',sponsorship:company?.sponsorship||'unknown',applyUrl:job.applyUrl||raw.applyUrl||raw.job_url||job.source?.url||'',company:company?{id:company.companyId,name:company.companyName,companyNumber:company.companyNumber,sponsorship:company.sponsorship,employerType:company.employerType||classification.employerType,careersUrl:company.careersUrl,website:company.website,metadata:company.metadata||{},ats:normaliseAts(company.ats,0)}:fallbackCompanyName?{id:job.companyId,name:fallbackCompanyName,sponsorship:'unknown',employerType:classification.employerType,careersUrl:'',website:'',metadata:{resolutionStatus:'pending'},ats}:null};
   });
 }
 
@@ -65,4 +73,5 @@ router.get('/stats',async(req,res)=>{try{await connectMongo();const filter={$and
 
 router.get('/:id',async(req,res)=>{try{await connectMongo();const id=String(req.params.id).trim();if(!id)return res.status(400).json({error:'job id required'});const job=await Job.findOne({$and:[{$or:[{fingerprint:id},{externalId:id}]},ukJobMongoFilter(),techJobMongoFilter()]}).lean();if(!job)return res.status(404).json({error:'UK technology job not found'});const [enriched]=await enrichJobs([job]);return res.json({job:enriched});}catch(error){console.error('Job detail error:',error.message);return res.status(503).json({error:'Unable to query job',message:error.message});}});
 
+export { normaliseAts };
 export default router;
