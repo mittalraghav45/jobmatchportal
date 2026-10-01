@@ -28,15 +28,12 @@ async function main() {
     const remaining = LIMIT ? Math.min(BATCH_SIZE, LIMIT - processed) : BATCH_SIZE;
     if (remaining <= 0) break;
 
-    const jobs = await Job.find(filter)
-      .sort({ _id: 1 })
-      .limit(remaining)
-      .lean();
+    const jobs = await Job.find(filter).sort({ _id: 1 }).limit(remaining).lean();
     if (!jobs.length) break;
 
     const companyIds = [...new Set(jobs.map(job => String(job.companyId || '')).filter(Boolean))];
     const companies = await Company.find({ companyId: { $in: companyIds } })
-      .select('companyId companyName companyNumber metadata')
+      .select('companyId companyName companyNumber sponsorship employerType classificationVersion metadata')
       .lean();
     const byId = new Map(companies.map(company => [String(company.companyId), company]));
 
@@ -45,12 +42,7 @@ async function main() {
       const company = byId.get(String(job.companyId));
       const classification = classifyJob({ job, company, raw: job.raw || {} });
       if (job.nation === classification.nation && job.employerType === classification.employerType && job.classificationVersion === classification.classificationVersion) continue;
-      operations.push({
-        updateOne: {
-          filter: { _id: job._id },
-          update: { $set: classification }
-        }
-      });
+      operations.push({ updateOne: { filter: { _id: job._id }, update: { $set: classification } } });
     }
 
     if (operations.length) {
