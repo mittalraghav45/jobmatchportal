@@ -55,7 +55,8 @@ function resolveApplicationUrl(job) {
     job?.raw?.jobUrl,
     job?.raw?.job_url,
     job?.raw?.url,
-    job?.raw?.source
+    job?.raw?.source,
+    job?.raw
   ];
   const seen = new Set();
 
@@ -68,7 +69,11 @@ function resolveApplicationUrl(job) {
     }
     if (!value || typeof value !== 'object' || seen.has(value)) continue;
     seen.add(value);
-    for (const key of ['applicationUrl', 'application_url', 'applyUrl', 'apply_url', 'atsUrl', 'ats_url', 'jobUrl', 'job_url', 'url']) {
+    for (const key of [
+      'application', 'apply', 'job', 'source',
+      'applicationUrl', 'application_url', 'applyUrl', 'apply_url',
+      'atsUrl', 'ats_url', 'jobUrl', 'job_url', 'url'
+    ]) {
       if (value[key] !== undefined) queue.push(value[key]);
     }
   }
