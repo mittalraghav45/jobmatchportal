@@ -1,6 +1,6 @@
 import { getEnabledCompanies } from '../config/companies.js';
 import { discoverWithATS } from '../ats/registry.js';
-import { resolveATSConfig } from '../ats/detector.js';
+import { isSupportedATS, resolveATSConfig } from '../ats/detector.js';
 import { connectMongo } from '../db/mongoose.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 import { ingestJobs } from './jobIngestion.js';
@@ -15,18 +15,30 @@ export function normaliseCompanyConfig(company = {}) {
   const careersUrl = String(company.careers_url || company.careersUrl || '').trim();
   const configuredATS = String(company.ats || '').trim().toLowerCase();
   const configuredSlug = String(company.ats_slug || company.atsSlug || company.slug || '').trim();
-  const resolved = resolveATSConfig({ ats: configuredATS, atsSlug: configuredSlug, careersUrl });
-  const slug = resolved.slug || companyId;
+
+  // A resolved careers URL is authoritative. An invalid/stale ATS value in
+  // the company record must not block discovery when the URL itself is usable.
+  const explicitATS = isSupportedATS(configuredATS) ? configuredATS : '';
+  const resolved = resolveATSConfig({
+    ats: explicitATS,
+    atsSlug: configuredSlug,
+    careersUrl
+  });
+
+  const detectedATS = resolved.ats;
+  const hasUsableCareersUrl = Boolean(careersUrl) && !/^https?:\/\/(?:www\.)?(?:google\.|bing\.|search\.)/i.test(careersUrl);
+  const ats = detectedATS || (explicitATS && isSupportedATS(explicitATS) ? explicitATS : (hasUsableCareersUrl ? 'custom' : null));
+  const slug = resolved.slug || configuredSlug || companyId;
 
   return {
     ...company,
     companyId,
     companyName,
     careersUrl,
-    ats: resolved.ats,
+    ats,
     slug,
-    atsSource: resolved.source,
-    atsError: resolved.error || null,
+    atsSource: resolved.source === 'unresolved' && ats === 'custom' ? 'careers-url-fallback' : resolved.source,
+    atsError: ats ? null : (resolved.error || null),
     atsSite: resolved.site || null
   };
 }
@@ -45,7 +57,7 @@ export async function discoverCompanyJobs(company, { existing = new Map(), now, 
     return { company: config, status: 'unconfigured', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'ats_not_configured' }] };
   }
 
-  if (!config.slug && config.ats !== 'nhs') {
+  if (!config.slug && config.ats !== 'nhs' && config.ats !== 'custom') {
     return { company: config, status: 'unconfigured', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'ats_slug_not_configured' }] };
   }
 
