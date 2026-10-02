@@ -14,9 +14,9 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 
 ## Critical data invariants
 
-- The canonical company population currently contains 21,516 companies. Never delete or silently shrink it as a side effect of discovery/verification.
-- The current discovered-job population is 3,481 jobs unless a documented import/discovery change intentionally alters it.
-- Job verification is source-backed and must preserve the total population. `live + closed + unknown + unverified` must equal the total job population.
+- The canonical company population is 21,516 companies. Never delete or silently shrink it as a side effect of discovery/verification.
+- Job discovery is incremental. New discovery runs may intentionally increase the job population.
+- Job verification is source-backed and population-safe. `live + closed + unknown + unverified` must equal the total job population after verification.
 - `unknown` is a valid state. Never convert insufficient evidence into `closed` or `live` merely to improve coverage.
 - A Google fallback URL is a discovery aid, not evidence that a job exists.
 - Never fabricate jobs, closing dates, posting dates, sponsorship status or application URLs.
@@ -28,6 +28,8 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 3. Crawl conservatively: obey robots/rate limits, use bounded depth/pages, and retain source URLs.
 4. Individual job pages are required for strong `JobPosting` evidence; generic career pages are not themselves job records.
 5. Deduplicate by canonical job identity/source URL before insertion.
+6. Large company populations may be processed in parallel bounded ranges, but each worker must remain checkpointed/resumable and rate-limited.
+7. Do not assume that a successful discovery request means the resulting job is live; verification remains a separate stage.
 
 ## Verification rules
 
@@ -36,6 +38,24 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 - Structured `JobPosting` evidence can support a live classification when the posting identity is retained.
 - HTTP errors and insufficient evidence remain distinguishable.
 - Verification should be incremental and safe to rerun.
+- Newly discovered jobs should be allowed to enter the verification queue without waiting for the entire discovery population to finish.
+
+## Frontend/API rules
+
+- `/api/jobs` is the canonical job-list API for the frontend.
+- Preserve server-side pagination, filtering and source-backed verification semantics.
+- Frontend development must work in Codespaces through the Vite `/api` proxy when no explicit API base URL is supplied.
+- The frontend may display verified-live jobs incrementally while discovery is still running; it must not present unverified jobs as verified.
+- API/network failures should produce a recoverable UI state rather than a page crash.
+
+## Operational rules
+
+- MongoDB is the source of persisted job/company state.
+- Health monitoring must be read-only and must not mutate or delete production data.
+- Parallel discovery terminals must use non-overlapping company ranges and unique run IDs.
+- Checkpoint collections must be used for resumability; do not restart a completed range unnecessarily.
+- Before scaling a crawl, inspect a smaller pilot and confirm throughput, error rate, duplicate rate and database health.
+- If a process fails, inspect its run summary/checkpoint before retrying.
 
 ## Development workflow
 
@@ -57,7 +77,7 @@ Keep these documents current:
 - `docs/ARCHITECTURE.md` — system architecture and data model.
 - `docs/API.md` — API endpoints and contracts.
 - `docs/DATA_PIPELINE.md` — company/job discovery, canonicalisation and verification pipeline.
-- `docs/OPERATIONS.md` — commands, scheduled workflows, secrets and recovery procedures.
+- `docs/OPERATIONS.md` — commands, parallel runs, monitoring and recovery procedures.
 - `docs/CODESPACES.md` — cloud development environment and MongoDB connectivity.
 - `docs/PROJECT_STATUS.md` — current milestone, metrics and known limitations.
 - `docs/PROJECT_HANDOFF.md` — concise context for a new agent/chat.
