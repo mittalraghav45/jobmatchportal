@@ -1,7 +1,9 @@
 # Next Development Step
 
-The matching API has been manually verified and the My Matches frontend component has been added on the feature branch.
+The matching API, source-backed job live verification, closing-date extraction, and My Matches frontend are integrated on the feature branch. My Matches now exposes canonical ATS/application data, verified-or-unknown live status, closing dates, match explanations, and a working Save action into the application pipeline.
 
-Before merging, integrate `frontend/src/MyMatches.jsx` into the existing dashboard/navigation, run frontend tests/build, and verify the browser against the live `/api/match/jobs` endpoint.
+The next product milestone is **job details + application preparation**: open a richer job detail view from My Matches/Jobs, preserve the canonical job evidence, and let the candidate review the match before moving a saved application through tailoring and ready-to-apply states.
 
-After that the next product milestone is the job details + save/application workflow. Scheduled cron/email automation remains deferred until the final production stage.
+Playwright browser-regression cleanup remains a separate quality task and should not block product development while backend/unit tests and production builds remain green.
+
+Scheduled cron/email automation remains deferred until the final production stage.
