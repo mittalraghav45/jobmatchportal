@@ -21,6 +21,7 @@ MongoDB repositories (optional/local integration)
 ### Main capabilities
 
 - Job discovery across supported ATS platforms.
+- Automated scheduled discovery across enabled MongoDB companies.
 - Source-backed live/closed/unknown job verification.
 - Candidate-to-job matching using skills, CV text and experience.
 - **My Matches** view with globally ranked personalised results.
@@ -33,6 +34,55 @@ MongoDB repositories (optional/local integration)
 - Separate NHS / DWP / Civil Service / university / council optimisation rules.
 - Local application tracker with status progression.
 - MongoDB models and repositories for persistent company/job data.
+
+## Automated job discovery
+
+The discovery pipeline is now separated into two deliberate stages:
+
+```text
+Enabled companies
+      |
+      v
+ATS / careers-source resolution
+      |
+      v
+Company job discovery
+      |
+      v
+Canonical ingestion + deduplication
+      |
+      v
+MongoDB upsert
+      |
+      v
+Source-backed live verification
+```
+
+Run the automated discovery pass locally with:
+
+```bash
+cd backend
+npm run discover:auto
+```
+
+The orchestrator reuses the existing `companyDiscovery` service rather than creating a second ingestion path. It processes enabled companies, persists new/updated jobs, records rejected/unconfigured sources, and stores a run summary in MongoDB under `job_discovery_runs`.
+
+Optional controls:
+
+```powershell
+$env:DISCOVERY_CONCURRENCY="3"
+$env:DISCOVERY_DELAY_MS="500"
+$env:DISCOVERY_LIMIT="10"
+npm run discover:auto
+```
+
+`DISCOVERY_LIMIT` is intended for a controlled local test run. The scheduled GitHub Actions workflow does not set a limit.
+
+GitHub Actions runs the discovery pipeline every six hours at 15 minutes past the hour. The workflow can also be started manually from GitHub Actions. It requires the existing `MONGODB_URI` repository secret and optionally uses `MONGODB_DB_NAME` (default `jobmatchportal`). Set repository variable `JOB_DISCOVERY_ENABLED=false` to disable the schedule.
+
+Discovery and live verification intentionally remain separate: discovering a vacancy does not prove that its source page is still accepting applications. The scheduled workflow therefore runs `jobs:verify-live` after discovery.
+
+The existing checkpointed `discover:golden:full` script remains available for controlled/resumable dataset validation; `discover:auto` is the normal recurring production-style discovery path.
 
 ## Dashboard data contract
 
@@ -114,8 +164,10 @@ backend/
   liveJobsScraper_new.js          ATS discovery
   jobIntelligence.js              job analysis and candidate scoring
   sponsorRegistry.js              sponsorship evidence rules
+  services/companyDiscovery.js    canonical discovery + ingestion orchestration
   services/jobLiveVerifier.js     source-backed live verification
-  scripts/verifyLiveJobs.js      bulk live-status refresh
+  scripts/automatedJobDiscovery.js recurring discovery orchestrator
+  scripts/verifyLiveJobs.js       bulk live-status refresh
   applicationEngine.js            structured application prompts
   applicationValidator.js         output validation
   prompts/                        commercial + public-sector prompts
@@ -184,6 +236,9 @@ Backend `.env` is based on `backend/.env.example`:
 - `PERPLEXITY_API_KEY` - optional AI search fallback.
 - `MONGODB_URI` - MongoDB connection string for persistence features.
 - `MONGODB_DB_NAME` - MongoDB database name; default `jobmatchportal`.
+- `DISCOVERY_CONCURRENCY` - worker count for local automated discovery; default `3`.
+- `DISCOVERY_DELAY_MS` - delay after each company discovery; default `500`.
+- `DISCOVERY_LIMIT` - optional company limit for controlled local runs.
 
 Frontend `.env`:
 
