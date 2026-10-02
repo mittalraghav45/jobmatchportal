@@ -3,22 +3,24 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "nodemon -r dotenv/config routes/registerJobs.js",
+    "dev": "node --watch -r dotenv/config routes/registerJobs.js",
     "dev:node20": "node --env-file=.env routes/registerJobs.js",
     "start": "node -r dotenv/config routes/registerJobs.js",
-    "test": "node --check server.js && node --check routes/intelligenceRoutes.js && node --check routes/discoveryStatus.js && node --check services/companyDiscovery.js && node --check scripts/jobDiscoveryGoldenFull.js && node --check scripts/enrichExistingJobs.js && node --check scripts/resolvePublicEmployers.js && node --check scripts/resolveMissingJobCompanies.js && node --check scripts/sendJobDigest.js && node --test tests/*.test.js",
+    "test": "node --check server.js && node --check routes/intelligenceRoutes.js && node --check routes/discoveryStatus.js && node --check services/companyDiscovery.js && node --check services/jobLiveVerifier.js && node --check scripts/jobDiscoveryGoldenFull.js && node --check scripts/automatedJobDiscovery.js && node --check scripts/enrichExistingJobs.js && node --check scripts/resolvePublicEmployers.js && node --check scripts/resolveMissingJobCompanies.js && node --check scripts/sendJobDigest.js && node --check scripts/verifyLiveJobs.js && node --test tests/*.test.js",
     "test:location": "node --test tests/locationClassification.test.js tests/locationApi.test.js",
     "test:employer": "node --test tests/employerClassification.test.js tests/companyClassification.test.js",
     "classify:companies": "node -r dotenv/config scripts/classifyCompanies.js",
     "import:dummy-companies": "node -r dotenv/config scripts/importDummyCompanies.js",
     "import:sponsors": "node -r dotenv/config scripts/importSponsorCompanies.js",
     "discover:companies": "node -r dotenv/config scripts/discoverCompanies.js",
+    "discover:auto": "node -r dotenv/config scripts/automatedJobDiscovery.js",
     "discover:golden5": "node -r dotenv/config scripts/jobDiscoveryGolden5.js",
     "discover:golden50": "node -r dotenv/config scripts/jobDiscoveryGolden50.js",
     "discover:golden:full": "node -r dotenv/config scripts/jobDiscoveryGoldenFull.js",
     "resolve:public-employers": "node -r dotenv/config scripts/resolvePublicEmployers.js",
     "resolve:missing-job-companies": "node -r dotenv/config scripts/resolveMissingJobCompanies.js",
     "jobs:refresh": "node -r dotenv/config scripts/refreshVerifiedJobSources.js",
+    "jobs:verify-live": "node -r dotenv/config scripts/verifyLiveJobs.js",
     "jobs:enrich": "node -r dotenv/config scripts/enrichExistingJobs.js",
     "jobs:digest": "node -r dotenv/config scripts/sendJobDigest.js",
     "db:check": "node scripts/checkMongo.js"
@@ -31,8 +33,5 @@
     "express": "^4.22.3",
     "mongoose": "^8.18.0",
     "openai": "^4.104.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.10"
   }
 }
