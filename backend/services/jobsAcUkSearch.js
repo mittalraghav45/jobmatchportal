@@ -41,7 +41,7 @@ function firstMatch(text, patterns) {
   return '';
 }
 
-function parseJobCards(html) {
+export function parseJobsAcUkHtml(html = '') {
   const jobs = [];
   const seen = new Set();
   const linkPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
@@ -121,12 +121,10 @@ export async function searchJobsAcUk({ keywords = '', location = '', page = 1, p
       }
     });
 
-    if (!response.ok) {
-      throw new Error(`jobs.ac.uk returned HTTP ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`jobs.ac.uk returned HTTP ${response.status}`);
 
     const html = await response.text();
-    const jobs = parseJobCards(html);
+    const jobs = parseJobsAcUkHtml(html);
     const countMatch = cleanText(html).match(/([\d,]+)\s+Jobs? Found/i);
 
     return {
