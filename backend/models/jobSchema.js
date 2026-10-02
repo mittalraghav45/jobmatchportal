@@ -60,5 +60,12 @@ export function jobFingerprint(job) {
 
   if (canonicalJobUrl) return `url|${normalise(canonicalJobUrl)}`;
 
-  return [job.companyId, job.externalId || job.title, job.location].map(normalise).filter(Boolean).join('|');
+  // External IDs are the strongest identity available when no canonical URL exists.
+  // Location/title can vary between feeds for the same external job, so they must not
+  // split an otherwise identical company + externalId record.
+  if (job?.companyId && job?.externalId) {
+    return [job.companyId, job.externalId].map(normalise).filter(Boolean).join('|');
+  }
+
+  return [job?.companyId, job?.title, job?.location].map(normalise).filter(Boolean).join('|');
 }
