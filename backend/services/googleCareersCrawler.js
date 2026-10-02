@@ -40,7 +40,7 @@ function unwrapGoogleResult(value, baseUrl = '') {
     const candidate = new URL(value, baseUrl || undefined);
     const host = candidate.hostname.replace(/^www\./, '').toLowerCase();
     if (host === 'google.com' || host.endsWith('.google.com')) {
-      const target = candidate.searchParams.get('q') || candidate.searchParams.get('url');
+      const target = candidate.searchParams.get('q') || candidate.searchParams.get('url') || candidate.searchParams.get('u');
       if (target && /^https?:/i.test(target)) return target;
     }
   } catch { /* fall through */ }
@@ -66,7 +66,7 @@ export function classifyDiscoveredUrl(url, companyHost = '') {
 export function extractLinks(html, baseUrl, companyHost = '') {
   const links = [];
   const seen = new Set();
-  const re = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const re = /<(?:a|area)\b[^>]*(?:href|data-href)\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/(?:a|area)>/gi;
   let match;
   while ((match = re.exec(html))) {
     const rawUrl = unwrapGoogleResult(match[1], baseUrl);
@@ -104,7 +104,7 @@ export function buildGoogleQuery(companyName, employerType = '') {
 }
 
 export function buildGoogleSearchUrl(companyName, employerType = '') {
-  return `https://www.google.com/search?q=${encodeURIComponent(buildGoogleQuery(companyName, employerType))}`;
+  return `https://www.google.com/search?q=${encodeURIComponent(buildGoogleQuery(companyName, employerType))}&gbv=1`;
 }
 
 export function chooseCrawlTargets(links, limit = 5) {
@@ -124,6 +124,15 @@ export function isCrawlableTarget(target, companyHost = '') {
 export function extractTitle(html) {
   const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   return match ? match[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+}
+
+export function classifyGooglePage(html) {
+  const text = String(html || '').toLowerCase();
+  if (!text) return 'empty';
+  if (/unusual traffic|sorry\.google\.com|our systems have detected unusual traffic|captcha/.test(text)) return 'blocked';
+  if (/consent\.google\.com|before you continue to google/.test(text)) return 'consent';
+  if (/<a\b[^>]+href=/i.test(html)) return 'results_or_links';
+  return 'no_links';
 }
 
 export { CAREER_HINTS, JOB_HINTS, ATS_HOSTS };
