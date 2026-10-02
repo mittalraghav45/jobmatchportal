@@ -23,6 +23,14 @@ test('extracts relevant links and ignores unrelated links', () => {
   assert.deepEqual(links.map(x => x.kind), ['careers', 'job']);
 });
 
+test('unwraps Google result redirect links to the actual careers/ATS URL', () => {
+  const html = '<a href="/url?q=https%3A%2F%2Fjobs.ashbyhq.com%2Fexample%2F123&sa=U">Software Engineer</a>';
+  const links = extractLinks(html, 'https://www.google.com/search?q=Example', 'example.com');
+  assert.equal(links.length, 1);
+  assert.equal(links[0].url, 'https://jobs.ashbyhq.com/example/123');
+  assert.equal(links[0].kind, 'ats_job');
+});
+
 test('extracts JobPosting JSON-LD from a single job page', () => {
   const html = `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'JobPosting', title: 'Software Engineer', datePosted: '2026-10-01', url: 'https://example.com/jobs/1' })}</script>`;
   const jobs = extractJobPostingJsonLd(html);
