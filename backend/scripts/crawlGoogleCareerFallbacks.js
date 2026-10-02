@@ -4,7 +4,7 @@ import axios from 'axios';
 import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
 import { Job } from '../models/Job.js';
-import { buildGoogleSearchUrl, extractJobPostingJsonLd, extractLinks, chooseCrawlTargets, classifyDiscoveredUrl, normaliseUrl, isCrawlableTarget } from '../services/googleCareersCrawler.js';
+import { buildGoogleSearchUrl, extractJobPostingJsonLd, extractLinks, chooseCrawlTargets, classifyDiscoveredUrl, normaliseUrl, isCrawlableTarget, classifyGooglePage } from '../services/googleCareersCrawler.js';
 
 dotenv.config();
 
@@ -18,7 +18,11 @@ async function fetchHtml(url) {
     timeout: timeoutMs,
     maxRedirects: 4,
     responseType: 'text',
-    headers: { 'User-Agent': userAgent, Accept: 'text/html,application/xhtml+xml' },
+    headers: {
+      'User-Agent': userAgent,
+      Accept: 'text/html,application/xhtml+xml',
+      'Accept-Language': 'en-GB,en;q=0.9'
+    },
     validateStatus: status => status >= 200 && status < 400
   });
   return { html: String(response.data || ''), finalUrl: response.request?.res?.responseUrl || url, status: response.status };
@@ -50,15 +54,23 @@ async function processCompany(company) {
   let jobs = 0;
   let googleSearch = false;
   let failedPages = 0;
+  let googleLinks = 0;
+  let candidateTargets = 0;
+  let blockedReason = null;
   const discovered = [];
 
   try {
     const google = await fetchHtml(searchUrl);
     googleSearch = true;
+    const googlePageType = classifyGooglePage(google.html);
+    if (googlePageType === 'blocked' || googlePageType === 'consent') blockedReason = googlePageType;
     const links = extractLinks(google.html, google.finalUrl || searchUrl, host);
-    for (const target of chooseCrawlTargets(links, pagesPerCompany)) addTarget(queue, seen, target, host);
+    googleLinks = links.length;
+    const targets = chooseCrawlTargets(links, pagesPerCompany);
+    candidateTargets = targets.length;
+    for (const target of targets) addTarget(queue, seen, target, host);
   } catch (error) {
-    return { status: 'google_failed', pages: 0, jobs: 0, failedPages: 1, googleSearch: false, error: error.code || error.message };
+    return { status: 'google_failed', pages: 0, jobs: 0, failedPages: 1, googleSearch: false, googleLinks: 0, candidateTargets: 0, blockedReason: null, error: error.code || error.message };
   }
 
   if (company.careersUrl) addTarget(queue, seen, { url: company.careersUrl, kind: 'careers', text: 'company careers page' }, host);
@@ -129,24 +141,27 @@ async function processCompany(company) {
     } catch { /* malformed/duplicate records remain outside this crawl result */ }
   }
 
-  return { status: 'ok', pages, jobs, failedPages, googleSearch, targetsVisited: pages, candidates: uniqueJobs.length };
+  return { status: 'ok', pages, jobs, failedPages, googleSearch, googleLinks, candidateTargets, targetsVisited: pages, candidates: uniqueJobs.length, blockedReason };
 }
 
 await connectMongo();
 const companies = await Company.find({ enabled: true, 'metadata.discoveryFallback.type': 'google_jobs_search' }).sort({ priority: -1, companyName: 1 }).limit(limit).lean();
-const summary = { attempted: companies.length, succeeded: 0, failed: 0, pages: 0, failedPages: 0, jobsDiscovered: 0, companiesWithJobs: 0, googleSearches: 0 };
+const summary = { attempted: companies.length, succeeded: 0, failed: 0, pages: 0, failedPages: 0, jobsDiscovered: 0, companiesWithJobs: 0, googleSearches: 0, companiesWithGoogleLinks: 0, companiesWithCandidateTargets: 0, blockedGooglePages: 0 };
 
 for (const company of companies) {
   const result = await processCompany(company);
+  console.log(JSON.stringify({ company: company.companyName, ...result }));
   if (result.status === 'ok') {
     summary.succeeded += 1;
     summary.pages += result.pages;
     summary.failedPages += result.failedPages;
     summary.jobsDiscovered += result.jobs;
     summary.googleSearches += result.googleSearch ? 1 : 0;
+    if (result.googleLinks) summary.companiesWithGoogleLinks += 1;
+    if (result.candidateTargets) summary.companiesWithCandidateTargets += 1;
+    if (result.blockedReason) summary.blockedGooglePages += 1;
     if (result.jobs) summary.companiesWithJobs += 1;
   } else summary.failed += 1;
-  console.log(JSON.stringify({ company: company.companyName, ...result }));
 }
 
 console.log('=== GOOGLE CAREER CRAWL SUMMARY ===');
