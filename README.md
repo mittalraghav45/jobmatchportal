@@ -37,7 +37,7 @@ MongoDB repositories (optional/local integration)
 
 ## Automated job discovery
 
-The discovery pipeline is now separated into two deliberate stages:
+The discovery pipeline is now separated into deliberate stages:
 
 ```text
 Enabled companies
@@ -143,7 +143,7 @@ cd backend
 npm run jobs:verify-live
 ```
 
-The verifier uses known closing dates, HTTP responses and explicit source-page signals. Ambiguous or unreachable pages remain `unknown` rather than being guessed as live.
+The verifier uses known closing dates, HTTP responses, explicit source-page signals and structured `JobPosting` evidence. It records the verification timestamp, final URL and reason. Ambiguous or unreachable pages remain `unknown` rather than being guessed as live.
 
 Optional controls:
 
@@ -153,7 +153,36 @@ $env:JOB_VERIFY_LIMIT="100"
 npm run jobs:verify-live
 ```
 
-A successful HTTP response alone is not sufficient evidence that a vacancy is live. The verifier looks for explicit source-page signals, structured `JobPosting` evidence and closing-date evidence. A page that still exists but says applications are closed is classified as closed.
+Verification rules include:
+
+- HTTP 404/410 => `closed`.
+- Explicit closed/expired source-page language => `closed`.
+- A passed known or source-discovered closing date => `closed`.
+- Future `JobPosting.validThrough` => `live` and supplies the closing date when available.
+- Explicit live application language => `live`.
+- Ambiguous pages, timeouts and other non-success HTTP responses => `unknown`.
+- A generic HTTP 200 response alone is **not** sufficient evidence of a live vacancy.
+
+This prevents a source page that still exists but says applications are closed from being treated as live.
+
+### Dataset quality gate
+
+After a large discovery or metadata repair run, inspect the stored dataset with:
+
+```bash
+cd backend
+node scripts/inspectJobDataset.js
+```
+
+The quality check reports total jobs, live/closed counts, source URLs, known ATS values, posted dates and closing dates. This is a diagnostic gate, not a claim that every job should have every field: posted/closing dates are only expected where the source provides reliable evidence.
+
+If an existing dataset needs metadata backfilled from its stored raw discovery payload, run:
+
+```bash
+node scripts/repairJobMetadata.js
+```
+
+Run the metadata repair before source verification; the repair recovers URLs/dates from existing raw data, while `jobs:verify-live` independently checks the actual source pages.
 
 ## Repository layout
 
@@ -168,6 +197,8 @@ backend/
   services/jobLiveVerifier.js     source-backed live verification
   scripts/automatedJobDiscovery.js recurring discovery orchestrator
   scripts/verifyLiveJobs.js       bulk live-status refresh
+  scripts/repairJobMetadata.js    legacy/raw metadata backfill
+  scripts/inspectJobDataset.js    dataset quality diagnostic
   applicationEngine.js            structured application prompts
   applicationValidator.js         output validation
   prompts/                        commercial + public-sector prompts
@@ -239,6 +270,8 @@ Backend `.env` is based on `backend/.env.example`:
 - `DISCOVERY_CONCURRENCY` - worker count for local automated discovery; default `3`.
 - `DISCOVERY_DELAY_MS` - delay after each company discovery; default `500`.
 - `DISCOVERY_LIMIT` - optional company limit for controlled local runs.
+- `JOB_VERIFY_CONCURRENCY` - worker count for live verification; default `5`.
+- `JOB_VERIFY_LIMIT` - optional job limit for controlled verification runs.
 
 Frontend `.env`:
 
@@ -301,9 +334,10 @@ GitHub Actions runs the repository checks automatically when backend/frontend co
 4. Run `npm test` and `npm run build` in `frontend` when frontend code changes.
 5. Run `npm run test:e2e` for UI/API flow changes.
 6. Run `npm run jobs:verify-live` when changing job source/liveness behaviour.
-7. Review `git diff --check`.
-8. Update the architecture/feature documentation when a user-visible or API/data-contract feature is added.
-9. Commit with a clear message.
-10. Push only after tests/build pass.
+7. Run `node scripts/inspectJobDataset.js` after large discovery/repair runs.
+8. Review `git diff --check`.
+9. Update the architecture/feature documentation when a user-visible or API/data-contract feature is added.
+10. Commit with a clear message.
+11. Push only after tests/build pass.
 
 See `docs/ARCHITECTURE.md` for the detailed design and data model.
