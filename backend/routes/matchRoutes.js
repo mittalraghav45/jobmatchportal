@@ -3,8 +3,7 @@ import { Job } from '../models/Job.js';
 import { Company } from '../models/Company.js';
 import { matchJobToProfile } from '../profileMatching.js';
 import { DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
-import { ukJobMongoFilter } from '../utils/ukJobLocation.js';
-import { techJobMongoFilter } from '../utils/techJobRole.js';
+import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
 
 const router = express.Router();
 
@@ -87,17 +86,10 @@ router.post('/jobs', async (req, res) => {
     const skip = (page - 1) * limit;
     const sponsorship = resolveSponsorship(req.body?.sponsorship);
     const sponsorshipCompanyIds = await companyIdsForSponsorship(sponsorship);
-
-    const filter = {
-      $and: [
-        { 'status.isLive': { $ne: false } },
-        ukJobMongoFilter(),
-        techJobMongoFilter()
-      ]
-    };
-    if (sponsorshipCompanyIds) {
-      filter.companyId = { $in: sponsorshipCompanyIds };
-    }
+    const verifiedLiveOnly = req.body?.verifiedLiveOnly !== false;
+    const filter = verifiedLiveOnly
+      ? buildVerifiedLiveMatchFilter(sponsorshipCompanyIds)
+      : buildVerifiedLiveMatchFilter(sponsorshipCompanyIds);
 
     const [jobs, total] = await Promise.all([
       Job.find(filter).sort({ 'dates.lastSeenAt': -1, _id: -1 }).skip(skip).limit(limit).lean(),
@@ -132,7 +124,10 @@ router.post('/jobs', async (req, res) => {
           employmentType: job.employmentType,
           url: job.source?.url || '',
           ats: job.source?.ats || 'unknown',
-          isLive: job.status?.isLive !== false
+          isLive: job.status?.isLive === true,
+          verification: job.verification?.status || 'unknown',
+          verifiedAt: job.verification?.checkedAt || null,
+          closingAt: job.dates?.closingAt || null
         },
         sponsorship: company?.sponsorship || 'unknown',
         ...result
@@ -150,6 +145,7 @@ router.post('/jobs', async (req, res) => {
       matches,
       market: 'United Kingdom',
       roleType: 'Technology',
+      verifiedLiveOnly,
       sponsorshipFilter: sponsorship || 'all'
     });
   } catch (error) {
