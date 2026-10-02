@@ -1,9 +1,10 @@
 import mongoose from 'mongoose';
 import { connectMongo } from '../db/mongoose.js';
 import { Job } from '../models/Job.js';
+import { Application } from '../models/Application.js';
 
 const dryRun = !process.argv.includes('--apply');
-const batchSize = Math.max(50, Number(process.env.DEDUPE_BATCH_SIZE || 500));
+const resolveCompanyConflicts = process.argv.includes('--resolve-company-conflicts');
 
 function score(job) {
   let value = 0;
@@ -52,9 +53,10 @@ let duplicateDocuments = 0;
 let excessDuplicates = 0;
 let deleted = 0;
 let companyConflictGroups = 0;
+let conflictDocuments = 0;
 let skipped = 0;
+let applicationReferencesUpdated = 0;
 const conflictExamples = [];
-const deleteIds = [];
 
 for (const group of groups) {
   scannedGroups += 1;
@@ -67,6 +69,7 @@ for (const group of groups) {
 
   if (conflict) {
     companyConflictGroups += 1;
+    conflictDocuments += group.count - 1;
     if (conflictExamples.length < 20) {
       conflictExamples.push({
         applyUrl: group._id,
@@ -75,28 +78,53 @@ for (const group of groups) {
         titles: [...new Set(jobs.map(job => job.title).filter(Boolean))]
       });
     }
+
+    // Company identity is part of the application's matching semantics. Never
+    // delete a live duplicate across different company IDs unless the operator
+    // explicitly opts into that destructive migration.
+    if (!resolveCompanyConflicts) {
+      skipped += group.count - 1;
+      continue;
+    }
   }
 
   const survivor = chooseSurvivor(jobs);
   const losers = jobs.filter(job => String(job._id) !== String(survivor._id));
-  deleteIds.push(...losers.map(job => job._id));
+  const loserIds = losers.map(job => String(job._id));
 
   if (!dryRun) {
-    await Job.deleteMany({ _id: { $in: losers.map(job => job._id) } });
+    // Applications store the job ID as a string, so move references before
+    // removing the duplicate job documents.
+    const applicationResult = await Application.updateMany(
+      { 'job.id': { $in: loserIds } },
+      {
+        $set: {
+          'job.id': String(survivor._id),
+          'job.title': survivor.title,
+          'job.company': survivor.companyName,
+          'job.companyId': survivor.companyId,
+          'job.url': survivor.applyUrl
+        }
+      }
+    );
+    applicationReferencesUpdated += applicationResult.modifiedCount || 0;
+
+    await Job.deleteMany({ _id: { $in: loserIds } });
     deleted += losers.length;
   }
-
-  if (deleteIds.length >= batchSize) deleteIds.length = 0;
 }
 
 console.log(JSON.stringify({
   dryRun,
+  resolveCompanyConflicts,
   scannedGroups,
   duplicateDocuments,
   excessDuplicates,
   deleted,
   companyConflictGroups,
+  conflictDocuments,
   skipped,
+  applicationReferencesUpdated,
   conflictExamples
 }, null, 2));
 
