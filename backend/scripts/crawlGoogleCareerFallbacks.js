@@ -28,6 +28,18 @@ async function fetchHtml(url) {
   return { html: String(response.data || ''), finalUrl: response.request?.res?.responseUrl || url, status: response.status };
 }
 
+function prepareGoogleSearchUrl(value, companyName, employerType) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, '').toLowerCase();
+    if (host === 'google.com') {
+      url.searchParams.set('gbv', '1');
+      return url.toString();
+    }
+  } catch { /* fall back to generated query */ }
+  return buildGoogleSearchUrl(companyName, employerType);
+}
+
 function companyHost(company) {
   try { return new URL(company.website || company.careersUrl).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
@@ -47,7 +59,7 @@ function addTarget(queue, seen, target, companyHostName) {
 
 async function processCompany(company) {
   const host = companyHost(company);
-  const searchUrl = company.metadata?.discoveryFallback?.url || buildGoogleSearchUrl(company.companyName, company.employerType);
+  const searchUrl = prepareGoogleSearchUrl(company.metadata?.discoveryFallback?.url || buildGoogleSearchUrl(company.companyName, company.employerType), company.companyName, company.employerType);
   const queue = [];
   const seen = new Set();
   let pages = 0;
