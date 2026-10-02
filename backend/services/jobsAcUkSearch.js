@@ -24,6 +24,18 @@ function cleanText(value = '') {
     .trim());
 }
 
+function textLines(value = '') {
+  return decodeHtml(String(value)
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:div|li|article|section|p|h[1-6]|dt|dd|tr)>/gi, '\n')
+    .replace(/<[^>]*>/g, ' '))
+    .split(/\n+/)
+    .map(line => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
 function absoluteUrl(href) {
   if (!href) return '';
   try { return new URL(href, BASE_URL).href; } catch { return ''; }
@@ -33,12 +45,69 @@ function isJobUrl(url) {
   return /jobs\.ac\.uk\/job\//i.test(url) || /jobs\.ac\.uk\/vacancy\//i.test(url);
 }
 
-function firstMatch(text, patterns) {
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) return cleanText(match[1]);
+function findCardHtml(html, anchorIndex, anchorEnd) {
+  const prefixStart = Math.max(0, anchorIndex - 12000);
+  const prefix = html.slice(prefixStart, anchorIndex);
+  const candidates = [];
+  const openingTagPattern = /<(article|li|div)\b([^>]*)>/gi;
+  let match;
+
+  while ((match = openingTagPattern.exec(prefix))) {
+    const attrs = match[2] || '';
+    if (!/(?:class|id)\s*=\s*["'][^"']*(?:job|result|listing|vacancy|card)[^"']*["']/i.test(attrs)) continue;
+    candidates.push({
+      tag: match[1].toLowerCase(),
+      start: prefixStart + match.index,
+      openEnd: prefixStart + openingTagPattern.lastIndex
+    });
   }
+
+  for (let i = candidates.length - 1; i >= 0; i -= 1) {
+    const candidate = candidates[i];
+    const closePattern = new RegExp(`</${candidate.tag}\\s*>`, 'gi');
+    closePattern.lastIndex = Math.max(anchorEnd, candidate.openEnd);
+    const close = closePattern.exec(html);
+    if (!close) continue;
+    return html.slice(candidate.start, close.index + close[0].length);
+  }
+
   return '';
+}
+
+function parseListingFields(cardHtml, title) {
+  const lines = textLines(cardHtml);
+  const titleIndex = lines.findIndex(line => line === title);
+  const workingLines = titleIndex >= 0 ? lines.slice(titleIndex) : lines;
+  const locationIndex = workingLines.findIndex(line => /^location\s*:/i.test(line));
+  const salaryIndex = workingLines.findIndex(line => /^salary\s*:/i.test(line));
+  const postedIndex = workingLines.findIndex(line => /^(?:date placed|placed on)\s*:/i.test(line));
+  const closingIndex = workingLines.findIndex(line => /^(?:closes|closing date|expires)\s*:??/i.test(line));
+
+  const beforeLocation = locationIndex > 0 ? workingLines.slice(1, locationIndex) : [];
+  const metadata = beforeLocation.filter(line => !/^save$/i.test(line));
+  let companyName = metadata.at(-1) || '';
+  let department = metadata.at(-2) || '';
+
+  if (companyName.includes(' - ')) {
+    const [company, ...departmentParts] = companyName.split(' - ');
+    companyName = company.trim();
+    department = departmentParts.join(' - ').trim() || department;
+  }
+
+  const location = locationIndex >= 0
+    ? workingLines[locationIndex].replace(/^location\s*:\s*/i, '').trim()
+    : '';
+  const salary = salaryIndex >= 0
+    ? workingLines[salaryIndex].replace(/^salary\s*:\s*/i, '').trim()
+    : '';
+  const posted = postedIndex >= 0
+    ? workingLines[postedIndex].replace(/^(?:date placed|placed on)\s*:\s*/i, '').trim()
+    : '';
+  const closing = closingIndex >= 0
+    ? workingLines[closingIndex].replace(/^(?:closes|closing date|expires)\s*:??\s*/i, '').trim()
+    : '';
+
+  return { companyName, department, location, salary, posted, closing };
 }
 
 export function parseJobsAcUkHtml(html = '') {
@@ -54,38 +123,27 @@ export function parseJobsAcUkHtml(html = '') {
     const title = cleanText(match[2]);
     if (!title || title.length < 2 || title.length > 300) continue;
 
-    const start = Math.max(0, match.index - 3000);
-    const end = Math.min(html.length, linkPattern.lastIndex + 5000);
-    const card = cleanText(html.slice(start, end));
-
-    const employer = firstMatch(card, [
-      /(?:employer|organisation|organization|company)\s*:?\s*([^|•]+?)(?=\s+(?:location|salary|date placed|closes|expires)\b|$)/i
-    ]);
-    const location = firstMatch(card, [
-      /(?:location)\s*:?\s*([^|•]+?)(?=\s+(?:salary|date placed|closes|expires)\b|$)/i
-    ]);
-    const salary = firstMatch(card, [
-      /(?:salary)\s*:?\s*([^|•]+?)(?=\s+(?:date placed|closes|expires)\b|$)/i
-    ]);
-    const posted = firstMatch(card, [
-      /(?:date placed|placed on)\s*:?\s*([^|•]+?)(?=\s+(?:closes|expires)\b|$)/i
-    ]);
-    const closing = firstMatch(card, [
-      /(?:closes|expires)\s*:?\s*([^|•]+?)(?=\s+(?:save|$))/i
-    ]);
+    const anchorStart = match.index;
+    const anchorEnd = linkPattern.lastIndex;
+    const cardHtml = findCardHtml(html, anchorStart, anchorEnd);
+    const fallbackStart = Math.max(0, anchorStart);
+    const fallbackEnd = Math.min(html.length, anchorEnd + 5000);
+    const sourceHtml = cardHtml || html.slice(fallbackStart, fallbackEnd);
+    const fields = parseListingFields(sourceHtml, title);
 
     seen.add(url);
     jobs.push({
       id: `jobs-ac-uk-${Buffer.from(url).toString('base64url').slice(0, 32)}`,
       externalId: url,
       title,
-      companyName: employer,
-      location: location || 'UK',
-      description: card.slice(0, 12000),
+      companyName: fields.companyName,
+      department: fields.department,
+      location: fields.location || 'UK',
+      description: '',
       url,
-      posting_date: posted || null,
-      closing_date: closing || null,
-      salary: salary || '',
+      posting_date: fields.posted || null,
+      closing_date: fields.closing || null,
+      salary: fields.salary || '',
       ats: 'jobs-ac-uk',
       source_verified: true,
       source: 'jobs.ac.uk'
