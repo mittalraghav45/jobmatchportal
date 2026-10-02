@@ -10,6 +10,7 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 - `frontend/` — React/Vite application.
 - `docs/` — architecture, API, operations, data pipeline and handoff documentation.
 - `.github/workflows/` — CI and scheduled discovery/verification automation.
+- `.devcontainer/` — reproducible GitHub Codespaces development environment.
 
 ## Critical data invariants
 
@@ -57,6 +58,7 @@ Keep these documents current:
 - `docs/API.md` — API endpoints and contracts.
 - `docs/DATA_PIPELINE.md` — company/job discovery, canonicalisation and verification pipeline.
 - `docs/OPERATIONS.md` — commands, scheduled workflows, secrets and recovery procedures.
+- `docs/CODESPACES.md` — cloud development environment and MongoDB connectivity.
 - `docs/PROJECT_STATUS.md` — current milestone, metrics and known limitations.
 - `docs/PROJECT_HANDOFF.md` — concise context for a new agent/chat.
 - `AGENTS.md` — durable engineering rules for future agents.
@@ -65,7 +67,11 @@ When a meaningful architectural or operational decision is made, update the appr
 
 ## Secrets
 
-Never commit `.env`, MongoDB credentials, API keys or GitHub secret values. Workflows must read credentials from GitHub Actions Secrets.
+Never commit `.env`, MongoDB credentials, API keys or GitHub secret values. Workflows must read credentials from GitHub Actions Secrets. Codespaces should consume development secrets through GitHub Codespaces repository secrets; do not create or commit a `.env` file for the cloud environment.
+
+## Cloud development
+
+The repository includes a reproducible Codespaces configuration under `.devcontainer/`. The Codespace uses Node.js 24 and bootstraps backend/frontend dependencies. `MONGODB_URI` is supplied through the Codespaces environment and must never be committed.
 
 ## Current project branch
 
