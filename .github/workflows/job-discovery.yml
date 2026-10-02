@@ -1,0 +1,42 @@
+name: Automated job discovery
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 */6 * * *'
+
+jobs:
+  discover-jobs:
+    if: vars.JOB_DISCOVERY_ENABLED != 'false'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Run automated job discovery
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: ${{ vars.MONGODB_DB_NAME || 'jobmatchportal' }}
+          DISCOVERY_CONCURRENCY: '3'
+          DISCOVERY_DELAY_MS: '500'
+        run: npm run discover:auto
+
+      - name: Verify discovered job live state
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: ${{ vars.MONGODB_DB_NAME || 'jobmatchportal' }}
+          JOB_VERIFY_CONCURRENCY: '5'
+        run: npm run jobs:verify-live
