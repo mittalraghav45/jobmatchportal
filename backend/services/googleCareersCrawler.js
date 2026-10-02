@@ -40,7 +40,8 @@ export function classifyDiscoveredUrl(url, companyHost = '') {
     const u = new URL(url);
     const host = u.hostname.toLowerCase().replace(/^www\./, '');
     const path = `${u.pathname} ${u.search}`;
-    const sameCompany = !companyHost || host === companyHost.replace(/^www\./, '').toLowerCase() || host.endsWith(`.${companyHost.replace(/^www\./, '').toLowerCase()}`);
+    const normalCompanyHost = companyHost.replace(/^www\./, '').toLowerCase();
+    const sameCompany = !normalCompanyHost || host === normalCompanyHost || host.endsWith(`.${normalCompanyHost}`);
     const ats = ATS_HOSTS.has(host) || [...ATS_HOSTS].some(h => host.endsWith(`.${h}`));
     if (ats && (JOB_HINTS.test(path) || looksLikeAtsJobPath(host, u.pathname))) return 'ats_job';
     if (sameCompany && JOB_HINTS.test(path) && CAREER_HINTS.test(path)) return 'job';
@@ -95,7 +96,14 @@ export function buildGoogleSearchUrl(companyName, employerType = '') {
 
 export function chooseCrawlTargets(links, limit = 5) {
   const rank = { ats_job: 0, job: 1, careers: 2, ats_board: 3, other: 9 };
-  return [...links].sort((a, b) => (rank[a.kind] ?? 9) - (rank[b.kind] ?? 9)).slice(0, limit);
+  const seen = new Set();
+  return [...links].sort((a, b) => (rank[a.kind] ?? 9) - (rank[b.kind] ?? 9)).filter(link => link?.url && !seen.has(link.url) && seen.add(link.url)).slice(0, limit);
+}
+
+export function isCrawlableTarget(target, companyHost = '') {
+  if (!target?.url) return false;
+  const kind = target.kind || classifyDiscoveredUrl(target.url, companyHost);
+  return ['careers', 'job', 'ats_job', 'ats_board'].includes(kind);
 }
 
 export function extractTitle(html) {
