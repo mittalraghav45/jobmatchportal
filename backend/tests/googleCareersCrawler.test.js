@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildGoogleQuery, buildGoogleSearchUrl, classifyDiscoveredUrl, extractJobPostingJsonLd, extractLinks, chooseCrawlTargets } from '../services/googleCareersCrawler.js';
+import { buildGoogleQuery, buildGoogleSearchUrl, classifyDiscoveredUrl, extractJobPostingJsonLd, extractLinks, chooseCrawlTargets, isCrawlableTarget, normaliseUrl } from '../services/googleCareersCrawler.js';
 
 test('builds a company-scoped Google careers query', () => {
   const query = buildGoogleQuery('Example Ltd', 'private');
@@ -42,4 +42,27 @@ test('prioritises individual jobs and ATS jobs over generic careers pages', () =
     { url: 'https://example.com/jobs/1', kind: 'job' }
   ], 3);
   assert.deepEqual(targets.map(x => x.kind), ['ats_job', 'job', 'careers']);
+});
+
+test('deduplicates crawl targets and keeps the crawl bounded', () => {
+  const targets = chooseCrawlTargets([
+    { url: 'https://example.com/careers', kind: 'careers' },
+    { url: 'https://example.com/careers', kind: 'careers' },
+    { url: 'https://jobs.ashbyhq.com/example/1', kind: 'ats_job' },
+    { url: 'https://jobs.ashbyhq.com/example/2', kind: 'ats_job' }
+  ], 2);
+  assert.equal(targets.length, 2);
+  assert.deepEqual(targets.map(x => x.kind), ['ats_job', 'ats_job']);
+  assert.equal(new Set(targets.map(x => x.url)).size, 2);
+});
+
+test('only crawls recognised careers and ATS targets', () => {
+  assert.equal(isCrawlableTarget({ url: 'https://example.com/careers', kind: 'careers' }, 'example.com'), true);
+  assert.equal(isCrawlableTarget({ url: 'https://jobs.ashbyhq.com/example/1', kind: 'ats_job' }, 'example.com'), true);
+  assert.equal(isCrawlableTarget({ url: 'https://example.com/about', kind: 'other' }, 'example.com'), false);
+  assert.equal(isCrawlableTarget({ url: 'javascript:void(0)', kind: 'careers' }, 'example.com'), false);
+});
+
+test('normalises fragments without changing the source identity', () => {
+  assert.equal(normaliseUrl('https://example.com/jobs/1#apply'), 'https://example.com/jobs/1');
 });
