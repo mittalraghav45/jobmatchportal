@@ -7,8 +7,8 @@ Last updated: 2026-10-02
 - Golden sponsor dataset: `backend/config/sponsor-companies.json`
 - Golden dataset size: 21,516 companies
 - MongoDB database: `jobmatchportal`
-- Current job population: 3,222 jobs
-- Current verification state: 1,309 live, 155 closed, 1,758 unknown
+- Current job population: 3,222 jobs at the last audit
+- Current verification state at the last audit: 1,309 live, 155 closed, 1,758 unknown
 - Verification classification invariant: 3,222 / 3,222 jobs classified
 - Live jobs currently have complete `applyUrl`, company identity, and title fields: 1,309 / 1,309
 - Live job identity uses the canonical source/apply URL when available.
@@ -16,6 +16,7 @@ Last updated: 2026-10-02
 - Live URL groups: 1,309 total, all unique
 - Backend test suite: 145 passing, 0 failing, 3 skipped (148 total)
 - Frontend production build: passes with Vite.
+- Frontend now exposes a live verified-job counter, polling the verified-live jobs API every 5 seconds.
 
 ## Completed migration work
 
@@ -23,11 +24,13 @@ The live URL duplicate migration has been completed and re-audited. The database
 
 The verification population also satisfies the current invariant: every job is classified as `live`, `closed`, or `unknown`, with no unverified remainder.
 
+The frontend jobs API is now restricted by default to frontend-ready verified jobs: `verification.status=live`, a non-empty `applyUrl`, and processing status `complete` or `pending`. This keeps unverified/unknown records out of the user-facing job feed while ingestion continues.
+
 ## Current scaling step
 
-The next migration is to run the golden sponsor discovery pipeline across the 21,516-company dataset safely and resumably.
+The golden sponsor discovery pipeline is now being run across the 21,516-company dataset using four bounded, checkpointed terminal workers. The current partitioning is approximately 1–6k, 6k–12k, 12k–18k, and 18k–end.
 
-`backend/scripts/jobDiscoveryGoldenFull.js` now supports bounded discovery concurrency in addition to source-resolution concurrency. Discovery remains checkpointed in `golden_discovery_checkpoints`, and run state is tracked in `golden_discovery_runs`.
+`backend/scripts/jobDiscoveryGoldenFull.js` supports bounded discovery concurrency in addition to source-resolution concurrency. Discovery remains checkpointed in `golden_discovery_checkpoints`, and run state is tracked in `golden_discovery_runs`.
 
 Relevant controls:
 
@@ -45,7 +48,7 @@ cd /workspaces/jobmatchportal/backend
 node -r dotenv/config scripts/jobDiscoveryGoldenFull.js --limit=50 --discovery-concurrency=3
 ```
 
-Run a limited test first. Do not start the complete 21,516-company run until the limited run completes without unexpected failures, duplicate growth, or sustained upstream rate limiting.
+The limited validation runs completed without duplicate growth. A 500-company test produced 171 discovered jobs, 60 added and 111 updated, with 2 failed companies and 7 rejected records; the runner remains checkpointed and resumable.
 
 The full run is resumable with the same run ID. Completed, unresolved, and invalid checkpoints are skipped unless `--retry-completed=true` is explicitly requested. Failed companies are checkpointed and can be retried on a later run.
 
@@ -64,18 +67,18 @@ The full run is resumable with the same run ID. Completed, unresolved, and inval
 - Failed/unverified career URLs must be skipped and recorded rather than guessed.
 - URL identity must remain stable across company records when the source URL is identical.
 - Large discovery runs must use bounded concurrency, checkpointing, and failure isolation rather than unbounded parallel requests.
+- The frontend should expose only verified-live, applyable jobs by default while the discovery pipeline is still running.
 
 ## Remaining roadmap
 
-1. Run and validate the bounded-concurrency golden discovery pipeline on a limited company batch.
-2. Scale the validated runner to the full 21,516-company dataset.
-3. Re-run live-job verification and duplicate audits after discovery.
-4. Add/enforce the database uniqueness constraint for canonical job URLs after the populated dataset is proven clean.
-5. Confirm MongoDB startup + bulk matching endpoint.
-6. Connect match results to frontend.
-7. Verify deterministic match explanations and sponsorship filtering.
-8. Application tracking.
-9. CV/cover-letter workflow.
-10. Automated refresh scheduling.
-11. End-to-end, performance, and security testing.
-12. Release hardening.
+1. Complete and monitor the full 21,516-company golden discovery run.
+2. Re-run live-job verification and duplicate audits after discovery completes or after a material ingestion milestone.
+3. Enforce the database uniqueness constraint for canonical live job URLs after the populated dataset is proven clean.
+4. Confirm MongoDB startup + bulk matching endpoint.
+5. Connect match results to the verified live-job feed.
+6. Verify deterministic match explanations and sponsorship filtering.
+7. Application tracking.
+8. CV/cover-letter workflow.
+9. Automated refresh scheduling.
+10. End-to-end, performance, and security testing.
+11. Release hardening.
