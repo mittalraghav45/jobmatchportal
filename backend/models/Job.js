@@ -14,6 +14,7 @@ const JobSchema = new mongoose.Schema({
   classificationVersion: { type: String, default: 'v1' },
   employmentType: { type: String, default: '' },
   department: { type: String, default: '' },
+  applyUrl: { type: String, default: '' },
   source: {
     ats: { type: String, default: 'unknown', index: true },
     url: { type: String, default: '' }
