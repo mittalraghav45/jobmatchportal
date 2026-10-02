@@ -6,7 +6,10 @@ import ApplicationReview from './ApplicationReview.jsx';
 import JobSearchPanel from './JobSearchPanel.jsx';
 import MyMatches from './MyMatches.jsx';
 
-const API=(import.meta.env.VITE_API_BASE_URL||'http://localhost:3001').replace(/\/$/,'');
+const configuredApiBase=String(import.meta.env.VITE_API_BASE_URL||'').replace(/\/$/,'');
+const browserHost=typeof window!=='undefined'?window.location.hostname:'';
+const isLocalBrowser=browserHost==='localhost'||browserHost==='127.0.0.1'||browserHost==='::1';
+const API=configuredApiBase&&(!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredApiBase)||isLocalBrowser)?configuredApiBase:'';
 const DEMO_PROFILE={id:'default',name:'Candidate',skills:['React','TypeScript','JavaScript','Node.js','AWS']};
 const DEMO=[{id:'demo-1',title:'Software Engineer',companyName:'Monzo',location:'London, UK',skills:['React','TypeScript','Node.js'],sponsorship:{status:'verified'}},{id:'demo-2',title:'Frontend Engineer',companyName:'Deliveroo',location:'London, UK',skills:['React','TypeScript'],sponsorship:{status:'unknown'}},{id:'demo-3',title:'Software Developer',companyName:'Wise',location:'London, UK',skills:['JavaScript','React','Node.js'],sponsorship:{status:'unknown'}}];
 async function api(path,options={}){const r=await fetch(`${API}${path}`,{headers:{'Content-Type':'application/json'},...options});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||`HTTP ${r.status}`);return d}
