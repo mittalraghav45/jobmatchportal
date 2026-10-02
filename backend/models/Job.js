@@ -37,6 +37,12 @@ const JobSchema = new mongoose.Schema({
     evidenceType: { type: String, default: '' },
     evidence: { type: String, default: '' }
   },
+  processing: {
+    status: { type: String, enum: ['pending', 'processing', 'complete', 'failed'], default: 'pending', index: true },
+    claimedAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
+    error: { type: String, default: '' }
+  },
   raw: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true, versionKey: false });
 
@@ -46,5 +52,6 @@ JobSchema.index({ 'source.ats': 1, externalId: 1 });
 JobSchema.index({ nation: 1, employerType: 1, 'status.isLive': 1 });
 JobSchema.index({ nation: 1, 'dates.lastSeenAt': -1 });
 JobSchema.index({ 'verification.status': 1, 'verification.checkedAt': -1 });
+JobSchema.index({ 'processing.status': 1, 'processing.claimedAt': 1 });
 
 export const Job = mongoose.models.Job || mongoose.model('Job', JobSchema);
