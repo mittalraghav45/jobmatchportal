@@ -15,6 +15,20 @@ npm run jobs:crawl-google-fallback -- --limit=100
 
 Run expensive network jobs deliberately; do not repeatedly rerun a full population without a reason.
 
+## GitHub Codespaces
+
+Codespaces is the cloud development environment for the repository. The setup is defined by `.devcontainer/devcontainer.json` and `.devcontainer/setup.sh`.
+
+See [`docs/CODESPACES.md`](CODESPACES.md) for first-time setup, MongoDB Atlas connectivity, verification commands and Git workflow.
+
+Required Codespaces secret:
+
+```text
+MONGODB_URI
+```
+
+Never commit the value.
+
 ## GitHub Actions
 
 Workflows live under `.github/workflows/`:
@@ -51,7 +65,9 @@ Never commit the value.
 
 ## Environment
 
-Local secrets belong in `backend/.env` and are excluded from Git. CI secrets belong in GitHub Actions Secrets.
+Local secrets belong in `backend/.env` and are excluded from Git. Codespaces secrets belong in GitHub repository Codespaces Secrets. CI secrets belong in GitHub Actions Secrets.
+
+Do not copy MongoDB credentials into source files, documentation, issues or pull requests.
 
 ## Documentation continuity
 
