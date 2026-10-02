@@ -119,7 +119,7 @@ async function processCompany(company) {
           employerType: company.employerType,
           source: { ats: job.sourceAts, url: job.url },
           dates: { postedAt: job.datePosted ? new Date(job.datePosted) : null, closingAt: job.validThrough ? new Date(job.validThrough) : null },
-          status: { isLive: true },
+          status: { isLive: false },
           verification: { status: 'unknown', sourceUrl: job.url, evidenceType: 'discovered_from_google_career_crawl' },
           raw: { discovery: 'google_career_fallback', sourcePage: job.sourcePage, pageKind: job.pageKind }
         }, $set: { 'dates.lastSeenAt': new Date() } },
