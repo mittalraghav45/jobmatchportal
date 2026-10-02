@@ -49,6 +49,45 @@ function titleEvidence(title, text) {
   return matched >= Math.min(3, words.length);
 }
 
+function isJobSpecificUrl(url = '') {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+
+    // Common direct-posting URL shapes, including ATS-specific patterns.
+    if (/\/(?:jobs?|jobadvert|postings?|o|job)\//i.test(path)) return true;
+    if (host === 'jobs.ashbyhq.com' && path.split('/').filter(Boolean).length >= 2) return true;
+    if (host === 'job-boards.greenhouse.io' && path.split('/').filter(Boolean).length >= 2) return true;
+    if (host.endsWith('.myworkdayjobs.com') && /\/job\//i.test(path)) return true;
+    if (host === 'apply.workable.com' && path.split('/').filter(Boolean).length >= 2) return true;
+    if (host === 'jobs.jobvite.com' && path.split('/').filter(Boolean).length >= 2) return true;
+    if (host.endsWith('.applytojob.com') && path.split('/').filter(Boolean).length >= 2) return true;
+    if (host.endsWith('.careers.hibob.com') && path.split('/').filter(Boolean).length >= 2) return true;
+    if (host === 'www.linkedin.com' && /\/jobs\/view\//i.test(path)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function structuredJobEvidence(body = '') {
+  const jsonLdMatches = String(body).match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) || [];
+  for (const block of jsonLdMatches) {
+    const json = block.replace(/^.*?>/, '').replace(/<\/script>\s*$/i, '').trim();
+    try {
+      const parsed = JSON.parse(json);
+      const nodes = Array.isArray(parsed) ? parsed : [parsed, ...(Array.isArray(parsed?.['@graph']) ? parsed['@graph'] : [])];
+      for (const node of nodes) {
+        if (node?.['@type'] === 'JobPosting' || (Array.isArray(node?.['@type']) && node['@type'].includes('JobPosting'))) {
+          return true;
+        }
+      }
+    } catch {}
+  }
+  return false;
+}
+
 export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', body = '', now = new Date() } = {}) {
   const text = normaliseText(body);
   const lower = text.toLowerCase();
@@ -56,12 +95,7 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
   const closingAt = job?.dates?.closingAt ? new Date(job.dates.closingAt) : null;
 
   if (closingAt && !Number.isNaN(closingAt.getTime()) && closingAt.getTime() <= new Date(now).getTime()) {
-    return {
-      status: 'closed',
-      evidenceType: 'closing_date',
-      evidence: `Known closing date ${closingAt.toISOString()} has passed`,
-      checkedAt
-    };
+    return { status: 'closed', evidenceType: 'closing_date', evidence: `Known closing date ${closingAt.toISOString()} has passed`, checkedAt };
   }
 
   if (statusCode === 404 || statusCode === 410) {
@@ -81,30 +115,34 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
   }
 
   const closedMatch = findMatch(CLOSED_PATTERNS, text);
-  if (closedMatch) {
-    return { status: 'closed', evidenceType: 'page_text', evidence: closedMatch, checkedAt };
-  }
+  if (closedMatch) return { status: 'closed', evidenceType: 'page_text', evidence: closedMatch, checkedAt };
 
   if (statusCode >= 200 && statusCode < 400) {
     const hasTitle = titleEvidence(job.title, lower);
-    const liveMatch = findMatch(LIVE_PATTERNS, text);
-    const sourceStillLooksJobSpecific = /\/jobs?\/|\/jobadvert\/|\/postings?\/|\/o\/|\/job\//i.test(finalUrl || job?.source?.url || '');
+    const liveMatch = findMatch(LIVE_PATTERNS, lower);
+    const jobSpecificUrl = isJobSpecificUrl(finalUrl || job?.source?.url || '');
+    const hasStructuredJob = structuredJobEvidence(body);
+    const hasJobDetailContent = /\b(?:job description|responsibilities|requirements|qualifications|salary|location|about the role|what you will do|what you'll do)\b/i.test(text);
 
-    if (hasTitle && liveMatch && sourceStillLooksJobSpecific) {
-      return { status: 'live', evidenceType: 'page_text', evidence: `${liveMatch}; job title evidence present`, checkedAt };
+    if (hasTitle && (liveMatch || hasStructuredJob) && (jobSpecificUrl || hasStructuredJob)) {
+      return {
+        status: 'live',
+        evidenceType: hasStructuredJob ? 'jobposting_schema' : 'page_text',
+        evidence: hasStructuredJob ? 'JobPosting structured data and job title evidence present' : `${liveMatch}; job title evidence present`,
+        checkedAt
+      };
     }
 
-    if (hasTitle && sourceStillLooksJobSpecific && /\b(?:job description|responsibilities|requirements|qualifications|salary|location)\b/i.test(text)) {
+    if (hasTitle && jobSpecificUrl && hasJobDetailContent) {
       return { status: 'live', evidenceType: 'job_page', evidence: 'Job-specific source page contains title and job-detail content', checkedAt };
+    }
+
+    if (hasStructuredJob && hasTitle) {
+      return { status: 'live', evidenceType: 'jobposting_schema', evidence: 'JobPosting structured data contains the discovered job title', checkedAt };
     }
   }
 
-  return {
-    status: 'unknown',
-    evidenceType: 'insufficient_evidence',
-    evidence: `HTTP ${statusCode}; source page did not provide sufficiently strong live/closed evidence`,
-    checkedAt
-  };
+  return { status: 'unknown', evidenceType: 'insufficient_evidence', evidence: `HTTP ${statusCode}; source page did not provide sufficiently strong live/closed evidence`, checkedAt };
 }
 
 async function fetchSource(url, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = globalThis.fetch } = {}) {
@@ -133,27 +171,18 @@ async function fetchSource(url, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = gl
 export async function verifyJobSource(job, options = {}) {
   const checkedAt = new Date().toISOString();
   const url = String(job?.source?.url || '').trim();
-  if (!url) {
-    return { status: 'unknown', evidenceType: 'missing_url', evidence: 'Job has no source URL', checkedAt, sourceUrl: '' };
-  }
+  if (!url) return { status: 'unknown', evidenceType: 'missing_url', evidence: 'Job has no source URL', checkedAt, sourceUrl: '' };
 
   try {
     const response = await fetchSource(url, options);
-    return {
-      ...classifySourceResponse({ job, ...response, now: checkedAt }),
-      sourceUrl: url,
-      httpStatus: response.statusCode,
-      finalUrl: response.finalUrl
-    };
+    return { ...classifySourceResponse({ job, ...response, now: checkedAt }), sourceUrl: url, httpStatus: response.statusCode, finalUrl: response.finalUrl };
   } catch (error) {
     return {
-      status: 'unknown',
-      evidenceType: 'request_error',
+      status: 'unknown', evidenceType: 'request_error',
       evidence: error?.name === 'AbortError' ? `Source request timed out after ${options.timeoutMs || DEFAULT_TIMEOUT_MS}ms` : `Source request failed: ${error.message}`,
-      checkedAt,
-      sourceUrl: url
+      checkedAt, sourceUrl: url
     };
   }
 }
 
-export { normaliseText };
+export { normaliseText, titleEvidence, isJobSpecificUrl, structuredJobEvidence };
