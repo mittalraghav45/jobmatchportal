@@ -31,7 +31,7 @@ export function resolveJobSourceMetadata(job) {
 
   const ats = atsCandidates
     .map(clean)
-    .find(value => value && value !== '[object object]') || 'unknown';
+    .find(value => value && value.toLowerCase() !== '[object object]') || 'unknown';
   const url = urlCandidates
     .map(clean)
     .find(value => /^https?:\/\//i.test(value)) || '';
@@ -44,18 +44,17 @@ const batchSize = Number(process.env.BACKFILL_BATCH_SIZE || 500);
 
 await connectMongo();
 
-const cursor = Job.find({
-  $or: [
-    { applyUrl: { $in: ['', null] } },
-    { 'source.url': { $in: ['', null] } },
-    { 'source.ats': '[object object]' }
-  ]
-}).lean().cursor({ batchSize });
+// Scan the verified-live population directly. This avoids relying on optional
+// legacy fields in the query and ensures nested raw/verification URLs are seen.
+const cursor = Job.find({ 'verification.status': 'live' })
+  .lean()
+  .cursor({ batchSize });
 
 let scanned = 0;
 let updated = 0;
 let withUrl = 0;
 let withAts = 0;
+let alreadyComplete = 0;
 
 const bulk = [];
 
@@ -73,14 +72,17 @@ for await (const job of cursor) {
     set['source.url'] = url;
   }
 
-  if (!job.source?.ats || job.source.ats === '[object object]') {
+  if (!job.source?.ats || job.source.ats.toLowerCase() === '[object object]') {
     if (ats !== 'unknown') {
       set['source.ats'] = ats;
       withAts += 1;
     }
   }
 
-  if (Object.keys(set).length === 0) continue;
+  if (Object.keys(set).length === 0) {
+    alreadyComplete += 1;
+    continue;
+  }
 
   updated += 1;
   if (!dryRun) {
@@ -107,7 +109,8 @@ console.log(JSON.stringify({
   scanned,
   updated,
   withUrl,
-  withAts
+  withAts,
+  alreadyComplete
 }, null, 2));
 
 process.exit(0);
