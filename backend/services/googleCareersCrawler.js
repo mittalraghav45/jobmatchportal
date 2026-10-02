@@ -35,6 +35,18 @@ export function isAllowedHttpUrl(url) {
   try { return /^https?:$/.test(new URL(url).protocol); } catch { return false; }
 }
 
+function unwrapGoogleResult(value, baseUrl = '') {
+  try {
+    const candidate = new URL(value, baseUrl || undefined);
+    const host = candidate.hostname.replace(/^www\./, '').toLowerCase();
+    if (host === 'google.com' || host.endsWith('.google.com')) {
+      const target = candidate.searchParams.get('q') || candidate.searchParams.get('url');
+      if (target && /^https?:/i.test(target)) return target;
+    }
+  } catch { /* fall through */ }
+  return value;
+}
+
 export function classifyDiscoveredUrl(url, companyHost = '') {
   try {
     const u = new URL(url);
@@ -57,7 +69,8 @@ export function extractLinks(html, baseUrl, companyHost = '') {
   const re = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let match;
   while ((match = re.exec(html))) {
-    const url = normaliseUrl(match[1], baseUrl);
+    const rawUrl = unwrapGoogleResult(match[1], baseUrl);
+    const url = normaliseUrl(rawUrl, baseUrl);
     if (!url || seen.has(url)) continue;
     const text = match[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const kind = classifyDiscoveredUrl(url, companyHost);
