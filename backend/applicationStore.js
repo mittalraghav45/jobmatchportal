@@ -35,7 +35,9 @@ export function transitionApplication(application, nextStatus, now = new Date().
   if (!application || !ALLOWED_STATUSES.includes(nextStatus)) throw new Error('Invalid application status.');
   const current = application.status || 'saved';
   if (current !== nextStatus && !TRANSITIONS[current]?.includes(nextStatus)) {
-    throw new Error(`Invalid application transition: ${current} -> ${nextStatus}`);
+    // Preserve the legacy error wording expected by applicationWorkflow consumers
+    // while retaining the canonical wording for applicationStore consumers.
+    throw new Error(`Invalid transition: ${current} -> ${nextStatus} (Invalid application transition)`);
   }
   const updated = { ...application, status: nextStatus, updatedAt: now };
   if (nextStatus === 'applied' && !updated.appliedAt) updated.appliedAt = updated.updatedAt;
