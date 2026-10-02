@@ -74,7 +74,9 @@ export function extractLinks(html, baseUrl, companyHost = '') {
     if (!url || seen.has(url)) continue;
     const text = match[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const kind = classifyDiscoveredUrl(url, companyHost);
-    if (kind !== 'other' || JOB_HINTS.test(text) || CAREER_HINTS.test(text)) {
+    const relevantKind = ['careers', 'job', 'ats_job', 'ats_board'].includes(kind);
+    const relevantText = JOB_HINTS.test(text) || CAREER_HINTS.test(text);
+    if (relevantKind || relevantText) {
       seen.add(url);
       links.push({ url, text, kind });
     }
@@ -113,7 +115,10 @@ export function buildGoogleSearchUrl(companyName, employerType = '') {
 }
 
 export function buildGoogleSearchUrls(companyName, employerType = '', maxQueries = 3) {
-  return buildGoogleQueryVariants(companyName, employerType).slice(0, Math.max(1, maxQueries)).map(query => `https://www.google.com/search?q=${encodeURIComponent(query)}&gbv=1`);
+  return buildGoogleQueryVariants(companyName, employerType).slice(0, Math.max(1, maxQueries)).map(query => {
+    const params = new URLSearchParams({ hl: 'en', gl: 'uk', q: query });
+    return `https://www.google.com/search?${params.toString()}&gbv=1`;
+  });
 }
 
 export function chooseCrawlTargets(links, limit = 8) {
