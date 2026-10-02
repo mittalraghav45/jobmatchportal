@@ -26,7 +26,46 @@ function absoluteUrl(href) { try { return href ? new URL(href, BASE_URL).href : 
 function isJobUrl(url) { return /jobs\.ac\.uk\/(?:job|vacancy)\//i.test(url); }
 function findMatchingTagEnd(html, start, tag) { const p = new RegExp(`<\\/?${tag}\\b[^>]*>`, 'gi'); p.lastIndex = start; let depth = 1, m; while ((m = p.exec(html))) { if (/^<\//.test(m[0])) { if (--depth === 0) return m.index + m[0].length; } else if (!/\/\s*>$/.test(m[0])) depth++; } return -1; }
 function findCardHtml(html, anchorIndex, anchorEnd) { const start = Math.max(0, anchorIndex - 12000); const prefix = html.slice(start, anchorIndex); const candidates = []; const p = /<(article|li|div)\b([^>]*)>/gi; let m; while ((m = p.exec(prefix))) { if (!/(?:class|id)\s*=\s*["'][^"']*(?:job|result|listing|vacancy|card)[^"']*["']/i.test(m[2] || '')) continue; candidates.push({ tag: m[1].toLowerCase(), start: start + m.index, openEnd: start + p.lastIndex }); } for (let i = candidates.length - 1; i >= 0; i--) { const c = candidates[i]; const end = findMatchingTagEnd(html, c.openEnd, c.tag); if (c.openEnd <= anchorIndex && end > anchorEnd) return html.slice(c.start, end); } return ''; }
-function parseListingFields(cardHtml, title) { const lines = textLines(cardHtml); const ti = lines.findIndex(x => x === title); const w = ti >= 0 ? lines.slice(ti) : lines; const li = w.findIndex(x => /^location\s*:/i.test(x)); const si = w.findIndex(x => /^salary\s*:/i.test(x)); const pi = w.findIndex(x => /^(?:date placed|placed on)\s*:/i.test(x)); const ci = w.findIndex(x => /^(?:closes|closing date|expires)\s*:?/i.test(x)); const metadata = li > 0 ? w.slice(1, li).filter(x => !/^save$/i.test(x)) : []; let companyName = metadata.at(-1) || ''; let department = metadata.at(-2) || ''; if (companyName.includes(' - ')) { const parts = companyName.split(' - '); companyName = parts.shift().trim(); department = parts.join(' - ').trim() || department; } return { companyName, department, location: li >= 0 ? w[li].replace(/^location\s*:\s*/i, '').trim() : '', salary: si >= 0 ? w[si].replace(/^salary\s*:\s*/i, '').trim() : '', posted: pi >= 0 ? w[pi].replace(/^(?:date placed|placed on)\s*:\s*/i, '').trim() : '', closing: ci >= 0 ? w[ci].replace(/^(?:closes|closing date|expires)\s*:?\s*/i, '').trim() : '' }; }
+
+function parseListingFields(cardHtml, title) {
+  const lines = textLines(cardHtml);
+  const ti = lines.findIndex(x => x === title);
+  const w = ti >= 0 ? lines.slice(ti + 1) : lines;
+  const li = w.findIndex(x => /^location\s*:/i.test(x));
+  const si = w.findIndex(x => /^salary\s*:/i.test(x));
+  const pi = w.findIndex(x => /^(?:date placed|placed on)\s*:/i.test(x));
+  const ci = w.findIndex(x => /^(?:closes|closing date|expires)\s*:?/i.test(x));
+  const metadataEnd = [li, si, pi, ci].filter(index => index >= 0).sort((a, b) => a - b)[0] ?? w.length;
+  const metadata = w.slice(0, metadataEnd).filter(x => !/^save$/i.test(x) && !/^apply$/i.test(x));
+
+  // jobs.ac.uk search cards normally expose department followed by employer.
+  // Keep the extraction positional and bounded by the first metadata field so
+  // neighbouring listings can never leak into this record.
+  let companyName = '';
+  let department = '';
+  if (metadata.length >= 2) {
+    companyName = metadata.at(-1) || '';
+    department = metadata.at(-2) || '';
+  } else if (metadata.length === 1) {
+    companyName = metadata[0];
+  }
+
+  if (companyName.includes(' - ')) {
+    const parts = companyName.split(' - ');
+    companyName = parts.shift().trim();
+    department = parts.join(' - ').trim() || department;
+  }
+
+  return {
+    companyName,
+    department,
+    location: li >= 0 ? w[li].replace(/^location\s*:\s*/i, '').trim() : '',
+    salary: si >= 0 ? w[si].replace(/^salary\s*:\s*/i, '').trim() : '',
+    posted: pi >= 0 ? w[pi].replace(/^(?:date placed|placed on)\s*:\s*/i, '').trim() : '',
+    closing: ci >= 0 ? w[ci].replace(/^(?:closes|closing date|expires)\s*:?\s*/i, '').trim() : '',
+  };
+}
+
 export function parseJobsAcUkHtml(html = '') { const jobs = [], seen = new Set(); const p = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi; let m; while ((m = p.exec(html))) { const url = absoluteUrl(m[1]); if (!isJobUrl(url) || seen.has(url)) continue; const title = cleanText(m[2]); if (!title || title.length > 300) continue; const cardHtml = findCardHtml(html, m.index, p.lastIndex); const fields = parseListingFields(cardHtml || html.slice(m.index, Math.min(html.length, p.lastIndex + 5000)), title); seen.add(url); jobs.push({ id: `jobs-ac-uk-${Buffer.from(url).toString('base64url').slice(0, 32)}`, externalId: url, title, companyName: fields.companyName, department: fields.department, location: fields.location || 'UK', description: '', url, posting_date: fields.posted || null, closing_date: fields.closing || null, salary: fields.salary || '', ats: 'jobs-ac-uk', source_verified: true, source: 'jobs.ac.uk' }); } return jobs; }
 
 export function buildJobsAcUkSearchUrl({ keywords = '', location = '', discipline = 'computer-sciences', subDiscipline = '', page = 1, pageSize = DEFAULT_PAGE_SIZE } = {}) { const size = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(pageSize, 10) || DEFAULT_PAGE_SIZE)); const currentPage = Math.max(1, Number.parseInt(page, 10) || 1); const params = new URLSearchParams(); if (keywords.trim()) params.set('keywords', keywords.trim()); if (location.trim()) params.set('location', location.trim()); if (discipline) params.append('academicDisciplineFacet[0]', discipline); if (subDiscipline) params.append('subDisciplineFacet[0]', subDiscipline); params.set('pageSize', String(size)); params.set('sortOrder', '1'); params.set('startIndex', String((currentPage - 1) * size + 1)); return `${BASE_URL}?${params.toString()}`; }
