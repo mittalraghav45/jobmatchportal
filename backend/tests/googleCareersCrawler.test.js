@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildGoogleQuery, buildGoogleSearchUrl, classifyDiscoveredUrl, classifyGooglePage, extractJobPostingJsonLd, extractLinks, chooseCrawlTargets, isCrawlableTarget, normaliseUrl } from '../services/googleCareersCrawler.js';
+import { buildGoogleQuery, buildGoogleSearchUrl, buildGoogleSearchUrls, buildGoogleQueryVariants, classifyDiscoveredUrl, classifyGooglePage, extractJobPostingJsonLd, extractLinks, chooseCrawlTargets, isCrawlableTarget, normaliseUrl } from '../services/googleCareersCrawler.js';
 
 test('builds a company-scoped Google careers query', () => {
   const query = buildGoogleQuery('Example Ltd', 'private');
@@ -10,18 +10,26 @@ test('builds a company-scoped Google careers query', () => {
   assert.match(buildGoogleSearchUrl('Example Ltd'), /[?&]gbv=1$/);
 });
 
-test('classifies company careers and ATS job URLs', () => {
-  assert.equal(classifyDiscoveredUrl('https://example.com/careers', 'example.com'), 'careers');
-  assert.equal(classifyDiscoveredUrl('https://example.com/jobs/software-engineer', 'example.com'), 'job');
-  assert.equal(classifyDiscoveredUrl('https://jobs.ashbyhq.com/example/123', 'example.com'), 'ats_job');
-  assert.equal(classifyDiscoveredUrl('https://example.com/about', 'example.com'), 'other');
+test('builds bounded query variants for broader discovery', () => {
+  const variants = buildGoogleQueryVariants('Example Ltd');
+  assert.equal(variants.length, 3);
+  assert.notEqual(variants[0], variants[1]);
+  assert.equal(buildGoogleSearchUrls('Example Ltd', '', 2).length, 2);
 });
 
-test('extracts relevant links and ignores unrelated links', () => {
-  const html = '<a href="/careers">Careers</a><a href="/jobs/123">Software Engineer</a><a href="/privacy">Privacy</a>';
+test('classifies company careers, company sites and ATS job URLs', () => {
+  assert.equal(classifyDiscoveredUrl('https://example.com/careers', 'example.com'), 'careers');
+  assert.equal(classifyDiscoveredUrl('https://example.com/jobs/software-engineer', 'example.com'), 'job');
+  assert.equal(classifyDiscoveredUrl('https://example.com/', 'example.com'), 'company_site');
+  assert.equal(classifyDiscoveredUrl('https://jobs.ashbyhq.com/example/123', 'example.com'), 'ats_job');
+  assert.equal(classifyDiscoveredUrl('https://example.com/about', 'example.com'), 'company_site');
+});
+
+test('extracts relevant links and ignores unrelated external links', () => {
+  const html = '<a href="/careers">Careers</a><a href="/jobs/123">Software Engineer</a><a href="/privacy">Privacy</a><a href="https://jobs.ashbyhq.com/example/1">Engineer</a>';
   const links = extractLinks(html, 'https://example.com', 'example.com');
-  assert.equal(links.length, 2);
-  assert.deepEqual(links.map(x => x.kind), ['careers', 'job']);
+  assert.equal(links.length, 3);
+  assert.deepEqual(links.map(x => x.kind), ['careers', 'job', 'ats_job']);
 });
 
 test('unwraps Google result redirect links to the actual careers/ATS URL', () => {
@@ -63,9 +71,10 @@ test('prioritises individual jobs and ATS jobs over generic careers pages', () =
   const targets = chooseCrawlTargets([
     { url: 'https://example.com/careers', kind: 'careers' },
     { url: 'https://jobs.ashbyhq.com/example/1', kind: 'ats_job' },
-    { url: 'https://example.com/jobs/1', kind: 'job' }
-  ], 3);
-  assert.deepEqual(targets.map(x => x.kind), ['ats_job', 'job', 'careers']);
+    { url: 'https://example.com/jobs/1', kind: 'job' },
+    { url: 'https://example.com/', kind: 'company_site' }
+  ], 4);
+  assert.deepEqual(targets.map(x => x.kind), ['ats_job', 'job', 'careers', 'company_site']);
 });
 
 test('deduplicates crawl targets and keeps the crawl bounded', () => {
@@ -80,8 +89,9 @@ test('deduplicates crawl targets and keeps the crawl bounded', () => {
   assert.equal(new Set(targets.map(x => x.url)).size, 2);
 });
 
-test('only crawls recognised careers and ATS targets', () => {
+test('only crawls recognised careers, company and ATS targets', () => {
   assert.equal(isCrawlableTarget({ url: 'https://example.com/careers', kind: 'careers' }, 'example.com'), true);
+  assert.equal(isCrawlableTarget({ url: 'https://example.com/', kind: 'company_site' }, 'example.com'), true);
   assert.equal(isCrawlableTarget({ url: 'https://jobs.ashbyhq.com/example/1', kind: 'ats_job' }, 'example.com'), true);
   assert.equal(isCrawlableTarget({ url: 'https://example.com/about', kind: 'other' }, 'example.com'), false);
   assert.equal(isCrawlableTarget({ url: 'javascript:void(0)', kind: 'careers' }, 'example.com'), false);
