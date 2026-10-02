@@ -49,11 +49,19 @@ cd backend
 node -r dotenv/config scripts/repairLiveUrlDuplicates.js
 ```
 
-The command defaults to a dry run. After reviewing the reported duplicate groups and company conflicts, apply the cleanup with:
+The command defaults to a dry run. By default, groups that contain different `companyId` values are reported but not deleted because choosing a company identity is a separate data-resolution decision. Safe same-company duplicate groups can be applied with:
 
 ```bash
 node -r dotenv/config scripts/repairLiveUrlDuplicates.js --apply
 ```
+
+If company-conflict groups have subsequently been reviewed and a deliberate destructive merge is required, use the explicit override:
+
+```bash
+node -r dotenv/config scripts/repairLiveUrlDuplicates.js --apply --resolve-company-conflicts
+```
+
+When duplicates are deleted, application records referencing a deleted job ID are first repointed to the surviving job document.
 
 The verification population invariant remains:
 
