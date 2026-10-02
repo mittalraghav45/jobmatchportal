@@ -45,6 +45,25 @@ function isJobUrl(url) {
   return /jobs\.ac\.uk\/job\//i.test(url) || /jobs\.ac\.uk\/vacancy\//i.test(url);
 }
 
+function findMatchingTagEnd(html, start, tag) {
+  const tokenPattern = new RegExp(`<\\/?${tag}\\b[^>]*>`, 'gi');
+  tokenPattern.lastIndex = start;
+  let depth = 1;
+  let match;
+
+  while ((match = tokenPattern.exec(html))) {
+    const token = match[0];
+    if (/^<\//.test(token)) {
+      depth -= 1;
+      if (depth === 0) return match.index + token.length;
+    } else if (!/\/\s*>$/.test(token)) {
+      depth += 1;
+    }
+  }
+
+  return -1;
+}
+
 function findCardHtml(html, anchorIndex, anchorEnd) {
   const prefixStart = Math.max(0, anchorIndex - 12000);
   const prefix = html.slice(prefixStart, anchorIndex);
@@ -64,11 +83,10 @@ function findCardHtml(html, anchorIndex, anchorEnd) {
 
   for (let i = candidates.length - 1; i >= 0; i -= 1) {
     const candidate = candidates[i];
-    const closePattern = new RegExp(`</${candidate.tag}\\s*>`, 'gi');
-    closePattern.lastIndex = Math.max(anchorEnd, candidate.openEnd);
-    const close = closePattern.exec(html);
-    if (!close) continue;
-    return html.slice(candidate.start, close.index + close[0].length);
+    if (candidate.openEnd > anchorIndex) continue;
+    const end = findMatchingTagEnd(html, candidate.openEnd, candidate.tag);
+    if (end <= anchorEnd) continue;
+    return html.slice(candidate.start, end);
   }
 
   return '';
@@ -81,7 +99,7 @@ function parseListingFields(cardHtml, title) {
   const locationIndex = workingLines.findIndex(line => /^location\s*:/i.test(line));
   const salaryIndex = workingLines.findIndex(line => /^salary\s*:/i.test(line));
   const postedIndex = workingLines.findIndex(line => /^(?:date placed|placed on)\s*:/i.test(line));
-  const closingIndex = workingLines.findIndex(line => /^(?:closes|closing date|expires)\s*:??/i.test(line));
+  const closingIndex = workingLines.findIndex(line => /^(?:closes|closing date|expires)\s*:?/i.test(line));
 
   const beforeLocation = locationIndex > 0 ? workingLines.slice(1, locationIndex) : [];
   const metadata = beforeLocation.filter(line => !/^save$/i.test(line));
@@ -104,7 +122,7 @@ function parseListingFields(cardHtml, title) {
     ? workingLines[postedIndex].replace(/^(?:date placed|placed on)\s*:\s*/i, '').trim()
     : '';
   const closing = closingIndex >= 0
-    ? workingLines[closingIndex].replace(/^(?:closes|closing date|expires)\s*:??\s*/i, '').trim()
+    ? workingLines[closingIndex].replace(/^(?:closes|closing date|expires)\s*:?\s*/i, '').trim()
     : '';
 
   return { companyName, department, location, salary, posted, closing };
