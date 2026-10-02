@@ -1,0 +1,31 @@
+name: Google Career Discovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Maximum companies to process'
+        required: false
+        default: '100'
+  schedule:
+    - cron: '0 3 * * 1'
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Crawl Google career fallbacks
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          CRAWL_LIMIT: ${{ inputs.limit || '100' }}
+        run: npm run jobs:crawl-google-fallback -- --limit="$CRAWL_LIMIT"
