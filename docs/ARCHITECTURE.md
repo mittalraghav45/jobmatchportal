@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-JobMatchPortal discovers live UK technology vacancies, normalises them across ATS sources, evaluates sponsorship evidence, analyses job requirements, matches them against candidate evidence, and generates tailored application material.
+JobMatchPortal discovers UK technology vacancies, normalises them across ATS sources, evaluates sponsorship evidence, verifies source-backed job status, analyses job requirements, matches them against candidate evidence, and supports application tracking.
 
 The system has two application-specialist modes:
 
@@ -14,93 +14,100 @@ Candidate evidence is the source of truth. The AI optimisation layer must not in
 ## 2. High-level architecture
 
 ```text
-ATS / Job Sources
-      |
-      v
-Job Discovery
-      |
-      v
-Canonical Job Model
-      |
-      +------> Company Identity
-      |
-      +------> Sponsorship Evidence
-      |
-      v
-Job Intelligence
-  - seniority
-  - technical skills
-  - essential criteria
-  - desirable criteria
-  - salary
-  - sponsorship wording
-      |
-      v
-Candidate Evidence
-      |
-      v
-Explainable Match
-      |
-      v
-Application Specialist
-  +-------------------------+
-  | All-in-One | Public     |
-  |            | Sector     |
-  +-------------------------+
-      |
-      v
-Application Pack
-      |
-      v
-Validation
-      |
-      v
-Application Tracker
+21,516 canonical companies
+          |
+          v
+Checkpointed discovery
+  +-----------------------+
+  | bounded parallel     |
+  | company ranges       |
+  +-----------------------+
+          |
+          v
+MongoDB canonical jobs
+          |
+          +--> incremental source-backed verification
+          |        |
+          |        +--> live / closed / unknown
+          |
+          v
+/api/jobs
+          |
+          v
+React/Vite frontend
+          |
+          +--> job search/filtering
+          +--> explainable matching
+          +--> sponsorship-aware matching
+          +--> application tracker
 ```
+
+Discovery and verification are deliberately separate stages. A discovered record is not automatically a verified-live vacancy.
 
 ## 3. Backend modules
 
 | Module | Responsibility |
 |---|---|
 | `backend/server.js` | HTTP/API entry point and route wiring |
+| `backend/routes/jobs.js` | Paginated/filterable job API |
 | `backend/jobIntelligence.js` | JD parsing, skills, criteria, seniority, salary and sponsorship wording |
 | `backend/applicationPack.js` | Evidence profile and application-pack construction |
 | `backend/applicationPackSelector.js` | Selects the requested application output and validates it |
 | `backend/applicationStore.js` | Application lifecycle/state model |
 | `backend/sponsorRegistry.js` | Sponsorship evidence and status handling |
+| `backend/repositories/jobRepository.js` | Canonical job persistence and fingerprint-based upsert |
+| `backend/scripts/jobDiscoveryGoldenFull.js` | Checkpointed/resumable large-scale discovery |
+| `backend/scripts/` audit/verification tools | Population, URL, duplicate and verification audits |
 | `backend/prompts/` | Specialist optimisation prompts |
 | `backend/tests/` | Automated Node tests |
 
-## 4. Application specialists
+## 4. Discovery and verification
 
-### All-in-One
+The company population is protected at 21,516 companies. Large discovery runs can be split into non-overlapping ranges and executed concurrently. Each range uses a unique run ID and checkpoint state.
 
-Use for normal commercial/private-sector roles. Supports:
+Discovery flow:
 
-- Functional Competencies
-- Technical Tools
-- top 15 keywords
-- achievement-oriented experience bullets
-- project tailoring
-- three-line professional summary
-- cover letters
-- cold emails
+1. Direct company/ATS discovery.
+2. Google fallback when direct discovery produces no jobs.
+3. Bounded careers/ATS crawl where a useful fallback target exists.
+4. Canonicalisation and fingerprint-based upsert.
+5. Incremental source-backed verification.
+6. API/frontend exposure of verified jobs.
 
-### NHS & Public Sector
+Google search URLs are discovery aids only. They are not proof that a vacancy exists.
 
-Use for NHS, DWP, Civil Service, universities, councils and other public-sector roles. Supports:
+## 5. Job identity and persistence
 
-- essential/desirable criteria
-- person specifications
-- evidence mapping
-- supporting statements
-- competency evidence
-- public-sector application questions
-- cover letters where required
+Jobs use a stable fingerprint as the idempotency key. Canonical `applyUrl` duplication is audited separately because multiple incorrect company identities can point to the same source posting.
 
-Do not claim NHS, DWP, Civil Service or other sector experience unless candidate evidence explicitly supports it.
+The repository upsert path updates an existing fingerprint rather than creating a second record. Duplicate discovery records inside one batch are collapsed before writing.
 
-## 5. Sponsorship model
+## 6. Verification model
+
+Valid job verification states are:
+
+- `live`
+- `closed`
+- `unknown`
+- `unverified`
+
+Verification must preserve the population invariant:
+
+```text
+live + closed + unknown + unverified = total jobs
+```
+
+Source evidence may include direct posting content, recognised ATS patterns, redirects with retained posting identity and structured `JobPosting` data. A generic board redirect is not sufficient evidence of a live job.
+
+## 7. Frontend/API integration
+
+The frontend consumes `/api/jobs` with server-side pagination and filtering. In Codespaces, the Vite development server proxies `/api` to the backend when no explicit API base URL is configured.
+
+The frontend can display verified-live jobs incrementally while discovery is still running. This avoids waiting for the full 21,516-company population before showing useful results.
+
+API/network failures should render recoverable UI states. The client must not fabricate job data when the backend is unavailable.
+
+## 8. Sponsorship model
 
 Sponsorship is deliberately separate from company identity.
 
@@ -114,7 +121,7 @@ Companies House identity/SIC information does **not** by itself prove Skilled Wo
 
 `unknown` must remain unknown; it must never be silently converted into `not-sponsor`.
 
-## 6. Job intelligence
+## 9. Job intelligence and matching
 
 A job can be analysed into:
 
@@ -130,7 +137,7 @@ A job can be analysed into:
 
 Candidate scoring is explainable rather than a black-box LLM judgement. Current components include skill coverage, role alignment, experience and evidence.
 
-## 7. Application lifecycle
+## 10. Application lifecycle
 
 ```text
 saved
@@ -148,49 +155,21 @@ Alternative terminal states:
 
 Invalid transitions should be rejected by the application store.
 
-## 8. Where to change the company list
+## 11. Operations and observability
 
-**Important:** the company list should eventually live in one configuration/data source rather than being scattered through scraper code.
+Large runs should be monitored for:
 
-For the current repository, first search the backend for the company-list source using:
+- MongoDB connectivity/latency
+- discovery throughput
+- resolved/unresolved companies
+- failed/rejected records
+- checkpoint progress
+- duplicate URL/fingerprint counts
+- live/closed/unknown/unverified populations
 
-```bash
-rg -n "companies|organisations|organisations|company_number|techCompanies|sponsor" backend
-```
+The MongoDB health monitor is read-only. If database health degrades, reduce or stop discovery concurrency rather than repeatedly retrying against an unhealthy database.
 
-The repository already contains CSV-based discovery inputs. If you are manually changing the target company population, the primary files are the CSV inputs used by the discovery stage (for example `techCompanies.csv` / `techCompaniesThatSponsor.csv` where present).
-
-### Recommended manual workflow
-
-1. Edit the company input CSV.
-2. Keep the company name/company number stable where available.
-3. Do **not** manually mark a company as a sponsor unless there is verified evidence.
-4. Run the discovery pipeline.
-5. Run the test suite.
-
-### Future improvement
-
-We should consolidate this into a single file such as:
-
-```text
-config/companySources.json
-```
-
-or
-
-```text
-config/companySources.csv
-```
-
-with fields such as:
-
-```text
-organisation_name,company_number,enabled,priority,source
-```
-
-This will make changing the target company list a one-file operation without touching application logic.
-
-## 9. Testing
+## 12. Testing
 
 Backend tests use Node's built-in test runner.
 
@@ -200,11 +179,16 @@ npm install
 npm test
 ```
 
-Tests cover the job-intelligence, application-pack, application-selector and application-store layers.
+Frontend changes should also run:
+
+```bash
+cd frontend
+npm run build
+```
 
 Do not treat an isolated smoke test as proof that the complete repository suite passes. The full CI workflow is the authoritative integration check.
 
-## 10. Development rules
+## 13. Development rules
 
 - Preserve factual candidate chronology.
 - Use British English by default.
@@ -215,20 +199,14 @@ Do not treat an isolated smoke test as proof that the complete repository suite 
 - Keep required and desirable criteria distinct.
 - Keep sponsorship evidence separate from company identity.
 - Keep deterministic validation outside the LLM where practical.
+- Update the relevant documentation whenever architecture, schema, workflow or operational behaviour changes.
 
-## 11. Current implementation phases
+## 14. Current implementation phases
 
 1. Foundation / reliability
 2. Company and sponsorship intelligence
 3. Job intelligence
-4. Application generation
-5. Application dashboard and tracking
-6. Automated job discovery and monitoring
-
-## 12. Suggested next engineering priorities
-
-1. Consolidate company configuration into a single editable source.
-2. Connect application persistence to the API/database.
-3. Complete dashboard/API integration.
-4. Run the full CI suite and fix integration failures.
-5. Add end-to-end tests from vacancy -> match -> application pack -> tracker.
+4. Automated discovery and source-backed verification
+5. Frontend job search and matching
+6. Application generation and tracking
+7. Scale hardening and end-to-end automation
