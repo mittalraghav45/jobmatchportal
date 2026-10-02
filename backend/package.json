@@ -25,6 +25,7 @@
     "jobs:crawl-google-fallback": "node -r dotenv/config scripts/crawlGoogleCareerFallbacks.js",
     "jobs:enrich": "node -r dotenv/config scripts/enrichExistingJobs.js",
     "jobs:digest": "node -r dotenv/config scripts/sendJobDigest.js",
+    "docs:check": "node scripts/checkDocumentation.js",
     "db:check": "node scripts/checkMongo.js"
   },
   "dependencies": {
