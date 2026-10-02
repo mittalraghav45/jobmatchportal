@@ -114,9 +114,11 @@ export function chooseCrawlTargets(links, limit = 5) {
 }
 
 export function isCrawlableTarget(target, companyHost = '') {
-  if (!target?.url) return false;
-  const kind = target.kind || classifyDiscoveredUrl(target.url, companyHost);
-  return ['careers', 'job', 'ats_job', 'ats_board'].includes(kind);
+  if (!target?.url || !isAllowedHttpUrl(target.url)) return false;
+  const classifiedKind = classifyDiscoveredUrl(target.url, companyHost);
+  if (classifiedKind === 'other') return false;
+  if (target.kind && target.kind !== classifiedKind) return false;
+  return ['careers', 'job', 'ats_job', 'ats_board'].includes(classifiedKind);
 }
 
 export function extractTitle(html) {
