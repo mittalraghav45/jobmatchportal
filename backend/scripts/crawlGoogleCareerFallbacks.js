@@ -31,8 +31,6 @@ async function fetchGoogleHtml(url) {
   try {
     return await fetchHtml(url);
   } catch (error) {
-    // Some Google endpoints reject the legacy gbv parameter with HTTP 400.
-    // Retry the same query without it before classifying the search as failed.
     if (error?.response?.status === 400 && /[?&]gbv=1(?:&|$)/.test(url)) {
       const retryUrl = url.replace(/[&?]gbv=1(?=&|$)/, '').replace('?&', '?');
       return fetchHtml(retryUrl);
@@ -142,6 +140,7 @@ async function processCompany(company) {
         { $setOnInsert: {
           fingerprint, schemaVersion: 'v1', externalId: job.url, companyId: company.companyId, companyName: company.companyName,
           title: job.title, description: job.description, location: job.location, nation: 'UK-wide', employerType: company.employerType,
+          applyUrl: job.url,
           source: { ats: job.sourceAts, url: job.url },
           dates: { postedAt: job.datePosted ? new Date(job.datePosted) : null, closingAt: job.validThrough ? new Date(job.validThrough) : null },
           status: { isLive: false }, verification: { status: 'unknown', sourceUrl: job.url, evidenceType: 'discovered_from_google_career_crawl' },
