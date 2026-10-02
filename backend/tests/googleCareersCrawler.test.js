@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildGoogleQuery, buildGoogleSearchUrl, classifyDiscoveredUrl, extractJobPostingJsonLd, extractLinks, chooseCrawlTargets, isCrawlableTarget, normaliseUrl } from '../services/googleCareersCrawler.js';
+import { buildGoogleQuery, buildGoogleSearchUrl, classifyDiscoveredUrl, classifyGooglePage, extractJobPostingJsonLd, extractLinks, chooseCrawlTargets, isCrawlableTarget, normaliseUrl } from '../services/googleCareersCrawler.js';
 
 test('builds a company-scoped Google careers query', () => {
   const query = buildGoogleQuery('Example Ltd', 'private');
   assert.match(query, /Example Ltd/);
   assert.match(query, /jobs careers/);
   assert.match(buildGoogleSearchUrl('Example Ltd'), /^https:\/\/www\.google\.com\/search\?q=/);
+  assert.match(buildGoogleSearchUrl('Example Ltd'), /[?&]gbv=1$/);
 });
 
 test('classifies company careers and ATS job URLs', () => {
@@ -29,6 +30,21 @@ test('unwraps Google result redirect links to the actual careers/ATS URL', () =>
   assert.equal(links.length, 1);
   assert.equal(links[0].url, 'https://jobs.ashbyhq.com/example/123');
   assert.equal(links[0].kind, 'ats_job');
+});
+
+test('accepts Google result data-href links and unwraps the url parameter', () => {
+  const html = '<a data-href="/url?url=https%3A%2F%2Fexample.com%2Fcareers">Careers</a>';
+  const links = extractLinks(html, 'https://www.google.com/search?q=Example', 'example.com');
+  assert.equal(links.length, 1);
+  assert.equal(links[0].url, 'https://example.com/careers');
+  assert.equal(links[0].kind, 'careers');
+});
+
+test('classifies Google result pages for diagnostics', () => {
+  assert.equal(classifyGooglePage('<html><a href="https://example.com/careers">Careers</a></html>'), 'results_or_links');
+  assert.equal(classifyGooglePage('<html>Our systems have detected unusual traffic from your computer network</html>'), 'blocked');
+  assert.equal(classifyGooglePage('<html>Before you continue to Google</html>'), 'consent');
+  assert.equal(classifyGooglePage('<html><body>No result links</body></html>'), 'no_links');
 });
 
 test('extracts JobPosting JSON-LD from a single job page', () => {
