@@ -140,7 +140,7 @@ function MatchCard({ item }) {
   );
 }
 
-export default function MyMatches({ profileId = 'default', limit = 20, initiallyOpen = false }) {
+export default function MyMatches({ profileId = 'default', limit = 20, initiallyOpen = false, onClose }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -171,29 +171,10 @@ export default function MyMatches({ profileId = 'default', limit = 20, initially
     return () => controller.abort();
   }, [profileId, limit]);
 
-  useEffect(() => {
-    let observer;
-    const installNavigation = () => {
-      const sidebar = document.querySelector('.sidebar');
-      if (!sidebar) return;
-      const jobsButton = [...sidebar.querySelectorAll('.nav')].find((button) => button.textContent?.trim() === 'Jobs');
-      if (!jobsButton || sidebar.querySelector('[data-my-matches-nav]')) return;
-
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'nav';
-      button.dataset.myMatchesNav = 'true';
-      button.textContent = 'My Matches';
-      button.setAttribute('aria-label', 'My Matches');
-      button.addEventListener('click', () => setOpen(true));
-      jobsButton.insertAdjacentElement('afterend', button);
-    };
-
-    installNavigation();
-    observer = new MutationObserver(installNavigation);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer?.disconnect();
-  }, []);
+  const close = () => {
+    setOpen(false);
+    onClose?.();
+  };
 
   return (
     <>
@@ -208,7 +189,7 @@ export default function MyMatches({ profileId = 'default', limit = 20, initially
               </div>
               <div className="my-matches-header-actions">
                 {!loading && !error && <span className="match-count">{matches.length} matches</span>}
-                <button type="button" className="match-close" onClick={() => setOpen(false)}>Close</button>
+                <button type="button" className="match-close" onClick={close}>Close</button>
               </div>
             </div>
 
