@@ -2,8 +2,12 @@ import React from 'react';
 const NATIONS=['England','Scotland','Wales','Northern Ireland'];
 const EMPLOYER_TYPES=[['private','Private'],['councils','Councils'],['universities','Universities'],['dwp','DWP'],['nhs','NHS']];
 const WORK_MODES=[['all','Any work mode'],['remote','Remote'],['hybrid','Hybrid'],['onsite','On-site']];
-const JOBS_AC_UK_SECTORS=[{value:'computer-sciences',label:'Computer Sciences',sub:[['','All Computer Sciences'],['computer-science','Computer Science'],['software-engineering','Software Engineering'],['artificial-intelligence','Artificial Intelligence'],['cyber-security','Cyber Security'],['information-systems','Information Systems']]},{value:'engineering-and-technology',label:'Engineering & Technology',sub:[['','All Engineering & Technology'],['electrical-and-electronic-engineering','Electrical & Electronic Engineering'],['other-engineering','Other Engineering']]}];
-
+const JOBS_AC_UK_SECTORS=[
+ {value:'computer-sciences',label:'Computer Sciences',sub:[['','All Computer Sciences'],['computer-science','Computer Science'],['software-engineering','Software Engineering'],['artificial-intelligence','Artificial Intelligence'],['cyber-security','Cyber Security'],['information-systems','Information Systems']]},
+ {value:'it-services',label:'IT Services',sub:[['','All IT Services']]},
+ {value:'web-design-and-development',label:'Web Design & Development',sub:[['','All Web Design & Development']]},
+ {value:'engineering-and-technology',label:'Engineering & Technology',sub:[['','All Engineering & Technology'],['electrical-and-electronic-engineering','Electrical & Electronic Engineering'],['other-engineering','Other Engineering']]}
+];
 export default function JobSearchPanel({source,setSource,jobsAcUkLocation,setJobsAcUkLocation,jobsAcUkDiscipline,setJobsAcUkDiscipline,jobsAcUkSubDiscipline,setJobsAcUkSubDiscipline,q,setQ,nations,setNations,employerTypes,setEmployerTypes,sponsorship,setSponsorship,workMode,setWorkMode,employmentType,setEmploymentType,sort,setSort,onClear,jobTotal,page,limit,onPageChange,loading}){
  const sector=JOBS_AC_UK_SECTORS.find(x=>x.value===jobsAcUkDiscipline)||JOBS_AC_UK_SECTORS[0];
  const toggle=(value,setter)=>setter(xs=>xs.includes(value)?xs.filter(x=>x!==value):[...xs,value]);
@@ -17,10 +21,10 @@ export default function JobSearchPanel({source,setSource,jobsAcUkLocation,setJob
     <label className="filter-check"><input type="radio" name="job-source" checked={source==='jobs-ac-uk'} onChange={()=>setSource('jobs-ac-uk')}/><span>jobs.ac.uk search</span></label>
    </div>
    {source==='jobs-ac-uk'?<div className="filter-search enhanced-filter-search">
-    <select className="input" value={jobsAcUkDiscipline} onChange={e=>{setJobsAcUkDiscipline(e.target.value);setJobsAcUkSubDiscipline('')}} aria-label="jobs.ac.uk academic discipline"><option value="computer-sciences">Computer Sciences</option><option value="engineering-and-technology">Engineering & Technology</option></select>
+    <select className="input" value={jobsAcUkDiscipline} onChange={e=>{setJobsAcUkDiscipline(e.target.value);setJobsAcUkSubDiscipline('')}} aria-label="jobs.ac.uk sector">{JOBS_AC_UK_SECTORS.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select>
     <select className="input" value={jobsAcUkSubDiscipline} onChange={e=>setJobsAcUkSubDiscipline(e.target.value)} aria-label="jobs.ac.uk subdiscipline">{sector.sub.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>
     <input className="input" value={q} onChange={e=>setQ(e.target.value)} placeholder="Keywords e.g. software engineer"/>
-    <input className="input" value={jobsAcUkLocation} onChange={e=>setJobsAcUkLocation(e.target.value)} placeholder="Location e.g. Southampton"/>
+    <input className="input" value={jobsAcUkLocation} onChange={e=>setJobsAcUkLocation(e.target.value)} placeholder="Location e.g. Belfast"/>
     <button className="secondary" onClick={clearJobsAcUk}>Clear</button>
    </div>:<>
     <div className="filter-group"><div className="filter-heading"><strong>UK nation</strong><span>{nations.length?`${nations.length} selected`:'All UK'}</span></div><label className="filter-check"><input type="checkbox" checked={!nations.length} onChange={()=>setNations([])}/><span>All UK nations</span></label>{NATIONS.map(n=><label className="filter-check" key={n}><input type="checkbox" checked={nations.includes(n)} onChange={()=>toggle(n,setNations)}/><span>{n}</span></label>)}</div>
