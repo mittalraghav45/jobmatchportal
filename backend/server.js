@@ -14,6 +14,7 @@ import { analyseJob, scoreCandidateAgainstJob } from './jobIntelligence.js';
 import profileRoutes from './routes/profileRoutes.js';
 import matchRoutes from './routes/matchRoutes.js';
 import jobsRoutes from './routes/jobs.js';
+import jobsAcUkRouter from './routes/jobsAcUkRoutes.js';
 import companiesRoutes from './routes/companies.js';
 import applicationRoutes from './routes/applications.js';
 import discoveryStatusRoutes from './routes/discoveryStatus.js';
@@ -36,12 +37,13 @@ app.use(express.json({ limit: '10mb' }));
 app.use('/api/profile', profileRoutes);
 app.use('/api/match', matchRoutes);
 app.use('/api/jobs', jobsRoutes);
+app.use('/api/jobs-ac-uk', jobsAcUkRouter);
 app.use('/api/companies', companiesRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/discovery', discoveryStatusRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
 
-app.get('/api/health', (req, res) => res.json({ ok: true, hasPerplexityKey: Boolean(PERPLEXITY_KEY), hasOpenAIKey: Boolean(OPENAI_KEY), using: openai ? 'openai' : PERPLEXITY_KEY ? 'perplexity' : 'none', port: PORT, ats: ATS_LIST, timestamp: new Date().toISOString(), nodeVersion: process.version, routes: { jobs: true, companies: true, profile: true, match: true, applications: true, discoveryStatus: true, intelligence: true } }));
+app.get('/api/health', (req, res) => res.json({ ok: true, hasPerplexityKey: Boolean(PERPLEXITY_KEY), hasOpenAIKey: Boolean(OPENAI_KEY), using: openai ? 'openai' : PERPLEXITY_KEY ? 'perplexity' : 'none', port: PORT, ats: ATS_LIST, timestamp: new Date().toISOString(), nodeVersion: process.version, routes: { jobs: true, jobsAcUk: true, companies: true, profile: true, match: true, applications: true, discoveryStatus: true, intelligence: true } }));
 
 function getSkills(req) { return req.query.skills ? String(req.query.skills).split(',').map(skill => skill.trim().toLowerCase()).filter(Boolean) : ['react', 'typescript', 'node.js']; }
 function getSponsorshipRecord(value) { if (!value) return {}; if (typeof value === 'object') return value; try { return JSON.parse(value); } catch { return { status: String(value) }; } }
