@@ -54,7 +54,7 @@ function liveClass(job) {
   return 'match-badge match-badge-unknown';
 }
 
-function MatchCard({ item }) {
+function MatchCard({ item, onSave, saving, saved }) {
   const job = item?.job || item;
   const score = pick(
     item,
@@ -134,7 +134,14 @@ function MatchCard({ item }) {
             {isClosed ? 'Job closed' : 'Application not verified'}
           </button>
         )}
-        <button type="button" className="match-secondary">Save</button>
+        <button
+          type="button"
+          className="match-secondary"
+          onClick={() => onSave(item)}
+          disabled={saving || saved}
+        >
+          {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
+        </button>
       </div>
     </article>
   );
@@ -145,6 +152,8 @@ export default function MyMatches({ profileId = 'default', limit = 20, initially
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(initiallyOpen);
+  const [savingId, setSavingId] = useState('');
+  const [savedIds, setSavedIds] = useState(() => new Set());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -170,6 +179,53 @@ export default function MyMatches({ profileId = 'default', limit = 20, initially
     load();
     return () => controller.abort();
   }, [profileId, limit]);
+
+  async function saveMatch(item) {
+    const job = item?.job || item;
+    const jobId = String(job?.id || job?._id || job?.externalId || '');
+    if (!jobId || savingId) return;
+
+    setSavingId(jobId);
+    setError('');
+    try {
+      const score = pick(
+        item,
+        ['matchScore', 'score', 'matchPercentage'],
+        pick(item?.candidateScore, ['score', 'matchScore', 'matchPercentage'], pick(item?.match, ['score', 'matchScore', 'matchPercentage'], null))
+      );
+      const response = await fetch(`${API_BASE}/api/applications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId,
+          job: {
+            id: jobId,
+            title: job?.title || 'Untitled role',
+            company: job?.companyName || 'Unknown company',
+            companyId: job?.companyId || null,
+            url: firstUrl(job?.applicationUrl, job?.applyUrl, job?.url, job?.source?.url),
+          },
+          match: {
+            score: Number.isFinite(Number(score)) ? Number(score) : null,
+            matchedSkills: item?.candidateScore?.matchedSkills || item?.match?.matchedSkills || item?.matchedSkills || [],
+            missingSkills: item?.candidateScore?.missingSkills || item?.match?.missingSkills || item?.missingSkills || [],
+            sponsorship: item?.sponsorship || job?.sponsorship || 'unknown',
+          },
+        }),
+      });
+
+      if (!response.ok && response.status !== 409) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || `Unable to save application (${response.status})`);
+      }
+
+      setSavedIds(current => new Set(current).add(jobId));
+    } catch (err) {
+      setError(err.message || 'Unable to save application');
+    } finally {
+      setSavingId('');
+    }
+  }
 
   const close = () => {
     setOpen(false);
@@ -200,7 +256,19 @@ export default function MyMatches({ profileId = 'default', limit = 20, initially
             )}
             {!loading && !error && matches.length > 0 && (
               <div className="matches-grid">
-                {matches.map((item, index) => <MatchCard item={item} key={item?.job?.id || item?.job?._id || item?._id || item?.jobId || index} />)}
+                {matches.map((item, index) => {
+                  const job = item?.job || item;
+                  const jobId = String(job?.id || job?._id || job?.externalId || index);
+                  return (
+                    <MatchCard
+                      item={item}
+                      key={jobId}
+                      onSave={saveMatch}
+                      saving={savingId === jobId}
+                      saved={savedIds.has(jobId)}
+                    />
+                  );
+                })}
               </div>
             )}
           </section>
