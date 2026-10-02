@@ -4,6 +4,7 @@ import axios from 'axios';
 import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
 import { Job } from '../models/Job.js';
+import { normaliseJob, jobFingerprint } from '../models/jobSchema.js';
 import { buildGoogleSearchUrls, extractJobPostingJsonLd, extractLinks, chooseCrawlTargets, classifyDiscoveredUrl, normaliseUrl, isCrawlableTarget, classifyGooglePage } from '../services/googleCareersCrawler.js';
 
 dotenv.config();
@@ -45,8 +46,14 @@ function companyHost(company) {
 }
 
 function makeFingerprint(companyId, job) {
-  const identity = job.url || `${job.title}|${job.location}`;
-  return Buffer.from(`${companyId}|${identity}`.toLowerCase().trim()).toString('base64url');
+  return jobFingerprint(normaliseJob({
+    companyId,
+    externalId: job.url,
+    title: job.title,
+    location: job.location,
+    source: { ats: job.sourceAts, url: job.url },
+    applyUrl: job.url
+  }));
 }
 
 function addTarget(queue, seen, target, companyHostName) {
