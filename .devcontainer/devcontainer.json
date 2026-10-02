@@ -1,0 +1,30 @@
+{
+  "name": "JobMatchPortal Codespace",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
+  "remoteUser": "node",
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "forwardPorts": [3000, 5173],
+  "portsAttributes": {
+    "3000": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Frontend",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
