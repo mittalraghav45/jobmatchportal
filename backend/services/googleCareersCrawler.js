@@ -7,6 +7,21 @@ const ATS_HOSTS = new Set([
 const CAREER_HINTS = /\b(careers?|jobs?|vacancies|opportunities|join[- ]us|work[- ]with[- ]us)\b/i;
 const JOB_HINTS = /\b(job|jobs|vacancy|vacancies|position|opening|opportunity|apply)\b/i;
 
+function looksLikeAtsJobPath(host, pathname) {
+  const path = pathname.replace(/^\/+|\/+$/g, '');
+  if (!path) return false;
+  if (host === 'boards.greenhouse.io' || host === 'job-boards.greenhouse.io') return /\/jobs?\/\d+(?:\/|$)/i.test(`/${path}`);
+  if (host === 'jobs.lever.co') return path.split('/').length >= 2;
+  if (host === 'jobs.ashbyhq.com') return path.split('/').length >= 2;
+  if (host === 'apply.workable.com') return /\/[^/]+\/j\//i.test(`/${path}`) || path.split('/').length >= 2;
+  if (host === 'jobs.jobvite.com') return path.split('/').length >= 2;
+  if (host === 'smartrecruiters.com' || host === 'careers.smartrecruiters.com') return /\/[^/]+\/job\//i.test(`/${path}`);
+  if (host === 'applytojob.com') return path.split('/').length >= 2;
+  if (host === 'myworkdayjobs.com') return /\/[^/]+\/job\//i.test(`/${path}`);
+  if (host === 'hibob.com') return /\/[^/]+\/[^/]+/i.test(`/${path}`);
+  return false;
+}
+
 export function normaliseUrl(value, baseUrl = '') {
   try {
     const url = new URL(value, baseUrl || undefined);
@@ -27,7 +42,7 @@ export function classifyDiscoveredUrl(url, companyHost = '') {
     const path = `${u.pathname} ${u.search}`;
     const sameCompany = !companyHost || host === companyHost.replace(/^www\./, '').toLowerCase() || host.endsWith(`.${companyHost.replace(/^www\./, '').toLowerCase()}`);
     const ats = ATS_HOSTS.has(host) || [...ATS_HOSTS].some(h => host.endsWith(`.${h}`));
-    if (ats && JOB_HINTS.test(path)) return 'ats_job';
+    if (ats && (JOB_HINTS.test(path) || looksLikeAtsJobPath(host, u.pathname))) return 'ats_job';
     if (sameCompany && JOB_HINTS.test(path) && CAREER_HINTS.test(path)) return 'job';
     if (sameCompany && CAREER_HINTS.test(path)) return 'careers';
     if (ats) return 'ats_board';
