@@ -1,24 +1,23 @@
 const ATS_HOSTS = new Set([
   'boards.greenhouse.io', 'job-boards.greenhouse.io', 'jobs.lever.co', 'jobs.ashbyhq.com',
   'myworkdayjobs.com', 'apply.workable.com', 'jobs.jobvite.com', 'smartrecruiters.com',
-  'careers.smartrecruiters.com', 'applytojob.com', 'hibob.com'
+  'careers.smartrecruiters.com', 'applytojob.com', 'hibob.com', 'recruitee.com', 'personio.com',
+  'bamboohr.com'
 ]);
 
-const CAREER_HINTS = /\b(careers?|jobs?|vacancies|opportunities|join[- ]us|work[- ]with[- ]us)\b/i;
-const JOB_HINTS = /\b(job|jobs|vacancy|vacancies|position|opening|opportunity|apply)\b/i;
+const CAREER_HINTS = /\b(careers?|jobs?|vacancies|opportunities|join[- ]us|work[- ]with[- ]us|openings?)\b/i;
+const JOB_HINTS = /\b(job|jobs|vacancy|vacancies|position|opening|opportunity|apply|engineer|developer|manager|analyst)\b/i;
 
 function looksLikeAtsJobPath(host, pathname) {
   const path = pathname.replace(/^\/+|\/+$/g, '');
   if (!path) return false;
   if (host === 'boards.greenhouse.io' || host === 'job-boards.greenhouse.io') return /\/jobs?\/\d+(?:\/|$)/i.test(`/${path}`);
-  if (host === 'jobs.lever.co') return path.split('/').length >= 2;
-  if (host === 'jobs.ashbyhq.com') return path.split('/').length >= 2;
+  if (host === 'jobs.lever.co' || host === 'jobs.ashbyhq.com' || host === 'jobs.jobvite.com') return path.split('/').length >= 2;
   if (host === 'apply.workable.com') return /\/[^/]+\/j\//i.test(`/${path}`) || path.split('/').length >= 2;
-  if (host === 'jobs.jobvite.com') return path.split('/').length >= 2;
   if (host === 'smartrecruiters.com' || host === 'careers.smartrecruiters.com') return /\/[^/]+\/job\//i.test(`/${path}`);
   if (host === 'applytojob.com') return path.split('/').length >= 2;
   if (host === 'myworkdayjobs.com') return /\/[^/]+\/job\//i.test(`/${path}`);
-  if (host === 'hibob.com') return /\/[^/]+\/[^/]+/i.test(`/${path}`);
+  if (host === 'hibob.com' || host === 'recruitee.com' || host === 'personio.com' || host === 'bamboohr.com') return path.split('/').length >= 2;
   return false;
 }
 
@@ -59,6 +58,7 @@ export function classifyDiscoveredUrl(url, companyHost = '') {
     if (sameCompany && JOB_HINTS.test(path) && CAREER_HINTS.test(path)) return 'job';
     if (sameCompany && CAREER_HINTS.test(path)) return 'careers';
     if (ats) return 'ats_board';
+    if (sameCompany) return 'company_site';
     return 'other';
   } catch { return 'other'; }
 }
@@ -103,12 +103,21 @@ export function buildGoogleQuery(companyName, employerType = '') {
   return `"${companyName}"${suffix}`;
 }
 
+export function buildGoogleQueryVariants(companyName, employerType = '') {
+  const base = buildGoogleQuery(companyName, employerType);
+  return [base, `"${companyName}" careers vacancies jobs UK`, `"${companyName}" jobs openings careers`];
+}
+
 export function buildGoogleSearchUrl(companyName, employerType = '') {
   return `https://www.google.com/search?q=${encodeURIComponent(buildGoogleQuery(companyName, employerType))}&gbv=1`;
 }
 
-export function chooseCrawlTargets(links, limit = 5) {
-  const rank = { ats_job: 0, job: 1, careers: 2, ats_board: 3, other: 9 };
+export function buildGoogleSearchUrls(companyName, employerType = '', maxQueries = 3) {
+  return buildGoogleQueryVariants(companyName, employerType).slice(0, Math.max(1, maxQueries)).map(query => `https://www.google.com/search?q=${encodeURIComponent(query)}&gbv=1`);
+}
+
+export function chooseCrawlTargets(links, limit = 8) {
+  const rank = { ats_job: 0, job: 1, ats_board: 2, careers: 3, company_site: 4, other: 9 };
   const seen = new Set();
   return [...links].sort((a, b) => (rank[a.kind] ?? 9) - (rank[b.kind] ?? 9)).filter(link => link?.url && !seen.has(link.url) && seen.add(link.url)).slice(0, limit);
 }
@@ -118,7 +127,7 @@ export function isCrawlableTarget(target, companyHost = '') {
   const classifiedKind = classifyDiscoveredUrl(target.url, companyHost);
   if (classifiedKind === 'other') return false;
   if (target.kind && target.kind !== classifiedKind) return false;
-  return ['careers', 'job', 'ats_job', 'ats_board'].includes(classifiedKind);
+  return ['careers', 'job', 'ats_job', 'ats_board', 'company_site'].includes(classifiedKind);
 }
 
 export function extractTitle(html) {
