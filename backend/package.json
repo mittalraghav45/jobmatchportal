@@ -20,6 +20,8 @@
     "resolve:missing-job-companies": "node -r dotenv/config scripts/resolveMissingJobCompanies.js",
     "jobs:refresh": "node -r dotenv/config scripts/refreshVerifiedJobSources.js",
     "jobs:verify": "node -r dotenv/config scripts/verifyJobSources.js",
+    "jobs:analyse-unknown": "node -r dotenv/config scripts/analyseUnknownJobs.js",
+    "jobs:google-fallback": "node -r dotenv/config scripts/addGoogleJobSearchFallbacks.js",
     "jobs:enrich": "node -r dotenv/config scripts/enrichExistingJobs.js",
     "jobs:digest": "node -r dotenv/config scripts/sendJobDigest.js",
     "db:check": "node scripts/checkMongo.js"
