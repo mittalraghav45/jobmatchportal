@@ -3,7 +3,9 @@ export const JOB_SCHEMA_VERSION = '1.0';
 const clean = value => String(value ?? '').trim();
 
 export function normaliseJob(raw = {}) {
-  const source = clean(raw.source || raw.ats || 'unknown').toLowerCase();
+  const rawSource = raw.source && typeof raw.source === 'object' ? raw.source : {};
+  const sourceAts = clean(rawSource.ats || raw.ats || 'unknown').toLowerCase();
+  const sourceUrl = clean(rawSource.url || raw.url || raw.job_url || '');
   const externalId = clean(raw.externalId || raw.id || raw.job_id || raw.jobId || '');
   const title = clean(raw.title || raw.job_title || '');
   const companyId = clean(raw.companyId || raw.company_id || raw.slug || '');
@@ -12,6 +14,8 @@ export function normaliseJob(raw = {}) {
   const description = clean(raw.description || raw.job_description || '');
   const postedAt = raw.postedAt || raw.posted_date || raw.posting_date || raw.posted || null;
   const closingAt = raw.closingAt || raw.closing_date || raw.closing_date_time || null;
+  const applyUrl = clean(raw.applyUrl || raw.apply_url || sourceUrl);
+
   return {
     schemaVersion: JOB_SCHEMA_VERSION,
     id: clean(raw.id || externalId),
@@ -23,7 +27,8 @@ export function normaliseJob(raw = {}) {
     location,
     employmentType: clean(raw.employmentType || raw.employment_type || ''),
     department: clean(raw.department || ''),
-    source: { ats: source, url: clean(raw.url || raw.job_url || '') },
+    source: { ats: sourceAts, url: sourceUrl },
+    applyUrl,
     dates: { postedAt, closingAt, lastSeenAt: raw.lastSeenAt || new Date().toISOString() },
     status: { isLive: raw.isLive !== false && raw.status !== 'closed' },
     raw
