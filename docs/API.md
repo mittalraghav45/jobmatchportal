@@ -76,22 +76,30 @@ Searches the public jobs.ac.uk vacancy search and returns source results without
 
 Supported query parameters:
 
-- `q` or `keywords` — free-text search terms.
-- `location` — jobs.ac.uk location search.
+- `discipline` — jobs.ac.uk academic-discipline facet slug; defaults to `computer-sciences`.
+- `subDiscipline` — jobs.ac.uk sub-discipline facet slug, for example `software-engineering`, `computer-science`, `artificial-intelligence`, `cyber-security` or `information-systems`.
+- `q` or `keywords` — optional free-text search terms.
+- `location` — optional jobs.ac.uk location search.
 - `page` — 1-based page number.
 - `pageSize` — requested page size, capped by the source module.
 
-At least one of `q`/`keywords` or `location` must be supplied.
+The backend translates `discipline` and `subDiscipline` into the source site's `academicDisciplineFacet[]` and `subDisciplineFacet[]` parameters rather than trying to reproduce the category filter locally.
 
 Example:
 
 ```text
-GET /api/jobs-ac-uk?q=software%20engineer&location=Southampton&page=1&pageSize=25
+GET /api/jobs-ac-uk?discipline=computer-sciences&subDiscipline=software-engineering&q=react&location=Southampton&page=1&pageSize=25
 ```
 
-The response includes the source search URL, source total when available, pagination inputs, and normalised source jobs containing the original jobs.ac.uk URL. This module is intentionally separate from the company ATS discovery pipeline because jobs.ac.uk is a multi-employer job board rather than an employer-specific ATS.
+### `GET /api/jobs-ac-uk/filters`
 
-The implementation currently reads the public search HTML. If jobs.ac.uk changes its markup or blocks automated requests, the endpoint must fail explicitly rather than fabricate an empty result set. jobs.ac.uk also documents RSS feeds for job-search delivery, so RSS is a future fallback/upgrade path if needed.
+Returns the supported jobs.ac.uk discipline/subdiscipline taxonomy used by the frontend search module.
+
+The response includes the source name and an array of disciplines with their subdisciplines. The taxonomy is intentionally kept aligned with the source search facets rather than being treated as a JobMatch classification.
+
+The response includes the source search URL, source total when available, pagination inputs, selected discipline/subdiscipline and normalised source jobs containing the original jobs.ac.uk URL. This module is intentionally separate from the company ATS discovery pipeline because jobs.ac.uk is a multi-employer job board rather than an employer-specific ATS.
+
+The implementation currently reads the public search HTML. If jobs.ac.uk changes its markup or blocks automated requests, the endpoint must fail explicitly rather than fabricate an empty result set. jobs.ac.uk also exposes search/filter pages that demonstrate the academic-discipline and sub-discipline facet parameters used by this integration.
 
 ## Application routes
 
