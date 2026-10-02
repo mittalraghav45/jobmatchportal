@@ -91,7 +91,7 @@ GET /api/jobs-ac-uk?q=software%20engineer&location=Southampton&page=1&pageSize=2
 
 The response includes the source search URL, source total when available, pagination inputs, and normalised source jobs containing the original jobs.ac.uk URL. This module is intentionally separate from the company ATS discovery pipeline because jobs.ac.uk is a multi-employer job board rather than an employer-specific ATS.
 
-The implementation currently reads the public search HTML. If jobs.ac.uk changes its markup or blocks automated requests, the endpoint must fail explicitly rather than fabricate an empty result set. jobs.ac.uk also documents RSS feeds for job-search delivery, so RSS is a future fallback/upgrade path if needed. citeturn2search24
+The implementation currently reads the public search HTML. If jobs.ac.uk changes its markup or blocks automated requests, the endpoint must fail explicitly rather than fabricate an empty result set. jobs.ac.uk also documents RSS feeds for job-search delivery, so RSS is a future fallback/upgrade path if needed.
 
 ## Application routes
 
