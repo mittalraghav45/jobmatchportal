@@ -30,6 +30,8 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 5. Deduplicate by canonical job identity/source URL before insertion.
 6. Large company populations may be processed in parallel bounded ranges, but each worker must remain checkpointed/resumable and rate-limited.
 7. Do not assume that a successful discovery request means the resulting job is live; verification remains a separate stage.
+8. jobs.ac.uk is a multi-employer job board, not an employer-specific ATS. Its search module is therefore a separate source-search path and must not invent or silently create canonical company records merely because a vacancy appears in the board search.
+9. jobs.ac.uk search results must retain their original source URL. If source HTML changes or automated access is blocked, fail explicitly or use the documented RSS path rather than fabricating results.
 
 ## Verification rules
 
@@ -43,9 +45,11 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 ## Frontend/API rules
 
 - `/api/jobs` is the canonical job-list API for the frontend.
+- `/api/jobs-ac-uk` is a separate source-search API for direct jobs.ac.uk searches.
 - Preserve server-side pagination, filtering and source-backed verification semantics.
 - Frontend development must work in Codespaces through the Vite `/api` proxy when no explicit API base URL is supplied.
 - The frontend may display verified-live jobs incrementally while discovery is still running; it must not present unverified jobs as verified.
+- Source-search results from jobs.ac.uk must be visibly distinguishable from the verified MongoDB job index and must retain their external source link.
 - API/network failures should produce a recoverable UI state rather than a page crash.
 
 ## Operational rules
