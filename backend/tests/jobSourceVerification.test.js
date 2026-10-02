@@ -15,7 +15,6 @@ test('marks a job live only when source page has job-specific and application ev
     finalUrl: job.source.url,
     body: '<h1>Software Engineer</h1><p>Responsibilities and requirements.</p><button>Apply now</button>'
   });
-
   assert.equal(result.status, 'live');
   assert.equal(result.evidenceType, 'page_text');
 });
@@ -27,7 +26,6 @@ test('marks a job closed from explicit source-page closure language', () => {
     finalUrl: job.source.url,
     body: '<h1>Software Engineer</h1><p>This job is no longer available.</p>'
   });
-
   assert.equal(result.status, 'closed');
   assert.equal(result.evidenceType, 'page_text');
 });
@@ -50,7 +48,6 @@ test('keeps a generic careers page unknown even when HTTP 200', () => {
     finalUrl: 'https://jobs.example.com/careers',
     body: '<h1>Careers</h1><p>Explore our opportunities and apply now.</p>'
   });
-
   assert.equal(result.status, 'unknown');
 });
 
@@ -61,7 +58,17 @@ test('uses a known closing date as authoritative closure evidence', () => {
     finalUrl: job.source.url,
     body: '<h1>Software Engineer</h1><button>Apply now</button>'
   });
-
   assert.equal(result.status, 'closed');
   assert.equal(result.evidenceType, 'closing_date');
+});
+
+test('does not mark a redirected generic board live when the original posting identity is lost', () => {
+  const result = classifySourceResponse({
+    job,
+    statusCode: 200,
+    finalUrl: 'https://jobs.example.com/jobs',
+    body: '<h1>Software Engineer</h1><p>Responsibilities and requirements.</p><button>Apply now</button>'
+  });
+  assert.equal(result.status, 'unknown');
+  assert.equal(result.evidenceType, 'redirected_source');
 });
