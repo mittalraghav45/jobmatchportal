@@ -68,6 +68,31 @@ Returns aggregate job statistics for the UK technology-job population, including
 
 Returns one UK technology job by fingerprint or external ID when it satisfies the route's market/role filters.
 
+## jobs.ac.uk search
+
+### `GET /api/jobs-ac-uk`
+
+Searches the public jobs.ac.uk vacancy search and returns source results without requiring the vacancy to already exist in the MongoDB company population.
+
+Supported query parameters:
+
+- `q` or `keywords` — free-text search terms.
+- `location` — jobs.ac.uk location search.
+- `page` — 1-based page number.
+- `pageSize` — requested page size, capped by the source module.
+
+At least one of `q`/`keywords` or `location` must be supplied.
+
+Example:
+
+```text
+GET /api/jobs-ac-uk?q=software%20engineer&location=Southampton&page=1&pageSize=25
+```
+
+The response includes the source search URL, source total when available, pagination inputs, and normalised source jobs containing the original jobs.ac.uk URL. This module is intentionally separate from the company ATS discovery pipeline because jobs.ac.uk is a multi-employer job board rather than an employer-specific ATS.
+
+The implementation currently reads the public search HTML. If jobs.ac.uk changes its markup or blocks automated requests, the endpoint must fail explicitly rather than fabricate an empty result set. jobs.ac.uk also documents RSS feeds for job-search delivery, so RSS is a future fallback/upgrade path if needed. citeturn2search24
+
 ## Application routes
 
 The application tracker is exposed through the application route module. When changing application routes, update this section with the exact method, path, parameters and response contract from the implementation and tests.
