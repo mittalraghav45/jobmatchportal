@@ -20,6 +20,9 @@ Source-backed job verification and automated discovery are being hardened. The r
 - Unknown-job diagnostic analysis.
 - Google career-search fallback URL generation.
 - Bounded Google careers/ATS crawler for second-stage discovery.
+- Google result redirect unwrapping so search-result URLs can become crawl targets.
+- Recursive, bounded careers → ATS/job-link crawl within a per-company page budget.
+- Newly discovered jobs remain `verification.status=unknown` and `status.isLive=false` until source verification runs.
 - Automated backend test workflow.
 - Scheduled/manual source-verification workflow.
 - Scheduled/manual controlled Google discovery workflow.
@@ -28,15 +31,18 @@ Source-backed job verification and automated discovery are being hardened. The r
 ## Known limitations
 
 - `unknown` jobs still require targeted provider-specific resolution.
-- Google discovery is a fallback and can produce no useful careers URL.
+- Google discovery is a fallback and can produce no useful careers URL or can be blocked/rate-limited.
 - Some ATS providers rate-limit or block automated requests.
 - Large crawls must remain bounded and rate-limited.
 - API documentation should be expanded whenever route contracts are materially changed.
+- The Google API is intentionally not configured yet; the current crawler uses existing Google search fallback URLs.
 
 ## Next priorities
 
-1. Run the bounded Google crawler pilot and inspect jobs discovered.
-2. Target the largest remaining unknown verification clusters.
-3. Run full CI and frontend build.
-4. Validate GitHub Actions against the real MongoDB secret.
-5. Continue incremental discovery/verification rather than rebuilding the dataset.
+1. Pull this branch into Codespaces and run the complete backend test suite.
+2. Run a small Google crawler pilot (10–25 companies), inspect discovered source quality and duplicates.
+3. Run verification on any newly inserted jobs before treating them as live.
+4. Scale the crawler in controlled batches if the pilot passes.
+5. Target the largest remaining unknown verification clusters.
+6. Run full CI and frontend build.
+7. Continue incremental discovery/verification rather than rebuilding the dataset.
