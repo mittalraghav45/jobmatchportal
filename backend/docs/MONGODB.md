@@ -5,7 +5,7 @@
 MongoDB is the persistent store for JobMatch Portal. The main collections are:
 
 - `companies` — sponsor/company configuration and verification metadata.
-- `jobs` — canonical discovered jobs with fingerprints, source data, lifecycle timestamps and classification.
+- `jobs` — canonical discovered jobs with fingerprints, source data, lifecycle timestamps, classification and source-verification state.
 - Application-related collections can be added later without changing the discovery pipeline.
 
 ## Environment
@@ -45,6 +45,30 @@ ATS adapters
 
 The fingerprint is the idempotency key. Re-running discovery must not create duplicate job documents.
 
+## Incremental processing
+
+Newly discovered jobs are written to MongoDB with source and verification data. The incremental worker can process them while the company-discovery terminals continue running:
+
+```bash
+cd backend
+node -r dotenv/config scripts/processJobQueue.js --batch-size=50 --concurrency=4 --poll-ms=10000
+```
+
+The worker atomically claims jobs so discovery and processing can run independently. It verifies source URLs using the existing source-verification service and records `processing.status` as `processing` or `complete`. Failed processing attempts remain retryable. Claims older than the stale threshold are recoverable after a worker interruption.
+
+Useful options:
+
+```text
+--batch-size=50      Jobs claimed per polling cycle
+--concurrency=4      Concurrent source checks
+--poll-ms=10000      Wait between empty queue polls
+--timeout-ms=12000   Source request timeout
+--stale-ms=600000    Recover claims older than 10 minutes
+--once               Process one batch and exit
+```
+
+The worker is deliberately separate from discovery so source verification cannot block the four company-discovery workers or make their MongoDB writes synchronous.
+
 ## Verification sequence
 
 1. `npm run db:check`
@@ -52,7 +76,8 @@ The fingerprint is the idempotency key. Re-running discovery must not create dup
 3. `npm run discover:companies`
 4. Check the `jobs` collection in Atlas.
 5. Run discovery again and verify the document count does not double.
-6. Start the API with `npm run dev` and check `/api/jobs/stats`.
+6. Start the incremental processor if discovery is running in parallel.
+7. Start the API with `npm run dev` and check `/api/jobs/stats`.
 
 ## Sponsor dataset
 
