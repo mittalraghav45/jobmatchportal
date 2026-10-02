@@ -26,6 +26,20 @@ async function fetchHtml(url) {
   return { html: String(response.data || ''), finalUrl: response.request?.res?.responseUrl || url, status: response.status };
 }
 
+async function fetchGoogleHtml(url) {
+  try {
+    return await fetchHtml(url);
+  } catch (error) {
+    // Some Google endpoints reject the legacy gbv parameter with HTTP 400.
+    // Retry the same query without it before classifying the search as failed.
+    if (error?.response?.status === 400 && /[?&]gbv=1(?:&|$)/.test(url)) {
+      const retryUrl = url.replace(/[&?]gbv=1(?=&|$)/, '').replace('?&', '?');
+      return fetchHtml(retryUrl);
+    }
+    throw error;
+  }
+}
+
 function companyHost(company) {
   try { return new URL(company.website || company.careersUrl).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
@@ -61,7 +75,7 @@ async function processCompany(company) {
 
   for (const searchUrl of searchUrls) {
     try {
-      const google = await fetchHtml(searchUrl);
+      const google = await fetchGoogleHtml(searchUrl);
       googleSearches += 1;
       const googlePageType = classifyGooglePage(google.html);
       googlePageTypes.push(googlePageType);
@@ -71,7 +85,8 @@ async function processCompany(company) {
       for (const target of chooseCrawlTargets(links, targetsPerPage)) addTarget(queue, seen, target, host);
       if (queue.length >= pagesPerCompany) break;
     } catch (error) {
-      googlePageTypes.push(`error:${error.code || 'request_error'}`);
+      const status = error?.response?.status;
+      googlePageTypes.push(`error:${error.code || 'request_error'}${status ? `:${status}` : ''}`);
     }
   }
 
