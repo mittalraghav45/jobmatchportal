@@ -28,3 +28,37 @@ test('updates existing jobs by fingerprint', () => {
   assert.equal(result.updated, 1);
   assert.equal(result.jobs[0].id, 'db-1');
 });
+
+test('extracts ATS metadata and canonical apply URL from nested source records', () => {
+  const result = ingestJobs([{
+    id: '47920ccd',
+    company_id: 'confluent',
+    title: 'Distributed Systems Software Engineer',
+    job_location: 'Remote, United States',
+    source: {
+      ats: 'ashby',
+      url: 'https://jobs.ashbyhq.com/confluent/47920ccd'
+    }
+  }]);
+
+  assert.equal(result.jobs.length, 1);
+  assert.equal(result.jobs[0].source.ats, 'ashby');
+  assert.equal(result.jobs[0].source.url, 'https://jobs.ashbyhq.com/confluent/47920ccd');
+  assert.equal(result.jobs[0].applyUrl, 'https://jobs.ashbyhq.com/confluent/47920ccd');
+});
+
+test('prefers an explicit apply URL over the source posting URL', () => {
+  const result = ingestJobs([{
+    id: '1',
+    company_id: 'acme',
+    title: 'Software Engineer',
+    source: {
+      ats: 'greenhouse',
+      url: 'https://boards.greenhouse.io/acme/jobs/1'
+    },
+    applyUrl: 'https://acme.com/apply/1'
+  }]);
+
+  assert.equal(result.jobs[0].source.ats, 'greenhouse');
+  assert.equal(result.jobs[0].applyUrl, 'https://acme.com/apply/1');
+});
