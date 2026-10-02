@@ -32,6 +32,7 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 7. Do not assume that a successful discovery request means the resulting job is live; verification remains a separate stage.
 8. jobs.ac.uk is a multi-employer job board, not an employer-specific ATS. Its search module is therefore a separate source-search path and must not invent or silently create canonical company records merely because a vacancy appears in the board search.
 9. jobs.ac.uk search results must retain their original source URL. If source HTML changes or automated access is blocked, fail explicitly or use the documented RSS path rather than fabricating results.
+10. jobs.ac.uk category searches should use the site's own `academicDisciplineFacet[]` and `subDisciplineFacet[]` parameters. Keyword and location are refinements, not substitutes for the source-side discipline taxonomy.
 
 ## Verification rules
 
@@ -46,6 +47,8 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 
 - `/api/jobs` is the canonical job-list API for the frontend.
 - `/api/jobs-ac-uk` is a separate source-search API for direct jobs.ac.uk searches.
+- `/api/jobs-ac-uk/filters` exposes the supported jobs.ac.uk discipline/subdiscipline taxonomy used by the UI.
+- jobs.ac.uk search requests support `discipline`, `subDiscipline`, `q`/`keywords`, `location`, `page` and `pageSize`; the backend translates the taxonomy into source-side facet parameters.
 - Preserve server-side pagination, filtering and source-backed verification semantics.
 - Frontend development must work in Codespaces through the Vite `/api` proxy when no explicit API base URL is supplied.
 - The frontend may display verified-live jobs incrementally while discovery is still running; it must not present unverified jobs as verified.
