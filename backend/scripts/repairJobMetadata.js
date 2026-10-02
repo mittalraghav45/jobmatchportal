@@ -21,25 +21,6 @@ function firstHttpUrl(...values) {
   return '';
 }
 
-function firstDate(...values) {
-  const queue = values.flat();
-  const seen = new Set();
-  const keys = ['postedAt', 'posted_date', 'posting_date', 'posted', 'datePosted', 'date_posted', 'datePublished', 'closingAt', 'closing_date', 'closing_date_time', 'closing', 'validThrough', 'valid_through', 'deadline', 'closingDate', 'dateClosing'];
-  while (queue.length) {
-    const value = queue.shift();
-    if (typeof value === 'string' || value instanceof Date) {
-      const text = String(value).trim();
-      if (text && !Number.isNaN(new Date(text).getTime())) return text;
-      continue;
-    }
-    if (!value || typeof value !== 'object' || seen.has(value)) continue;
-    seen.add(value);
-    for (const key of keys) if (value[key] !== undefined && value[key] !== null && value[key] !== '') queue.push(value[key]);
-    for (const child of Object.values(value)) if (child && typeof child === 'object') queue.push(child);
-  }
-  return null;
-}
-
 function pickDate(raw, kind) {
   const keys = kind === 'posted'
     ? ['postedAt', 'posted_date', 'posting_date', 'posted', 'datePosted', 'date_posted', 'datePublished']
@@ -101,7 +82,7 @@ async function main() {
 
   console.log('=== JOB METADATA REPAIR ===');
   console.table({ scanned, changed, sourceUrlsRecovered: sourceUrls, postedDatesRecovered: postedDates, closingDatesRecovered: closingDates, liveStatesRecovered: explicitLive, closedStatesRecovered: explicitClosed });
-  await Job.db.closeConnection();
+  await Job.db.close();
 }
 
 main().catch(error => {
