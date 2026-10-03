@@ -19,21 +19,29 @@ async function main() {
   const applyUrl = { applyUrl: { $type: 'string', $ne: '' } };
   const processing = { 'processing.status': { $in: ['complete', 'pending'] } };
   const frontendReady = and(ukTech, live, verified, applyUrl, processing);
+  const verifiedLive = and(ukTech, live, verified, applyUrl);
 
-  const counts = {
-    allJobs: await Job.countDocuments({}),
-    ukJobs: await Job.countDocuments(uk),
-    techJobs: await Job.countDocuments(tech),
-    ukTechJobs: await Job.countDocuments(ukTech),
-    ukTechLive: await Job.countDocuments(and(ukTech, live)),
-    ukTechLiveVerified: await Job.countDocuments(and(ukTech, live, verified)),
-    ukTechLiveVerifiedApplyUrl: await Job.countDocuments(and(ukTech, live, verified, applyUrl)),
-    frontendReady: await Job.countDocuments(frontendReady),
-    ukTechClosed: await Job.countDocuments(and(ukTech, { 'status.isLive': false })),
-    ukTechUnknownStatus: await Job.countDocuments(and(ukTech, { 'status.isLive': { $exists: false } }))
-  };
+  const [counts, processingBreakdown] = await Promise.all([
+    (async () => ({
+      allJobs: await Job.countDocuments({}),
+      ukJobs: await Job.countDocuments(uk),
+      techJobs: await Job.countDocuments(tech),
+      ukTechJobs: await Job.countDocuments(ukTech),
+      ukTechLive: await Job.countDocuments(and(ukTech, live)),
+      ukTechLiveVerified: await Job.countDocuments(and(ukTech, live, verified)),
+      ukTechLiveVerifiedApplyUrl: await Job.countDocuments(and(ukTech, live, verified, applyUrl)),
+      frontendReady: await Job.countDocuments(frontendReady),
+      ukTechClosed: await Job.countDocuments(and(ukTech, { 'status.isLive': false })),
+      ukTechUnknownStatus: await Job.countDocuments(and(ukTech, { 'status.isLive': { $exists: false } }))
+    }))(),
+    Job.aggregate([
+      { $match: verifiedLive },
+      { $group: { _id: { $ifNull: ['$processing.status', 'MISSING'] }, count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ])
+  ]);
 
-  console.log(JSON.stringify(counts, null, 2));
+  console.log(JSON.stringify({ counts, processingBreakdown }, null, 2));
   await mongoose.disconnect();
 }
 
