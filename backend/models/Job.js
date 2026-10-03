@@ -14,6 +14,7 @@ const JobSchema = new mongoose.Schema({
   classificationVersion: { type: String, default: 'v1' },
   employmentType: { type: String, default: '' },
   department: { type: String, default: '' },
+  applyUrl: { type: String, default: '' },
   source: {
     ats: { type: String, default: 'unknown', index: true },
     url: { type: String, default: '' }
@@ -27,6 +28,21 @@ const JobSchema = new mongoose.Schema({
   status: {
     isLive: { type: Boolean, default: true, index: true }
   },
+  verification: {
+    status: { type: String, enum: ['live', 'closed', 'unknown'], default: 'unknown', index: true },
+    checkedAt: { type: Date, default: null, index: true },
+    sourceUrl: { type: String, default: '' },
+    finalUrl: { type: String, default: '' },
+    httpStatus: { type: Number, default: null },
+    evidenceType: { type: String, default: '' },
+    evidence: { type: String, default: '' }
+  },
+  processing: {
+    status: { type: String, enum: ['pending', 'processing', 'complete', 'failed'], default: 'pending', index: true },
+    claimedAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
+    error: { type: String, default: '' }
+  },
   raw: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true, versionKey: false });
 
@@ -35,5 +51,7 @@ JobSchema.index({ companyName: 1, title: 1 });
 JobSchema.index({ 'source.ats': 1, externalId: 1 });
 JobSchema.index({ nation: 1, employerType: 1, 'status.isLive': 1 });
 JobSchema.index({ nation: 1, 'dates.lastSeenAt': -1 });
+JobSchema.index({ 'verification.status': 1, 'verification.checkedAt': -1 });
+JobSchema.index({ 'processing.status': 1, 'processing.claimedAt': 1 });
 
 export const Job = mongoose.models.Job || mongoose.model('Job', JobSchema);

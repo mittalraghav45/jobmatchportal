@@ -1,5 +1,13 @@
 import { normaliseJob, jobFingerprint } from '../models/jobSchema.js';
 
+function legacyFingerprint(job) {
+  const normalise = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return [job?.companyId, job?.externalId, job?.location]
+    .map(normalise)
+    .filter(Boolean)
+    .join('|');
+}
+
 /**
  * Convert raw ATS records into the canonical job model, remove duplicates and
  * preserve first-seen/last-seen timestamps when an existing job is supplied.
@@ -29,7 +37,10 @@ export function ingestJobs(rawJobs = [], { existing = new Map(), now = new Date(
       continue;
     }
 
-    const previous = existing.get(fingerprint);
+    // Support records/maps created before the externalId identity change. The
+    // canonical fingerprint remains company + externalId; the legacy lookup is
+    // only a compatibility bridge for existing in-memory data.
+    const previous = existing.get(fingerprint) || existing.get(legacyFingerprint(job));
     unique.set(fingerprint, {
       ...job,
       id: previous?.id || job.id || fingerprint,
@@ -50,7 +61,7 @@ export function ingestJobs(rawJobs = [], { existing = new Map(), now = new Date(
 
   for (const job of jobs) {
     const fingerprint = jobFingerprint(job);
-    if (existing.has(fingerprint)) updated += 1;
+    if (existing.has(fingerprint) || existing.has(legacyFingerprint(job))) updated += 1;
     else added += 1;
   }
 

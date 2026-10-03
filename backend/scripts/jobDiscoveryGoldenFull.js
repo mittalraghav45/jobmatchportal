@@ -11,6 +11,7 @@ dotenv.config();
 const DEFAULT_RUN_ID = process.env.GOLDEN_RUN_ID || 'golden-full-v1';
 const DEFAULT_DELAY_MS = Number(process.env.GOLDEN_DELAY_MS || 750);
 const DEFAULT_RESOLUTION_CONCURRENCY = Number(process.env.GOLDEN_RESOLUTION_CONCURRENCY || 5);
+const DEFAULT_DISCOVERY_CONCURRENCY = Number(process.env.GOLDEN_DISCOVERY_CONCURRENCY || 3);
 const DEFAULT_PROGRESS_EVERY = Number(process.env.GOLDEN_PROGRESS_EVERY || 100);
 const DEFAULT_BATCH_SIZE = Number(process.env.GOLDEN_BATCH_SIZE || 50);
 const CONTROLLED_TEST_IDS = new Set(['1', '3', '8', '11', '12']);
@@ -35,8 +36,9 @@ const START = Math.max(1, toInt(arg('start', '1'), 1));
 const END_ARG = toInt(arg('end', ''), 0);
 const DELAY_MS = toInt(arg('delay', DEFAULT_DELAY_MS), DEFAULT_DELAY_MS);
 const RESOLUTION_CONCURRENCY = Math.max(1, toInt(arg('resolution-concurrency', DEFAULT_RESOLUTION_CONCURRENCY), DEFAULT_RESOLUTION_CONCURRENCY));
+const DISCOVERY_CONCURRENCY = Math.max(1, toInt(arg('discovery-concurrency', DEFAULT_DISCOVERY_CONCURRENCY), DEFAULT_DISCOVERY_CONCURRENCY));
 const PROGRESS_EVERY = Math.max(1, toInt(arg('progress-every', DEFAULT_PROGRESS_EVERY), DEFAULT_PROGRESS_EVERY));
-const BATCH_SIZE = Math.max(RESOLUTION_CONCURRENCY, toInt(arg('batch-size', DEFAULT_BATCH_SIZE), DEFAULT_BATCH_SIZE));
+const BATCH_SIZE = Math.max(RESOLUTION_CONCURRENCY, DISCOVERY_CONCURRENCY, toInt(arg('batch-size', DEFAULT_BATCH_SIZE), DEFAULT_BATCH_SIZE));
 const INCLUDE_CONTROLLED = arg('include-controlled', 'false') === 'true';
 const RETRY_COMPLETED = arg('retry-completed', 'false') === 'true';
 
@@ -215,18 +217,73 @@ async function processCompany(company, source) {
   };
 }
 
+async function processResolvedBatch(resolved, { completed, stats, setCurrentCompany }) {
+  const pending = resolved.filter(item => !completed.has(String(item.company.companyId)));
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < pending.length) {
+      const index = cursor;
+      cursor += 1;
+      const item = pending[index];
+      const companyId = String(item.company.companyId);
+
+      await setCurrentCompany(companyId, item.company.companyName || null);
+
+      if (item.source.status === 'resolved') stats.resolved += 1;
+      else stats.unresolved += 1;
+
+      try {
+        const result = await processCompany(item.company, item.source);
+        if (result.status === 'completed') stats.successful += 1;
+        if (result.status === 'failed') stats.failed += 1;
+        if (result.status === 'invalid') stats.invalid += 1;
+        stats.jobsDiscovered += result.jobs;
+        stats.jobsAdded += result.added;
+        stats.jobsUpdated += result.updated;
+        stats.duplicatesRemoved += result.duplicatesRemoved;
+        stats.rejected += result.rejected;
+      } catch (error) {
+        stats.failed += 1;
+        await saveCheckpoint({
+          companyId,
+          companyName: item.company.companyName,
+          status: 'failed',
+          sourceStatus: item.source.status,
+          source: item.source.source,
+          careersUrl: item.source.careersUrl || null,
+          ats: item.source.ats || null,
+          atsSlug: item.source.atsSlug || null,
+          error: error.message
+        });
+      }
+
+      await setCurrentCompany(companyId, item.company.companyName || null);
+
+      if (stats.scanned % PROGRESS_EVERY === 0 || stats.jobsAdded > 0 && (stats.jobsAdded % PROGRESS_EVERY === 0)) {
+        console.log(`[progress] scanned=${stats.scanned} skipped=${stats.skippedCheckpoint} resolved=${stats.resolved} unresolved=${stats.unresolved} successful=${stats.successful} failed=${stats.failed} jobsAdded=${stats.jobsAdded} jobsUpdated=${stats.jobsUpdated}`);
+      }
+
+      if (DELAY_MS) await sleep(DELAY_MS);
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(DISCOVERY_CONCURRENCY, pending.length) }, worker));
+}
+
 async function main() {
   console.log('=== Golden Sponsor Job Discovery: FULL DATASET ===');
   console.log(`Run ID: ${RUN_ID}`);
   console.log('Mode: checkpointed/resumable');
   console.log(`Resolution concurrency: ${RESOLUTION_CONCURRENCY}`);
-  console.log(`Delay between job-source discoveries: ${DELAY_MS}ms`);
+  console.log(`Discovery concurrency: ${DISCOVERY_CONCURRENCY}`);
+  console.log(`Delay after each discovery: ${DELAY_MS}ms per worker`);
   console.log(`Company range: ${START}-${END_ARG || 'end'}`);
   if (LIMIT) console.log(`TEST LIMIT: ${LIMIT} companies`);
 
   await connectMongo();
   console.log(`MongoDB connected: ${mongoose.connection.name}`);
-  await updateRunStatus({ status: 'running', phase: 'loading', start: START, end: END_ARG || null, batchSize: BATCH_SIZE, resolutionConcurrency: RESOLUTION_CONCURRENCY, limit: LIMIT || null, currentBatchStart: null, currentBatchEnd: null, currentBatchCount: 0, currentCompanyId: null, currentCompanyName: null });
+  await updateRunStatus({ status: 'running', phase: 'loading', start: START, end: END_ARG || null, batchSize: BATCH_SIZE, resolutionConcurrency: RESOLUTION_CONCURRENCY, discoveryConcurrency: DISCOVERY_CONCURRENCY, limit: LIMIT || null, currentBatchStart: null, currentBatchEnd: null, currentBatchCount: 0, currentCompanyId: null, currentCompanyName: null });
 
   const completed = await loadCompleted(RUN_ID);
   console.log(`Existing checkpoints for this run: ${completed.size}`);
@@ -259,65 +316,26 @@ async function main() {
 
     const batchStart = offset + 1;
     const batchEnd = offset + companies.length;
-    await updateRunStatus({ phase: 'resolving', currentBatchStart: batchStart, currentBatchEnd: batchEnd, currentBatchCount: companies.length, currentCompanyId: null, currentCompanyName: null, heartbeatAt: new Date() });
+    stats.scanned += companies.length;
+    rangeScanned += companies.length;
+
+    await updateRunStatus({ phase: 'resolving', currentBatchStart: batchStart, currentBatchEnd: batchEnd, currentBatchCount: companies.length, currentCompanyId: null, currentCompanyName: null, heartbeatAt: new Date(), processedInRun: rangeScanned });
     const resolved = await resolveBatch(companies);
 
-    await updateRunStatus({ phase: 'discovering', currentBatchStart: batchStart, currentBatchEnd: batchEnd, currentBatchCount: companies.length, currentCompanyId: null, currentCompanyName: null, heartbeatAt: new Date() });
+    const skippedInBatch = resolved.filter(item => completed.has(String(item.company.companyId))).length;
+    stats.skippedCheckpoint += skippedInBatch;
 
-    for (const item of resolved) {
-      if (stop) break;
-      const companyId = String(item.company.companyId);
-      stats.scanned += 1;
-      rangeScanned += 1;
+    await updateRunStatus({ phase: 'discovering', currentBatchStart: batchStart, currentBatchEnd: batchEnd, currentBatchCount: companies.length, currentCompanyId: null, currentCompanyName: null, heartbeatAt: new Date(), processedInRun: rangeScanned });
 
-      if (completed.has(companyId)) {
-        stats.skippedCheckpoint += 1;
-        await updateRunStatus({ currentCompanyId: companyId, currentCompanyName: item.company.companyName || null, heartbeatAt: new Date() });
-        continue;
-      }
+    await processResolvedBatch(resolved, {
+      completed,
+      stats,
+      setCurrentCompany: (companyId, companyName) => updateRunStatus({ currentCompanyId: companyId, currentCompanyName: companyName, heartbeatAt: new Date(), processedInRun: rangeScanned })
+    });
 
-      await updateRunStatus({ currentCompanyId: companyId, currentCompanyName: item.company.companyName || null, heartbeatAt: new Date() });
-
-      if (item.source.status === 'resolved') stats.resolved += 1;
-      else stats.unresolved += 1;
-
-      try {
-        const result = await processCompany(item.company, item.source);
-        if (result.status === 'completed') stats.successful += 1;
-        if (result.status === 'failed') stats.failed += 1;
-        if (result.status === 'invalid') stats.invalid += 1;
-        stats.jobsDiscovered += result.jobs;
-        stats.jobsAdded += result.added;
-        stats.jobsUpdated += result.updated;
-        stats.duplicatesRemoved += result.duplicatesRemoved;
-        stats.rejected += result.rejected;
-      } catch (error) {
-        stats.failed += 1;
-        await saveCheckpoint({
-          companyId,
-          companyName: item.company.companyName,
-          status: 'failed',
-          sourceStatus: item.source.status,
-          source: item.source.source,
-          careersUrl: item.source.careersUrl || null,
-          ats: item.source.ats || null,
-          atsSlug: item.source.atsSlug || null,
-          error: error.message
-        });
-      }
-
-      await updateRunStatus({ currentCompanyId: companyId, currentCompanyName: item.company.companyName || null, heartbeatAt: new Date(), processedInRun: rangeScanned });
-
-      if (stats.scanned % PROGRESS_EVERY === 0) {
-        console.log(`[progress] scanned=${stats.scanned} rangeScanned=${rangeScanned} resolved=${stats.resolved} unresolved=${stats.unresolved} successful=${stats.successful} failed=${stats.failed} jobsAdded=${stats.jobsAdded} jobsUpdated=${stats.jobsUpdated}`);
-      }
-
-      if (DELAY_MS) await sleep(DELAY_MS);
-
-      if (LIMIT && rangeScanned >= LIMIT) {
-        stop = true;
-        break;
-      }
+    if (LIMIT && rangeScanned >= LIMIT) {
+      stop = true;
+      break;
     }
 
     offset += companies.length;

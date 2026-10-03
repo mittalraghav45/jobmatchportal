@@ -28,6 +28,47 @@ MongoDB repositories (optional/local integration)
 - Separate NHS / DWP / Civil Service / university / council optimisation rules.
 - Local application tracker with status progression.
 - MongoDB models and repositories for persistent company/job data.
+- Source-backed job verification with canonical URL identity and duplicate auditing.
+
+## Job identity and verification
+
+Jobs are persisted using `fingerprint` as the MongoDB idempotency key. Identity is resolved in this order:
+
+1. Canonical source/application URL.
+2. `companyId + externalId` when no canonical URL exists.
+3. `companyId + title + location` as the final fallback.
+
+URL identity is independent of company ID. Two discovery records with the same canonical job URL are treated as one job even if legacy company or external identifiers differ.
+
+Repository ingestion persists both `applyUrl` and `source.url`. Google career fallback discovery does the same, so subsequent verification and deduplication use the same source identity.
+
+Existing live URL duplicates can be audited and repaired with:
+
+```bash
+cd backend
+node -r dotenv/config scripts/repairLiveUrlDuplicates.js
+```
+
+The command defaults to a dry run. By default, groups that contain different `companyId` values are reported but not deleted because choosing a company identity is a separate data-resolution decision. Safe same-company duplicate groups can be applied with:
+
+```bash
+node -r dotenv/config scripts/repairLiveUrlDuplicates.js --apply
+```
+
+If company-conflict groups have subsequently been reviewed and a deliberate destructive merge is required, use the explicit override:
+
+```bash
+node -r dotenv/config scripts/repairLiveUrlDuplicates.js --apply --resolve-company-conflicts
+```
+
+When duplicates are deleted, application records referencing a deleted job ID are first repointed to the surviving job document.
+
+The verification population invariant remains:
+
+```text
+total = live + closed + unknown
+unverified = 0
+```
 
 ## Repository layout
 
@@ -45,11 +86,6 @@ backend/
   models/                         MongoDB models
   repositories/                  MongoDB persistence
   tests/                          Node test suite
-
-frontend/
-  src/App.jsx                    React sponsor explorer/tracker
-  src/sponsorsOld.json           small demo dataset
-  .env.example                   frontend API configuration
 
 docs/
   ARCHITECTURE.md                architecture notes
@@ -135,6 +171,7 @@ Frontend production build:
 
 ```bash
 cd frontend
+npm install
 npm run build
 ```
 

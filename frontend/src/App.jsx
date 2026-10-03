@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const browserHost = typeof window !== 'undefined' ? window.location.hostname : '';
+const isLocalBrowser = browserHost === 'localhost' || browserHost === '127.0.0.1' || browserHost === '::1';
+// Prefer same-origin /api in hosted environments (including Codespaces). A
+// localhost API override is only used when the browser itself is local.
+const API_BASE_URL = configuredApiBaseUrl && (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredApiBaseUrl) || isLocalBrowser)
+  ? configuredApiBaseUrl
+  : '';
 
 // Keep these lists small and editable. Classification is based on the supplied
 // company data; it is not a sponsorship or eligibility determination.
