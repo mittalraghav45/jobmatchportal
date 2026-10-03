@@ -45,6 +45,9 @@ export function isTechJobTitle(title = '', department = '') {
 
 export function techJobMongoFilter() {
   return {
-    $or: TECH_ROLE_PATTERNS.map(pattern => ({ title: { $regex: pattern.source, $options: 'i' } }))
+    $and: [
+      { $or: TECH_ROLE_PATTERNS.map(pattern => ({ title: { $regex: pattern.source, $options: 'i' } })) },
+      { $nor: NON_TECH_ROLE_PATTERNS.map(pattern => ({ title: { $regex: pattern.source, $options: 'i' } })) }
+    ]
   };
 }
