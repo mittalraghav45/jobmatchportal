@@ -9,10 +9,25 @@ if (!MONGO_URI) throw new Error('Missing MONGODB_URI/MONGO_URI');
 const APPLY = process.argv.includes('--apply');
 const ORPHANS = ['deliveroo', 'monzo', 'wise'];
 
-const ALIASES = {
-  deliveroo: ['deliveroo'],
-  monzo: ['monzo'],
-  wise: ['wise']
+// These are legal/company identities, not fuzzy aliases. The company-number
+// check is the primary identity signal because the same legal company may have
+// several duplicated company documents in the dataset.
+const IDENTITY = {
+  deliveroo: {
+    companyNumbers: ['08167130'],
+    exactNames: ['roofoods ltd t/a deliveroo', 'deliveroo'],
+    sourceHosts: ['job-boards.greenhouse.io']
+  },
+  monzo: {
+    companyNumbers: ['09446231'],
+    exactNames: ['monzo bank limited', 'monzo'],
+    sourceHosts: ['job-boards.greenhouse.io']
+  },
+  wise: {
+    companyNumbers: ['07209813'],
+    exactNames: ['wise payments limited', 'wise'],
+    sourceHosts: ['wise.jobs']
+  }
 };
 
 function norm(value = '') {
@@ -31,72 +46,50 @@ function hostOf(value = '') {
   }
 }
 
-function domainMatches(host, value) {
-  const candidate = hostOf(value);
-  return Boolean(
-    host &&
-      candidate &&
-      (candidate === host || candidate.endsWith(`.${host}`) || host.endsWith(`.${candidate}`))
-  );
+function companyIdNumber(value = '') {
+  const n = Number.parseInt(String(value), 10);
+  return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
 }
 
-function nameMatchScore(companyName, orphan) {
-  const name = norm(companyName);
+function rankCompany(company, identity) {
+  const number = String(company.companyNumber || '').replace(/\s+/g, '');
+  const name = norm(company.companyName);
   let score = 0;
+  const evidence = [];
 
-  for (const alias of ALIASES[orphan]) {
-    const a = norm(alias);
-    if (!a) continue;
-    if (name === a) score = Math.max(score, 100);
-    else if (name.startsWith(`${a} `)) score = Math.max(score, 80);
-    else if (name.includes(` ${a} `) || name.endsWith(` ${a}`)) score = Math.max(score, 50);
+  if (identity.companyNumbers.includes(number)) {
+    score += 1000;
+    evidence.push('companyNumber');
   }
 
-  return score;
-}
+  if (identity.exactNames.some(x => norm(x) === name)) {
+    score += 500;
+    evidence.push('exactCompanyName');
+  }
 
-function hostMatchScore(company, hosts) {
-  let score = 0;
-  const matchedHosts = [];
-
-  for (const host of hosts) {
-    if (domainMatches(host, company.careersUrl)) {
-      score = Math.max(score, 90);
-      matchedHosts.push({ host, field: 'careersUrl' });
+  const careersHost = hostOf(company.careersUrl);
+  const websiteHost = hostOf(company.website);
+  for (const host of identity.sourceHosts) {
+    if (careersHost === host || careersHost.endsWith(`.${host}`)) {
+      score += 200;
+      evidence.push(`careersHost:${host}`);
     }
-    if (domainMatches(host, company.website)) {
-      score = Math.max(score, 70);
-      matchedHosts.push({ host, field: 'website' });
+    if (websiteHost === host || websiteHost.endsWith(`.${host}`)) {
+      score += 150;
+      evidence.push(`websiteHost:${host}`);
     }
   }
 
-  return { score, matchedHosts };
-}
-
-function scoreCompany(company, orphan, hosts) {
-  const nameScore = nameMatchScore(company.companyName, orphan);
-  const hostEvidence = hostMatchScore(company, hosts);
-
-  // Do not score every enabled company. An enabled flag is not identity evidence.
-  if (nameScore === 0 && hostEvidence.score === 0) return null;
-
-  // Strong identity = matching company name + matching source/careers domain.
-  // Domain-only matches are allowed, but name-only matches are deliberately weaker.
-  const combined = nameScore + hostEvidence.score;
-
-  return {
-    company,
-    score: combined,
-    nameScore,
-    hostScore: hostEvidence.score,
-    matchedHosts: hostEvidence.matchedHosts
-  };
+  return { company, score, evidence };
 }
 
 await mongoose.connect(MONGO_URI);
 
 try {
-  const allCompanies = await Company.find({ enabled: true })
+  // Include disabled records for diagnosis. We only allow an APPLY mapping to
+  // an enabled canonical company. This prevents an orphan from disappearing
+  // into a disabled duplicate.
+  const allCompanies = await Company.find({})
     .select('companyId companyName companyNumber website careersUrl ats enabled')
     .lean();
 
@@ -113,43 +106,38 @@ try {
 
     if (!jobs.length) continue;
 
-    const hosts = [
-      ...new Set(
-        jobs
-          .flatMap(job => [hostOf(job.sourceUrl), hostOf(job.applyUrl)])
-          .filter(Boolean)
-      )
-    ];
-
+    const identity = IDENTITY[orphanId];
     const ranked = allCompanies
-      .map(company => scoreCompany(company, orphanId, hosts))
-      .filter(Boolean)
-      .sort((a, b) => b.score - a.score);
+      .map(company => rankCompany(company, identity))
+      .filter(x => x.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        // Duplicate company documents with the same legal identity are resolved
+        // deterministically to the lowest numeric companyId.
+        return companyIdNumber(a.company.companyId) - companyIdNumber(b.company.companyId);
+      });
 
-    const best = ranked[0];
-    const secondScore = ranked[1]?.score ?? 0;
-
-    // Require actual identity evidence. A name-only fuzzy match is never enough
-    // when a competing canonical company exists.
-    const uniqueStrongMatch = Boolean(
+    const enabled = ranked.filter(x => x.company.enabled);
+    const best = enabled[0];
+    const tiedBest = enabled.filter(x => x.score === best?.score);
+    const exactLegalMatch = Boolean(
       best &&
-        best.score >= 100 &&
-        best.score >= secondScore + 20 &&
-        (best.nameScore >= 50 || best.hostScore >= 70)
+      identity.companyNumbers.includes(String(best.company.companyNumber || '').replace(/\s+/g, '')) &&
+      best.company.enabled
     );
 
-    if (!uniqueStrongMatch) {
+    if (!exactLegalMatch || tiedBest.length === 0) {
       errors.push({
         orphanId,
         liveJobCount: jobs.length,
-        hosts,
+        expectedCompanyNumbers: identity.companyNumbers,
+        expectedNames: identity.exactNames,
+        expectedSourceHosts: identity.sourceHosts,
         candidateCount: ranked.length,
-        topScore: best?.score ?? 0,
+        enabledCandidateCount: enabled.length,
         candidates: ranked.slice(0, 10).map(x => ({
           score: x.score,
-          nameScore: x.nameScore,
-          hostScore: x.hostScore,
-          matchedHosts: x.matchedHosts,
+          evidence: x.evidence,
           ...x.company
         }))
       });
@@ -160,11 +148,9 @@ try {
       orphanId,
       canonicalCompany: best.company,
       score: best.score,
-      nameScore: best.nameScore,
-      hostScore: best.hostScore,
-      matchedHosts: best.matchedHosts,
+      evidence: best.evidence,
       liveJobCount: jobs.length,
-      hosts
+      duplicateCanonicalCount: tiedBest.length
     });
   }
 
@@ -176,6 +162,8 @@ try {
     updated: 0
   };
 
+  // Never partially apply a repair. Every orphan must have a deterministic
+  // canonical identity before any write occurs.
   if (errors.length) {
     console.log(JSON.stringify(summary, null, 2));
     process.exitCode = 2;
