@@ -17,11 +17,19 @@ async function main() {
   const live = { 'status.isLive': true };
   const verified = { 'verification.status': 'live' };
   const applyUrl = { applyUrl: { $type: 'string', $ne: '' } };
-  const processing = { 'processing.status': { $in: ['complete', 'pending'] } };
-  const frontendReady = and(ukTech, live, verified, applyUrl, processing);
-  const verifiedLive = and(ukTech, live, verified, applyUrl);
+  const processingAllowed = { 'processing.status': { $in: ['complete', 'pending'] } };
+  const processingMissing = {
+    $or: [
+      { 'processing.status': { $exists: false } },
+      { 'processing.status': null },
+      { 'processing.status': '' }
+    ]
+  };
 
-  const [counts, processingBreakdown] = await Promise.all([
+  const verifiedLive = and(ukTech, live, verified, applyUrl);
+  const frontendReady = and(verifiedLive, processingAllowed);
+
+  const [counts, processingBreakdown, missingExamples] = await Promise.all([
     (async () => ({
       allJobs: await Job.countDocuments({}),
       ukJobs: await Job.countDocuments(uk),
@@ -29,19 +37,35 @@ async function main() {
       ukTechJobs: await Job.countDocuments(ukTech),
       ukTechLive: await Job.countDocuments(and(ukTech, live)),
       ukTechLiveVerified: await Job.countDocuments(and(ukTech, live, verified)),
-      ukTechLiveVerifiedApplyUrl: await Job.countDocuments(and(ukTech, live, verified, applyUrl)),
-      frontendReady: await Job.countDocuments(frontendReady),
-      ukTechClosed: await Job.countDocuments(and(ukTech, { 'status.isLive': false })),
-      ukTechUnknownStatus: await Job.countDocuments(and(ukTech, { 'status.isLive': { $exists: false } }))
+      ukTechLiveVerifiedApplyUrl: await Job.countDocuments(verifiedLive),
+      frontendReady: await Job.countDocuments(frontendReady)
     }))(),
     Job.aggregate([
       { $match: verifiedLive },
-      { $group: { _id: { $ifNull: ['$processing.status', 'MISSING'] }, count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: { $ifNull: ['$processing.status', 'MISSING'] },
+          count: { $sum: 1 }
+        }
+      },
       { $sort: { count: -1 } }
-    ])
+    ]),
+    Job.find(and(verifiedLive, processingMissing))
+      .select('_id title companyId companyName applyUrl verification.checkedAt status')
+      .sort({ _id: 1 })
+      .limit(25)
+      .lean()
   ]);
 
-  console.log(JSON.stringify({ counts, processingBreakdown }, null, 2));
+  console.log(JSON.stringify({
+    counts,
+    processingBreakdown,
+    missingProcessingCount: processingBreakdown
+      .filter(row => ['MISSING', null, ''].includes(row._id))
+      .reduce((sum, row) => sum + row.count, 0),
+    missingProcessingExamples: missingExamples
+  }, null, 2));
+
   await mongoose.disconnect();
 }
 
