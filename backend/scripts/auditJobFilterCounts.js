@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
-import Job from '../models/Job.js';
+import { Job } from '../models/Job.js';
 import { ukJobMongoFilter } from '../utils/ukJobLocation.js';
 import { techJobMongoFilter } from '../utils/techJobRole.js';
 
