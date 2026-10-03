@@ -42,12 +42,16 @@ if (!available) {
   });
 
   test('keyword search filters returned jobs', async () => {
-    const { response, body } = await get('/api/jobs?limit=10&q=software');
+    // Use a keyword that is actually present in the current UK technology dataset.
+    // The API search is intentionally broader than title-only: it searches title,
+    // description, location, department, companyId and companyName.
+    const keyword = 'engineer';
+    const { response, body } = await get(`/api/jobs?limit=10&q=${keyword}`);
     assert.equal(response.status, 200);
     assert.ok(Array.isArray(body.jobs));
     for (const job of body.jobs) {
-      const haystack = `${job.title || ''} ${job.companyName || ''} ${job.location || ''}`.toLowerCase();
-      assert.match(haystack, /software/);
+      const haystack = `${job.title || ''} ${job.description || ''} ${job.location || ''} ${job.department || ''} ${job.companyId || ''} ${job.companyName || ''}`.toLowerCase();
+      assert.match(haystack, new RegExp(keyword, 'i'));
     }
   });
 
