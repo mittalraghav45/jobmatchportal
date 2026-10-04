@@ -18,6 +18,18 @@ const LIMIT = Math.max(1, Number(arg('limit', process.env.SERPER_COMPANY_LIMIT |
 const PER_QUERY = Math.max(1, Math.min(10, Number(arg('per-query', process.env.SERPER_RESULTS_PER_QUERY || 10)) || 10));
 const START = Math.max(0, Number(arg('skip', 0)) || 0);
 const DELAY_MS = Math.max(0, Number(arg('delay', process.env.SERPER_DELAY_MS || 250)) || 250);
+const ATS_SITES = {
+  greenhouse: 'boards.greenhouse.io',
+  lever: 'jobs.lever.co',
+  ashby: 'jobs.ashbyhq.com',
+  workday: 'myworkdayjobs.com',
+  workable: 'apply.workable.com',
+  jobvite: 'jobs.jobvite.com',
+  smartrecruiters: 'careers.smartrecruiters.com',
+  recruitee: 'recruitee.com',
+  personio: 'personio.com',
+  bamboohr: 'bamboohr.com'
+};
 
 if (!process.env.SERPER_API_KEY) {
   throw new Error('SERPER_API_KEY is required');
@@ -53,6 +65,8 @@ for (const company of companies) {
     const discovery = await discoverCompanyJobsWithSerper({
       companyId: company.companyId,
       companyName: company.companyName,
+      careersUrl: company.careersUrl || '',
+      sites: ATS_SITES[company.ats] ? [ATS_SITES[company.ats]] : [],
       perQuery: PER_QUERY
     });
 
