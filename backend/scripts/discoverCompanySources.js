@@ -63,22 +63,49 @@ async function verifyCandidate(candidate, company) {
   }
 }
 
+function sourceReady(company) {
+  return Boolean(
+    company.website ||
+    company.careersUrl ||
+    company.metadata?.website ||
+    company.metadata?.careersUrl
+  );
+}
+
 async function main() {
   const limit = Math.max(1, Number(argValue('limit', 10)) || 10);
   const perQuery = Math.max(1, Number(argValue('per-query', 10)) || 10);
   const maxQueries = Math.max(1, Number(argValue('max-queries', 3)) || 3);
   const minScore = Math.max(0, Number(argValue('min-score', 50)) || 50);
   const verify = hasFlag('verify');
+  const retryAfterHours = Math.max(0, Number(argValue('retry-after-hours', 24)) || 24);
+  const retryCutoff = new Date(Date.now() - retryAfterHours * 60 * 60 * 1000);
 
   await connectMongo();
   const registry = await loadRegistry();
   const registeredIds = new Set((registry.sources || []).map(source => String(source.companyId)));
-  const companyFilter = { enabled: true, companyName: { $exists: true, $nin: ['', null] } };
 
-  // Fetch a bounded source-ready pool first. This avoids spending Serper budget
-  // on companies for which we have no domain signal at all. If the source-ready
-  // pool is smaller than the requested limit, fill the remainder from the full
-  // enabled population so discovery can still bootstrap new domains.
+  // MongoDB metadata is the durable discovery state; the JSON registry remains
+  // the export consumed by the job-ingestion pipeline. This means a source does
+  // not have to be re-discovered just because the generated registry has not
+  // yet been committed to Git.
+  const registeredMetadata = await Company.find({
+    'metadata.sourceDiscovery.status': 'verified'
+  }).select({ companyId: 1 }).lean();
+  for (const company of registeredMetadata) registeredIds.add(String(company.companyId));
+
+  const companyFilter = {
+    enabled: true,
+    companyName: { $exists: true, $nin: ['', null] },
+    $or: [
+      { 'metadata.sourceDiscovery.status': { $exists: false } },
+      { 'metadata.sourceDiscovery.status': { $ne: 'verified' } },
+      { 'metadata.sourceDiscovery.lastAttemptedAt': { $lte: retryCutoff } }
+    ]
+  };
+
+  // Fetch a bounded source-ready pool first. We deliberately over-fetch because
+  // registered/verified companies are removed after loading the pool.
   const sourceReadyCompanies = await Company.find({
     ...companyFilter,
     $or: [
@@ -88,13 +115,13 @@ async function main() {
       { 'metadata.careersUrl': { $nin: ['', null] } }
     ]
   })
-    .sort({ priority: -1, companyId: 1 })
-    .limit(limit * 2)
+    .sort({ priority: -1, 'metadata.sourceDiscovery.lastAttemptedAt': 1, companyId: 1 })
+    .limit(limit * 5)
     .lean();
 
   const fallbackCompanies = await Company.find(companyFilter)
-    .sort({ priority: -1, companyId: 1 })
-    .limit(limit * 2)
+    .sort({ priority: -1, 'metadata.sourceDiscovery.lastAttemptedAt': 1, companyId: 1 })
+    .limit(limit * 5)
     .lean();
 
   const companies = prioritizeSourceReadyCompanies(
@@ -110,7 +137,7 @@ async function main() {
     skippedRegistered: 0,
     failed: 0,
     queries: 0,
-    sourceReadySelected: companies.filter(company => Boolean(company.website || company.careersUrl || company.metadata?.website || company.metadata?.careersUrl)).length,
+    sourceReadySelected: companies.filter(sourceReady).length,
     rejectionCounts: {}
   };
 
@@ -121,6 +148,7 @@ async function main() {
     }
 
     summary.attempted += 1;
+    const attemptedAt = new Date();
     try {
       const result = await discoverCompanySourceCandidates({ company, perQuery, maxQueries });
       summary.queries += result.queries.length;
@@ -131,11 +159,30 @@ async function main() {
       const best = selectBestSource(candidates);
       if (!best) {
         summary.rejectionCounts.noCandidate = (summary.rejectionCounts.noCandidate || 0) + 1;
+        await Company.updateOne({ companyId: String(company.companyId) }, {
+          $set: {
+            'metadata.sourceDiscovery': {
+              status: 'no-candidate',
+              lastAttemptedAt: attemptedAt.toISOString(),
+              queries: result.queries.length
+            }
+          }
+        });
         console.log(JSON.stringify({ company: company.companyName, companyId: company.companyId, status: 'no-candidate', queries: result.queries }));
         continue;
       }
 
       const resolved = verify ? await verifyCandidate(best, company) : { ...best, status: 'candidate' };
+      const discoveryMetadata = {
+        status: resolved.status,
+        lastAttemptedAt: attemptedAt.toISOString(),
+        sourceUrl: resolved.sourceUrl,
+        ats: resolved.ats || null,
+        score: resolved.score,
+        evidence: resolved.evidence || null,
+        verification: resolved.verification || null
+      };
+
       if (resolved.status === 'verified') {
         mergeSource(registry, {
           companyId: String(company.companyId),
@@ -148,7 +195,15 @@ async function main() {
         });
         summary.verified += 1;
         await Company.updateOne({ companyId: String(company.companyId) }, {
-          $set: { careersUrl: resolved.sourceUrl, ats: resolved.ats, 'metadata.sourceDiscovery': { status: 'verified', sourceUrl: resolved.sourceUrl, ats: resolved.ats } }
+          $set: {
+            careersUrl: resolved.sourceUrl,
+            ats: resolved.ats,
+            'metadata.sourceDiscovery': discoveryMetadata
+          }
+        });
+      } else {
+        await Company.updateOne({ companyId: String(company.companyId) }, {
+          $set: { 'metadata.sourceDiscovery': discoveryMetadata }
         });
       }
 
@@ -163,16 +218,31 @@ async function main() {
       }));
     } catch (error) {
       summary.failed += 1;
+      await Company.updateOne({ companyId: String(company.companyId) }, {
+        $set: {
+          'metadata.sourceDiscovery': {
+            status: 'error',
+            lastAttemptedAt: attemptedAt.toISOString(),
+            error: error.message
+          }
+        }
+      });
       console.log(JSON.stringify({ company: company.companyName, companyId: company.companyId, status: 'error', error: error.message }));
     }
   }
 
   if (verify && summary.verified > 0) {
+    registry.sources = (registry.sources || []).filter(source => source.status === 'verified');
     await fs.writeFile(registryPath, `${JSON.stringify(registry, null, 2)}\n`, 'utf8');
   }
 
   console.log('=== COMPANY SOURCE DISCOVERY SUMMARY ===');
-  console.log(JSON.stringify({ ...summary, registrySources: registry.sources?.length || 0, verificationEnabled: verify }, null, 2));
+  console.log(JSON.stringify({
+    ...summary,
+    registrySources: registry.sources?.length || 0,
+    verificationEnabled: verify,
+    retryAfterHours
+  }, null, 2));
 }
 
 try {
