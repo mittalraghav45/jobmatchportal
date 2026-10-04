@@ -14,10 +14,17 @@ function sponsorshipFit(job, profile) {
   return { score: 0.25, reason: 'sponsorship_not_confirmed' };
 }
 
+function containsExcludedTerm(text, value) {
+  const term = normalise(value);
+  if (!term) return false;
+  if (term.includes(' ')) return (` ${text} `).includes(` ${term} `);
+  return text.split(/\s+/).includes(term);
+}
+
 function exclusions(job, profile) {
   const text = textFor(job);
   const excluded = [...(profile?.excludedSkills ?? []), ...(profile?.preferences?.excludedSkills ?? []), ...(profile?.excludedKeywords ?? []), ...(profile?.preferences?.excludedKeywords ?? [])].filter(Boolean);
-  return excluded.find((value) => text.includes(normalise(value))) ?? null;
+  return excluded.find((value) => containsExcludedTerm(text, value)) ?? null;
 }
 
 function experienceFit(job, profile) {
