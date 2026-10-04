@@ -7,6 +7,7 @@ import { evaluateSponsorship } from '../sponsorRegistry.js';
 import { getRecommendation } from '../cvJobMatcher.js';
 import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
 import { calculateApplicationPriority } from '../utils/applicationPriority.js';
+import { calculateApplicationReadiness } from '../utils/applicationReadiness.js';
 
 const router = express.Router();
 
@@ -48,6 +49,18 @@ export function buildMatch(profile, job, sponsorshipOverride = null) {
     employerType: job.employerType || 'private'
   });
 
+  const applicationReadiness = calculateApplicationReadiness({
+    matchScore: candidateScore.score,
+    applicationPriority,
+    isLive: job.status?.isLive !== false,
+    applyUrl: job.applyUrl || job.raw?.applyUrl || '',
+    verificationStatus: job.verification?.status || '',
+    sponsorship: sponsorship.decision,
+    missingSkills: candidateScore.missingSkills,
+    seniorityLevel: analysis.seniority?.level,
+    closingAt: analysis.closingAt
+  });
+
   return {
     score: candidateScore.score,
     matchedSkills: candidateScore.matchedSkills,
@@ -57,6 +70,7 @@ export function buildMatch(profile, job, sponsorshipOverride = null) {
     sponsorship,
     recommendation,
     applicationPriority,
+    applicationReadiness,
     analysedJob: analysis
   };
 }
@@ -115,7 +129,7 @@ router.post('/jobs', async (req, res) => {
 
     const companyIds = [...new Set(jobs.map(job => String(job.companyId || '')).filter(Boolean))];
     const { Company } = await import('../models/Company.js');
-    const companies = await Company.find({ companyId: { $in: companyIds } }).select('companyId companyName sponsorship employerType').lean();
+    const companies = await Company.find({ companyId: { $in: companyIds }).select('companyId companyName sponsorship employerType').lean();
     const companyMap = new Map(companies.map(company => [String(company.companyId), company]));
 
     const matches = jobs.map(job => {
