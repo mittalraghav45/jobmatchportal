@@ -92,4 +92,80 @@ export async function discoverJobsWithSerper({
   return { queries, results, source: 'serper' };
 }
 
+
+const DEFAULT_ROLE_QUERY = '(software engineer OR software developer OR frontend developer OR full stack developer OR web developer)';
+const DEFAULT_SERPER_SITES = ['jobs.lever.co', 'boards.greenhouse.io', 'jobs.ashbyhq.com', 'myworkdayjobs.com'];
+
+function significantCompanyTokens(companyName = '') {
+  const ignored = new Set(['the', 'and', 'of', 'for', 'uk', 'ltd', 'limited', 'plc', 'llp', 'group', 'company', 'university', 'council', 'borough', 'city', 'nhs', 'trust']);
+  return String(companyName).toLowerCase().match(/[a-z0-9]+/g)?.filter(token => token.length >= 4 && !ignored.has(token)) || [];
+}
+
+function resultContainsCompany(result, companyName) {
+  const tokens = significantCompanyTokens(companyName);
+  if (!tokens.length) return true;
+  const haystack = `${result?.title || ''} ${result?.snippet || ''}`.toLowerCase();
+  return tokens.some(token => haystack.includes(token));
+}
+
+export function buildCompanySerperQueries({
+  companyName = '',
+  location = 'UK',
+  keyword = DEFAULT_ROLE_QUERY,
+  sites = DEFAULT_SERPER_SITES
+} = {}) {
+  const company = String(companyName).trim();
+  if (!company) return [];
+  return sites.map(site => buildSerperQuery({
+    keyword: `"${company}" ${keyword}`,
+    location,
+    site
+  }));
+}
+
+export async function discoverCompanyJobsWithSerper({
+  companyId,
+  companyName,
+  location = 'UK',
+  keyword = DEFAULT_ROLE_QUERY,
+  sites = DEFAULT_SERPER_SITES,
+  apiKey = process.env.SERPER_API_KEY,
+  perQuery = 10
+} = {}) {
+  if (!companyId) throw new Error('companyId is required');
+  if (!companyName) throw new Error('companyName is required');
+
+  const queries = buildCompanySerperQueries({ companyName, location, keyword, sites });
+  const responses = [];
+
+  for (const query of queries) {
+    responses.push(await searchJobsWithSerper({ query, apiKey, num: perQuery }));
+  }
+
+  const seen = new Set();
+  const results = responses.flatMap(response => response.results).filter(result => {
+    if (!resultContainsCompany(result, companyName) || seen.has(result.url)) return false;
+    seen.add(result.url);
+    return true;
+  });
+
+  return {
+    companyId: String(companyId),
+    companyName: String(companyName),
+    queries,
+    results: results.map(result => ({
+      ...result,
+      companyId: String(companyId),
+      companyName: String(companyName),
+      title: result.title || 'Job opening',
+      description: result.snippet || '',
+      location,
+      externalId: result.url,
+      source: { ats: 'serper', url: result.url },
+      applyUrl: result.url
+    })),
+    source: 'serper'
+  };
+}
+
 export { DEFAULT_QUERIES, SERPER_ENDPOINT };
