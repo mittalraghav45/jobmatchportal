@@ -22,6 +22,16 @@ const LIVE_PATTERNS = [
   /\bapply\s+by\b/i
 ];
 
+const ATS_HOSTS = new Set([
+  'jobs.ashbyhq.com',
+  'job-boards.greenhouse.io',
+  'boards.greenhouse.io',
+  'jobs.lever.co',
+  'apply.workable.com',
+  'jobs.smartrecruiters.com',
+  'jobs.jobvite.com'
+]);
+
 function normaliseText(value = '') {
   return String(value)
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -51,6 +61,10 @@ function titleEvidence(title, text) {
   return matched >= Math.min(3, words.length);
 }
 
+function getHost(url = '') {
+  try { return new URL(url).hostname.toLowerCase(); } catch { return ''; }
+}
+
 function isJobSpecificUrl(url = '') {
   try {
     const parsed = new URL(url);
@@ -59,9 +73,11 @@ function isJobSpecificUrl(url = '') {
 
     if (/\/(?:jobs?|jobadvert|postings?|o|job)\//i.test(path)) return true;
     if (host === 'jobs.ashbyhq.com' && path.split('/').filter(Boolean).length >= 2) return true;
-    if (host === 'job-boards.greenhouse.io' && path.split('/').filter(Boolean).length >= 2) return true;
+    if ((host === 'job-boards.greenhouse.io' || host === 'boards.greenhouse.io') && /\/[^/]+\/jobs\/[^/]+/i.test(path)) return true;
+    if (host === 'jobs.lever.co' && path.split('/').filter(Boolean).length >= 2) return true;
     if (host.endsWith('.myworkdayjobs.com') && /\/job\//i.test(path)) return true;
     if (host === 'apply.workable.com' && path.split('/').filter(Boolean).length >= 2) return true;
+    if (host === 'jobs.smartrecruiters.com' && path.split('/').filter(Boolean).length >= 2) return true;
     if (host === 'jobs.jobvite.com' && path.split('/').filter(Boolean).length >= 2) return true;
     if (host.endsWith('.applytojob.com') && path.split('/').filter(Boolean).length >= 2) return true;
     if (host.endsWith('.careers.hibob.com') && path.split('/').filter(Boolean).length >= 2) return true;
@@ -85,6 +101,26 @@ function structuredJobEvidence(body = '') {
     } catch {}
   }
   return false;
+}
+
+function atsPageEvidence(finalUrl, body) {
+  const host = getHost(finalUrl);
+  if (!ATS_HOSTS.has(host) && !host.endsWith('.myworkdayjobs.com')) return null;
+  const text = normaliseText(body).toLowerCase();
+  const markers = {
+    'jobs.ashbyhq.com': /\b(?:ashby|job description|apply)\b/i,
+    'job-boards.greenhouse.io': /\b(?:greenhouse|job description|apply)\b/i,
+    'boards.greenhouse.io': /\b(?:greenhouse|job description|apply)\b/i,
+    'jobs.lever.co': /\b(?:lever|job description|apply)\b/i,
+    'apply.workable.com': /\b(?:workable|job description|apply)\b/i,
+    'jobs.smartrecruiters.com': /\b(?:smartrecruiters|job description|apply)\b/i,
+    'jobs.jobvite.com': /\b(?:jobvite|job description|apply)\b/i
+  };
+  const marker = markers[host];
+  if (marker?.test(text) || host.endsWith('.myworkdayjobs.com') && /\b(?:workday|apply|job description|responsibilities|qualifications)\b/i.test(text)) {
+    return 'ATS job-page markers present';
+  }
+  return null;
 }
 
 export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', body = '', now = new Date(), attempts = 1 } = {}) {
@@ -114,9 +150,14 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
     const jobSpecificUrl = isJobSpecificUrl(finalUrl || originalUrl);
     const hasStructuredJob = structuredJobEvidence(body);
     const hasJobDetailContent = /\b(?:job description|responsibilities|requirements|qualifications|salary|location|about the role|what you will do|what you'll do)\b/i.test(text);
+    const atsEvidence = atsPageEvidence(finalUrl || originalUrl, body);
 
     if (originalJobSpecificUrl && finalUrl && !jobSpecificUrl && !hasStructuredJob) {
       return { status: 'unknown', evidenceType: 'redirected_source', evidence: 'Job-specific source URL redirected to a non-job page', ...meta };
+    }
+
+    if (hasTitle && atsEvidence && (jobSpecificUrl || hasStructuredJob)) {
+      return { status: 'live', evidenceType: 'ats_page', evidence: `${atsEvidence}; job title evidence present`, ...meta };
     }
 
     if (hasTitle && (liveMatch || hasStructuredJob) && (jobSpecificUrl || hasStructuredJob)) {
@@ -199,4 +240,4 @@ export async function verifyJobSource(job, options = {}) {
   }
 }
 
-export { normaliseText, titleEvidence, isJobSpecificUrl, structuredJobEvidence };
+export { normaliseText, titleEvidence, isJobSpecificUrl, structuredJobEvidence, atsPageEvidence };
