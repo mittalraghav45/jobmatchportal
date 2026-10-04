@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifySourceResponse } from '../services/jobSourceVerification.js';
+import { classifySourceResponse, verifyJobSource } from '../services/jobSourceVerification.js';
 
 const job = {
   title: 'Software Engineer',
@@ -62,7 +62,7 @@ test('uses a known closing date as authoritative closure evidence', () => {
   assert.equal(result.evidenceType, 'closing_date');
 });
 
-test('does not mark a redirected generic board live when the original posting identity is lost', () => {
+test('marks a job unknown when a job URL redirects to a generic board', () => {
   const result = classifySourceResponse({
     job,
     statusCode: 200,
@@ -70,5 +70,20 @@ test('does not mark a redirected generic board live when the original posting id
     body: '<h1>Software Engineer</h1><p>Responsibilities and requirements.</p><button>Apply now</button>'
   });
   assert.equal(result.status, 'unknown');
-  assert.ok(['redirected_source', 'insufficient_evidence'].includes(result.evidenceType));
+  assert.equal(result.evidenceType, 'redirected_source');
+});
+
+test('verifies through an injected fetch implementation and preserves source metadata', async () => {
+  const result = await verifyJobSource(job, {
+    timeoutMs: 3000,
+    fetchImpl: async () => ({
+      status: 200,
+      url: job.source.url,
+      text: async () => '<h1>Software Engineer</h1><p>Requirements</p><a>Apply now</a>'
+    })
+  });
+  assert.equal(result.status, 'live');
+  assert.equal(result.httpStatus, 200);
+  assert.equal(result.sourceUrl, job.source.url);
+  assert.equal(result.finalUrl, job.source.url);
 });
