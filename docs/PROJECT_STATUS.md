@@ -2,7 +2,34 @@
 
 ## Current milestone
 
-Source-backed job verification, frontend-ready filtering, sponsorship-aware filtering and explainable profile-to-job matching are operational. The current product focus is ranking the frontend-ready population by candidate relevance without creating a second independent scoring engine.
+Source-backed job verification, frontend-ready filtering, sponsorship-aware filtering and explainable profile-to-job matching are operational. The current development focus is bounded Serper discovery and connecting it safely into the existing source-backed verification pipeline without weakening the evidence contract.
+
+## Serper discovery checkpoint
+
+The Serper API is confirmed working from Codespaces using the `SERPER_API_KEY` secret.
+
+Current application-level controls:
+
+- 2 Serper queries per company by default.
+- 100 Serper queries per run by default.
+- 10 requested results per query maximum.
+- 2 career/ATS source pages per company are crawled by default.
+
+Serper results are normalised/deduplicated. Direct job URLs and useful career/ATS source pages are retained. Source pages can be crawled for structured `JobPosting` data or individual job links, then records pass through canonical ingestion/upsert.
+
+Controlled experiment:
+
+```text
+requested companies: 10,000
+queries executed:    100
+companies with jobs: 7
+jobs discovered:     8
+jobs added:          6
+jobs updated:        2
+failed requests:     0
+```
+
+A later 5-company experiment under the earlier direct-result filtering produced 0 records. The code was then changed to retain/crawl career and ATS source pages. A post-change real-ingestion yield is still pending.
 
 ## Data checkpoint
 
