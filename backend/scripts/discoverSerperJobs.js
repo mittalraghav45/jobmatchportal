@@ -24,6 +24,7 @@ const MAX_QUERIES_PER_COMPANY = Math.max(1, Number(arg('max-queries-per-company'
 const MAX_QUERIES_PER_RUN = Math.max(1, Number(arg('max-queries', process.env.SERPER_MAX_QUERIES_PER_RUN || 100)) || 100);
 const SOURCE_PAGES_PER_COMPANY = Math.max(1, Number(arg('source-pages', process.env.SERPER_SOURCE_PAGES_PER_COMPANY || 2)) || 2);
 const SOURCE_PAGE_TIMEOUT_MS = Math.max(3000, Number(process.env.SERPER_SOURCE_PAGE_TIMEOUT_MS || 10000) || 10000);
+const sourceUrlFor = company => company.careersUrl || company.website || company.metadata?.careersUrl || company.metadata?.careers_url || company.metadata?.website || '';
 const ATS_SITES = {
   greenhouse: 'boards.greenhouse.io',
   lever: 'jobs.lever.co',
@@ -83,7 +84,7 @@ for (const company of companies) {
     const discovery = await discoverCompanyJobsWithSerper({
       companyId: company.companyId,
       companyName: company.companyName,
-      careersUrl: company.careersUrl || '',
+      careersUrl: sourceUrlFor(company),
       sites: ATS_SITES[company.ats] ? [ATS_SITES[company.ats]] : [],
       maxQueriesPerCompany: Math.min(MAX_QUERIES_PER_COMPANY, remainingBudget),
       perQuery: PER_QUERY
@@ -158,7 +159,9 @@ for (const company of companies) {
     console.log(JSON.stringify({
       company: company.companyName,
       companyId: company.companyId,
+      sourceUrl: sourceUrlFor(company),
       queries: discovery.queries.length,
+      serperDirectResults: discovery.results?.length || 0,
       sourcePages: discovery.sourcePages?.length || 0,
       discovered: ingested.jobs.length,
       added: persisted.added,
