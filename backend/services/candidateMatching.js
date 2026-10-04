@@ -5,13 +5,13 @@ function textFor(job = {}) { return normalise([job.title, job.description, job.l
 function hasAny(text, values = []) { return values.some((value) => value && text.includes(normalise(value))); }
 
 function sponsorshipFit(job, profile) {
-  if (!profile?.workAuthorisation?.sponsorshipRequired && !profile?.preferences?.sponsorshipRequired) return { score: 0.5, reason: null };
+  if (!profile?.workAuthorisation?.sponsorshipRequired && !profile?.preferences?.sponsorshipRequired) return { score: 0.5, status: 'not_required', reason: null };
   const text = textFor(job);
   const positive = ['visa sponsorship', 'skilled worker sponsorship', 'sponsor licence', 'certificate of sponsorship', 'sponsorship available', 'will sponsor'];
   const negative = ['unable to sponsor', 'cannot sponsor', 'no sponsorship', 'not able to sponsor', 'does not sponsor', 'without sponsorship'];
-  if (hasAny(text, negative)) return { score: 0, reason: 'sponsorship_not_supported' };
-  if (hasAny(text, positive)) return { score: 1, reason: 'sponsorship_evidence' };
-  return { score: 0.25, reason: 'sponsorship_not_confirmed' };
+  if (hasAny(text, negative)) return { score: 0, status: 'explicitly_unavailable', reason: 'sponsorship_not_supported' };
+  if (hasAny(text, positive)) return { score: 1, status: 'confirmed', reason: 'sponsorship_evidence' };
+  return { score: 0.5, status: 'unconfirmed', reason: 'sponsorship_not_confirmed' };
 }
 
 function containsExcludedTerm(text, value) {
@@ -30,8 +30,9 @@ function exclusions(job, profile) {
 function experienceFit(job, profile) {
   const years = Number(profile?.yearsExperience ?? 0);
   if (!years) return { score: 0.5, reason: null };
-  const senior = /(senior|staff|principal|lead|head of|director)/.test(textFor(job));
-  if (years < 4 && senior) return { score: 0.2, reason: 'experience_gap_for_seniority' };
+  const senior = /\b(senior|staff|principal|lead|head of|director)\b/.test(textFor(job));
+  if (years < 2 && senior) return { score: 0.2, reason: 'experience_gap_for_seniority' };
+  if (years < 4 && senior) return { score: 0.65, reason: 'seniority_caution' };
   return { score: 1, reason: 'experience_match' };
 }
 
@@ -41,15 +42,14 @@ export function matchJobToCandidate(job, profile = {}) {
   const experience = experienceFit(job, profile);
   const excluded = exclusions(job, profile);
 
-  let matchScore = Math.round(base.matchScore * 0.75 + sponsorship.score * 15 + experience.score * 10);
+  let matchScore = Math.round(base.matchScore * 0.75 + sponsorship.score * 10 + experience.score * 10);
 
   const strongCoreMatch = base.components.title >= 75 && base.components.skills >= 75;
   const trustedFreshJob = base.components.verification >= 100 && base.components.freshness >= 80;
-  const sponsorshipConfirmed = sponsorship.score >= 0.75;
-  const experienceAcceptable = experience.score >= 0.75;
-  const strongApplicationCandidate = strongCoreMatch && trustedFreshJob && sponsorshipConfirmed && experienceAcceptable;
+  const sponsorshipBlocked = sponsorship.status === 'explicitly_unavailable';
+  const strongApplicationCandidate = strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65;
 
-  if (strongApplicationCandidate) matchScore = Math.max(matchScore, 85);
+  if (strongApplicationCandidate) matchScore = Math.max(matchScore, sponsorship.status === 'confirmed' ? 85 : 80);
   if (excluded) matchScore = Math.min(matchScore, 20);
 
   const reasons = [...base.reasons];
@@ -61,8 +61,7 @@ export function matchJobToCandidate(job, profile = {}) {
 
   let applicationFit = 'weak';
   if (strongApplicationCandidate && !excluded) applicationFit = 'strong';
-  else if (matchScore >= 80 && !excluded && sponsorshipConfirmed) applicationFit = 'strong';
-  else if (matchScore >= 65 && !excluded && sponsorship.score > 0) applicationFit = 'possible';
+  else if (matchScore >= 65 && !excluded && !sponsorshipBlocked) applicationFit = 'possible';
 
   return {
     matchScore: Math.max(0, Math.min(100, matchScore)),
@@ -71,6 +70,7 @@ export function matchJobToCandidate(job, profile = {}) {
     components: {
       ...base.components,
       sponsorship: Math.round(sponsorship.score * 100),
+      sponsorshipStatus: sponsorship.status,
       experience: Math.round(experience.score * 100)
     }
   };
