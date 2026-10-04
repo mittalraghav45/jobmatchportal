@@ -25,14 +25,18 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 
 1. Prefer direct company careers/ATS sources.
 2. Google fallback may identify a company careers/ATS page when direct discovery finds no jobs.
-3. Crawl conservatively: obey robots/rate limits, use bounded depth/pages, and retain source URLs.
-4. Individual job pages are required for strong `JobPosting` evidence; generic career pages are not themselves job records.
-5. Deduplicate by canonical job identity/source URL before insertion.
-6. Large company populations may be processed in parallel bounded ranges, but each worker must remain checkpointed/resumable and rate-limited.
-7. Do not assume that a successful discovery request means the resulting job is live; verification remains a separate stage.
-8. jobs.ac.uk is a multi-employer job board, not an employer-specific ATS. Its search module is therefore a separate source-search path and must not invent or silently create canonical company records merely because a vacancy appears in the board search.
-9. jobs.ac.uk search results must retain their original source URL. If source HTML changes or automated access is blocked, fail explicitly or use the documented RSS path rather than fabricating results.
-10. jobs.ac.uk category searches should use the site's own `academicDisciplineFacet[]` and `subDisciplineFacet[]` parameters. Keyword and location are refinements, not substitutes for the source-side discipline taxonomy.
+3. Serper is an additional discovery layer for sponsor-company job discovery. It is a discovery mechanism, not proof that a vacancy is live.
+4. Serper discovery is budget-bounded in code: default maximum 2 queries per company, default maximum 100 queries per run, and maximum 10 requested results per query.
+5. Prefer configured ATS queries first when an ATS is known; otherwise use the company careers hostname and broader company search within the query budget.
+6. Retain useful career/ATS source pages when a result is not itself an individual job posting. These pages may be crawled for structured JobPosting data or individual job links.
+7. Crawl conservatively: use bounded page limits, request timeouts and source-page budgets, preserve source URLs, and respect applicable robots/rate limits.
+8. Individual job pages are required for strong JobPosting evidence; generic career pages are not themselves job records.
+9. Deduplicate by canonical job identity/source URL before insertion.
+10. Large company populations may be processed in parallel bounded ranges, but each worker must remain checkpointed/resumable and rate-limited.
+11. Do not assume that a successful discovery request means the resulting job is live; verification remains a separate stage.
+12. jobs.ac.uk is a multi-employer job board, not an employer-specific ATS. Its search module is therefore a separate source-search path and must not invent or silently create canonical company records merely because a vacancy appears in the board search.
+13. jobs.ac.uk search results must retain their original source URL. If source HTML changes or automated access is blocked, fail explicitly or use the documented RSS path rather than fabricating results.
+14. jobs.ac.uk category searches should use the site's own `academicDisciplineFacet[]` and `subDisciplineFacet[]` parameters. Keyword and location are refinements, not substitutes for the source-side discipline taxonomy.
 
 ## Verification rules
 
