@@ -55,7 +55,6 @@ function isJobSpecificUrl(url = '') {
     const host = parsed.hostname.toLowerCase();
     const path = parsed.pathname.toLowerCase();
 
-    // Common direct-posting URL shapes, including ATS-specific patterns.
     if (/\/(?:jobs?|jobadvert|postings?|o|job)\//i.test(path)) return true;
     if (host === 'jobs.ashbyhq.com' && path.split('/').filter(Boolean).length >= 2) return true;
     if (host === 'job-boards.greenhouse.io' && path.split('/').filter(Boolean).length >= 2) return true;
@@ -79,9 +78,7 @@ function structuredJobEvidence(body = '') {
       const parsed = JSON.parse(json);
       const nodes = Array.isArray(parsed) ? parsed : [parsed, ...(Array.isArray(parsed?.['@graph']) ? parsed['@graph'] : [])];
       for (const node of nodes) {
-        if (node?.['@type'] === 'JobPosting' || (Array.isArray(node?.['@type']) && node['@type'].includes('JobPosting'))) {
-          return true;
-        }
+        if (node?.['@type'] === 'JobPosting' || (Array.isArray(node?.['@type']) && node['@type'].includes('JobPosting'))) return true;
       }
     } catch {}
   }
@@ -98,21 +95,10 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
     return { status: 'closed', evidenceType: 'closing_date', evidence: `Known closing date ${closingAt.toISOString()} has passed`, checkedAt };
   }
 
-  if (statusCode === 404 || statusCode === 410) {
-    return { status: 'closed', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}`, checkedAt };
-  }
-
-  if (statusCode == null) {
-    return { status: 'unknown', evidenceType: 'request_error', evidence: 'Source request failed before an HTTP response was received', checkedAt };
-  }
-
-  if (statusCode === 403 || statusCode === 429) {
-    return { status: 'unknown', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}; access was not independently verifiable`, checkedAt };
-  }
-
-  if (statusCode >= 500) {
-    return { status: 'unknown', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}`, checkedAt };
-  }
+  if (statusCode === 404 || statusCode === 410) return { status: 'closed', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}`, checkedAt };
+  if (statusCode == null) return { status: 'unknown', evidenceType: 'request_error', evidence: 'Source request failed before an HTTP response was received', checkedAt };
+  if (statusCode === 403 || statusCode === 429) return { status: 'unknown', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}; access was not independently verifiable`, checkedAt };
+  if (statusCode >= 500) return { status: 'unknown', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}`, checkedAt };
 
   const closedMatch = findMatch(CLOSED_PATTERNS, text);
   if (closedMatch) return { status: 'closed', evidenceType: 'page_text', evidence: closedMatch, checkedAt };
@@ -120,9 +106,16 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
   if (statusCode >= 200 && statusCode < 400) {
     const hasTitle = titleEvidence(job.title, lower);
     const liveMatch = findMatch(LIVE_PATTERNS, lower);
-    const jobSpecificUrl = isJobSpecificUrl(finalUrl || job?.source?.url || '');
+    const originalUrl = job?.source?.url || '';
+    const originalJobSpecificUrl = isJobSpecificUrl(originalUrl);
+    const jobSpecificUrl = isJobSpecificUrl(finalUrl || originalUrl);
     const hasStructuredJob = structuredJobEvidence(body);
     const hasJobDetailContent = /\b(?:job description|responsibilities|requirements|qualifications|salary|location|about the role|what you will do|what you'll do)\b/i.test(text);
+
+    // A posting URL redirecting to a generic board/homepage is not sufficient evidence.
+    if (originalJobSpecificUrl && finalUrl && !jobSpecificUrl && !hasStructuredJob) {
+      return { status: 'unknown', evidenceType: 'redirected_source', evidence: 'Job-specific source URL redirected to a non-job page', checkedAt };
+    }
 
     if (hasTitle && (liveMatch || hasStructuredJob) && (jobSpecificUrl || hasStructuredJob)) {
       return {
@@ -137,9 +130,7 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
       return { status: 'live', evidenceType: 'job_page', evidence: 'Job-specific source page contains title and job-detail content', checkedAt };
     }
 
-    if (hasStructuredJob && hasTitle) {
-      return { status: 'live', evidenceType: 'jobposting_schema', evidence: 'JobPosting structured data contains the discovered job title', checkedAt };
-    }
+    if (hasStructuredJob && hasTitle) return { status: 'live', evidenceType: 'jobposting_schema', evidence: 'JobPosting structured data contains the discovered job title', checkedAt };
   }
 
   return { status: 'unknown', evidenceType: 'insufficient_evidence', evidence: `HTTP ${statusCode}; source page did not provide sufficiently strong live/closed evidence`, checkedAt };
