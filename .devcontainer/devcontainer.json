@@ -2,6 +2,7 @@
   "name": "JobMatchPortal Codespace",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
   "remoteUser": "node",
+  "postStartCommand": "nohup bash .devcontainer/auto-sync.sh >/tmp/jobmatchportal-auto-sync-start.log 2>&1 &",
   "forwardPorts": [3000, 5173],
   "portsAttributes": {
     "3000": {
