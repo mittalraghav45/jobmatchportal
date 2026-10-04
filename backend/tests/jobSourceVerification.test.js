@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifySourceResponse, verifyJobSource, atsPageEvidence } from '../services/jobSourceVerification.js';
+import { classifySourceResponse, verifyJobSource, atsPageEvidence, selectVerificationUrl } from '../services/jobSourceVerification.js';
 
 const job = {
   title: 'Software Engineer',
@@ -69,6 +69,39 @@ test('does not treat an ATS homepage as a job posting', () => {
 test('exposes ATS evidence helper conservatively', () => {
   assert.equal(atsPageEvidence('https://jobs.ashbyhq.com/acme/123', '<h1>Software Engineer</h1><p>Apply</p>'), 'ATS job-page markers present');
   assert.equal(atsPageEvidence('https://example.com/jobs/123', '<h1>Software Engineer</h1><p>Apply</p>'), null);
+});
+
+test('selects a job-specific apply URL over a generic source URL', () => {
+  const result = selectVerificationUrl({
+    source: { url: 'https://jobs.example.com/careers' },
+    applyUrl: 'https://jobs.lever.co/acme/abc123'
+  });
+  assert.equal(result.field, 'applyUrl');
+  assert.equal(result.url, 'https://jobs.lever.co/acme/abc123');
+});
+
+test('falls back to the source URL when no job-specific apply URL exists', () => {
+  const result = selectVerificationUrl({ source: { url: 'https://jobs.example.com/jobs/123' }, applyUrl: 'https://example.com/apply' });
+  assert.equal(result.field, 'sourceUrl');
+  assert.equal(result.url, 'https://jobs.example.com/jobs/123');
+});
+
+test('verifies a job through its job-specific apply URL when source URL is generic', async () => {
+  let requestedUrl = '';
+  const result = await verifyJobSource({
+    title: 'Software Engineer',
+    source: { url: 'https://jobs.example.com/careers' },
+    applyUrl: 'https://jobs.lever.co/acme/abc123',
+    dates: { closingAt: null }
+  }, { timeoutMs: 3000, fetchImpl: async (url) => {
+    requestedUrl = url;
+    return { status: 200, url, text: async () => '<h1>Software Engineer</h1><p>Lever job description</p><p>Responsibilities</p>' };
+  } });
+  assert.equal(requestedUrl, 'https://jobs.lever.co/acme/abc123');
+  assert.equal(result.status, 'live');
+  assert.equal(result.verificationUrl, 'https://jobs.lever.co/acme/abc123');
+  assert.equal(result.verificationUrlField, 'applyUrl');
+  assert.equal(result.sourceUrl, 'https://jobs.example.com/careers');
 });
 
 test('verifies through an injected fetch implementation and preserves source metadata', async () => {
