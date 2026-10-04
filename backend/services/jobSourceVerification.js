@@ -88,6 +88,16 @@ function isJobSpecificUrl(url = '') {
   }
 }
 
+export function selectVerificationUrl(job = {}) {
+  const candidates = [
+    { field: 'applyUrl', url: String(job?.applyUrl || '').trim() },
+    { field: 'sourceUrl', url: String(job?.source?.url || '').trim() }
+  ].filter(candidate => candidate.url);
+
+  const jobSpecific = candidates.find(candidate => isJobSpecificUrl(candidate.url));
+  return jobSpecific || candidates[0] || { field: 'sourceUrl', url: '' };
+}
+
 function structuredJobEvidence(body = '') {
   const jsonLdMatches = String(body).match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) || [];
   for (const block of jsonLdMatches) {
@@ -123,7 +133,7 @@ function atsPageEvidence(finalUrl, body) {
   return null;
 }
 
-export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', body = '', now = new Date(), attempts = 1 } = {}) {
+export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', body = '', now = new Date(), attempts = 1, verificationUrl = '' } = {}) {
   const text = normaliseText(body);
   const lower = text.toLowerCase();
   const checkedAt = new Date(now).toISOString();
@@ -147,10 +157,10 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
     const liveMatch = findMatch(LIVE_PATTERNS, lower);
     const originalUrl = job?.source?.url || '';
     const originalJobSpecificUrl = isJobSpecificUrl(originalUrl);
-    const jobSpecificUrl = isJobSpecificUrl(finalUrl || originalUrl);
+    const jobSpecificUrl = isJobSpecificUrl(finalUrl || verificationUrl || originalUrl);
     const hasStructuredJob = structuredJobEvidence(body);
     const hasJobDetailContent = /\b(?:job description|responsibilities|requirements|qualifications|salary|location|about the role|what you will do|what you'll do)\b/i.test(text);
-    const atsEvidence = atsPageEvidence(finalUrl || originalUrl, body);
+    const atsEvidence = atsPageEvidence(finalUrl || verificationUrl || originalUrl, body);
 
     if (originalJobSpecificUrl && finalUrl && !jobSpecificUrl && !hasStructuredJob) {
       return { status: 'unknown', evidenceType: 'redirected_source', evidence: 'Job-specific source URL redirected to a non-job page', ...meta };
@@ -161,12 +171,7 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
     }
 
     if (hasTitle && (liveMatch || hasStructuredJob) && (jobSpecificUrl || hasStructuredJob)) {
-      return {
-        status: 'live',
-        evidenceType: hasStructuredJob ? 'jobposting_schema' : 'page_text',
-        evidence: hasStructuredJob ? 'JobPosting structured data and job title evidence present' : `${liveMatch}; job title evidence present`,
-        ...meta
-      };
+      return { status: 'live', evidenceType: hasStructuredJob ? 'jobposting_schema' : 'page_text', evidence: hasStructuredJob ? 'JobPosting structured data and job title evidence present' : `${liveMatch}; job title evidence present`, ...meta };
     }
 
     if (hasTitle && jobSpecificUrl && hasJobDetailContent) {
@@ -225,17 +230,26 @@ async function fetchSource(url, { timeoutMs = DEFAULT_TIMEOUT_MS, maxRetries = D
 
 export async function verifyJobSource(job, options = {}) {
   const checkedAt = new Date().toISOString();
-  const url = String(job?.source?.url || '').trim();
-  if (!url) return { status: 'unknown', evidenceType: 'missing_url', evidence: 'Job has no source URL', checkedAt, sourceUrl: '', attempts: 0 };
+  const sourceUrl = String(job?.source?.url || '').trim();
+  const selected = selectVerificationUrl(job);
+  if (!selected.url) return { status: 'unknown', evidenceType: 'missing_url', evidence: 'Job has no source or apply URL', checkedAt, sourceUrl: '', verificationUrl: '', verificationUrlField: selected.field, attempts: 0 };
 
   try {
-    const response = await fetchSource(url, options);
-    return { ...classifySourceResponse({ job, ...response, now: checkedAt }), sourceUrl: url, httpStatus: response.statusCode, finalUrl: response.finalUrl };
+    const response = await fetchSource(selected.url, options);
+    return {
+      ...classifySourceResponse({ job, ...response, now: checkedAt, verificationUrl: selected.url }),
+      sourceUrl,
+      verificationUrl: selected.url,
+      verificationUrlField: selected.field,
+      httpStatus: response.statusCode,
+      finalUrl: response.finalUrl
+    };
   } catch (error) {
     return {
       status: 'unknown', evidenceType: 'request_error',
       evidence: error?.name === 'AbortError' ? `Source request timed out after ${options.timeoutMs || DEFAULT_TIMEOUT_MS}ms` : `Source request failed: ${error.message}`,
-      checkedAt, sourceUrl: url, attempts: (options.maxRetries ?? DEFAULT_MAX_RETRIES) + 1
+      checkedAt, sourceUrl, verificationUrl: selected.url, verificationUrlField: selected.field,
+      attempts: (options.maxRetries ?? DEFAULT_MAX_RETRIES) + 1
     };
   }
 }
