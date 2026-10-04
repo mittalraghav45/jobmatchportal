@@ -6,10 +6,11 @@ import { analyseJob, scoreCandidateAgainstJob } from '../jobIntelligence.js';
 import { evaluateSponsorship } from '../sponsorRegistry.js';
 import { getRecommendation } from '../cvJobMatcher.js';
 import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
+import { calculateApplicationPriority } from '../utils/applicationPriority.js';
 
 const router = express.Router();
 
-function buildMatch(profile, job, sponsorshipOverride = null) {
+export function buildMatch(profile, job, sponsorshipOverride = null) {
   const analysis = analyseJob({
     title: job.title,
     description: job.description || '',
@@ -21,20 +22,31 @@ function buildMatch(profile, job, sponsorshipOverride = null) {
     closingAt: job.dates?.closingAt || job.closingAt
   });
 
+  const sponsorship = evaluateSponsorship(sponsorshipOverride || job.sponsorship || {});
   const candidateScore = scoreCandidateAgainstJob({
     cvSkills: profile.skills || [],
     yearsExperience: profile.yearsExperience || 0,
     cvText: profile.cvText || '',
-    job: analysis
+    job: analysis,
+    sponsorshipStatus: sponsorship.decision
   });
 
-  const sponsorship = evaluateSponsorship(sponsorshipOverride || job.sponsorship || {});
   const recommendation = getRecommendation(
     candidateScore.score,
     job.status?.isLive !== false,
     analysis.closingAt,
     sponsorship.decision === 'not-sponsor' ? false : null
   );
+
+  const applicationPriority = calculateApplicationPriority({
+    matchScore: candidateScore.score,
+    sponsorship: sponsorship.decision,
+    seniorityLevel: analysis.seniority?.level,
+    isLive: job.status?.isLive !== false,
+    postedAt: analysis.postedAt,
+    closingAt: analysis.closingAt,
+    employerType: job.employerType || 'private'
+  });
 
   return {
     score: candidateScore.score,
@@ -44,6 +56,7 @@ function buildMatch(profile, job, sponsorshipOverride = null) {
     seniority: analysis.seniority,
     sponsorship,
     recommendation,
+    applicationPriority,
     analysedJob: analysis
   };
 }
@@ -85,9 +98,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Score the verified, live, UK technology inventory and return the highest-fit
-// jobs first. Pagination is applied after scoring so page 1 contains the best
-// matches rather than simply the newest jobs.
 router.post('/jobs', async (req, res) => {
   try {
     await connectMongo();
@@ -105,31 +115,24 @@ router.post('/jobs', async (req, res) => {
 
     const companyIds = [...new Set(jobs.map(job => String(job.companyId || '')).filter(Boolean))];
     const { Company } = await import('../models/Company.js');
-    const companies = await Company.find({ companyId: { $in: companyIds } }).select('companyId companyName sponsorship').lean();
+    const companies = await Company.find({ companyId: { $in: companyIds }).select('companyId companyName sponsorship employerType').lean();
     const companyMap = new Map(companies.map(company => [String(company.companyId), company]));
 
     const matches = jobs.map(job => {
       const company = companyMap.get(String(job.companyId || ''));
-      const match = buildMatch(profile, job, company?.sponsorship || null);
-      return {
-        job,
-        companyName: company?.companyName || job.companyName || 'Unknown company',
-        match
-      };
-    }).sort((a, b) => b.match.score - a.match.score);
+      const enrichedJob = company?.employerType && !job.employerType ? { ...job, employerType: company.employerType } : job;
+      const match = buildMatch(profile, enrichedJob, company?.sponsorship || null);
+      return { job: enrichedJob, companyName: company?.companyName || job.companyName || 'Unknown company', match };
+    }).sort((a, b) => {
+      const priorityDelta = b.match.applicationPriority.score - a.match.applicationPriority.score;
+      return priorityDelta || b.match.score - a.match.score;
+    });
 
     const start = (page - 1) * limit;
-    const pagedMatches = matches.slice(start, start + limit);
-
     return res.json({
       profile: { profileId: profile.profileId || null, name: profile.name || '' },
-      matches: pagedMatches,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
-      }
+      matches: matches.slice(start, start + limit),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
   } catch (error) {
     console.error('Bulk match error:', error.message);
