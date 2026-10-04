@@ -25,7 +25,7 @@ MONGODB_URI
 
 Use the existing MongoDB Atlas connection string. Never commit it to the repository.
 5. The `.devcontainer/` configuration provides the Node.js 24 development environment.
-6. Project dependencies must be installed with `npm install` if the image does not already contain them.
+6. The devcontainer automatically runs `cd backend && npm ci` on creation. This installs backend dependencies, including Axios used by Serper discovery.
 
 The repository's Codespace environment does not create or commit a `.env` file. `MONGODB_URI` is consumed from the Codespaces environment.
 
@@ -35,7 +35,7 @@ The Codespace automatically starts `.devcontainer/auto-sync.sh` through `postSta
 
 The helper:
 
-- checks `feat/source-backed-job-verification` every 30 seconds;
+- checks the currently checked-out branch every **10 seconds**;
 - fetches the remote branch;
 - fast-forwards only when the local worktree is clean and the histories are compatible;
 - never overwrites uncommitted local work;
@@ -91,6 +91,16 @@ Codespaces do not normally originate from the same public IP as a local laptop. 
 For temporary development, the project may use an Atlas IP access-list entry of `0.0.0.0/0` together with a dedicated least-privilege database user and strong authentication. Treat this as a development convenience, not the preferred production network architecture.
 
 Do not put Atlas credentials in source files, shell history, issues, pull requests or documentation.
+
+## Serper development secret
+
+For Codespaces, provide:
+
+```text
+SERPER_API_KEY
+```
+
+The key is read by the backend process from the Codespaces environment. Do not create a committed `backend/.env` in Codespaces and do not paste the key into source files, scripts, tests or documentation.
 
 ## Running the project
 
