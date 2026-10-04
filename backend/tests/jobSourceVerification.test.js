@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifySourceResponse, verifyJobSource, atsPageEvidence, selectVerificationUrl } from '../services/jobSourceVerification.js';
+import { classifySourceResponse, verifyJobSource, atsPageEvidence, selectVerificationUrl, isGenericCareerUrl } from '../services/jobSourceVerification.js';
 
 const job = {
   title: 'Software Engineer',
@@ -134,4 +134,37 @@ test('does not retry definitive 404 closure responses', async () => {
   assert.equal(calls, 1);
   assert.equal(result.status, 'closed');
   assert.equal(result.attempts, 1);
+});
+
+test('classifies a council or custom employer job page from title, job detail and application evidence', () => {
+  const result = classifySourceResponse({
+    job: { ...job, title: 'Planning Officer' },
+    statusCode: 200,
+    finalUrl: 'https://www.somerset.gov.uk/jobs/planning-officer-12345',
+    body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities include...</p><p>Qualifications and requirements</p><a>Apply online</a>'
+  });
+  assert.equal(result.status, 'live');
+  assert.equal(result.evidenceType, 'custom_job_page');
+});
+
+test('does not classify a generic custom careers landing page as live', () => {
+  assert.equal(isGenericCareerUrl('https://www.somerset.gov.uk/careers'), true);
+  const result = classifySourceResponse({
+    job: { ...job, title: 'Planning Officer' },
+    statusCode: 200,
+    finalUrl: 'https://www.somerset.gov.uk/careers',
+    body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities and requirements</p><a>Apply now</a>'
+  });
+  assert.equal(result.status, 'unknown');
+});
+
+test('accepts a custom job page with structured JobPosting data', () => {
+  const result = classifySourceResponse({
+    job: { ...job, title: 'Planning Officer' },
+    statusCode: 200,
+    finalUrl: 'https://www.somerset.gov.uk/vacancies/planning-officer-12345',
+    body: '<h1>Planning Officer</h1><script type="application/ld+json">{"@type":"JobPosting","title":"Planning Officer"}</script>'
+  });
+  assert.equal(result.status, 'live');
+  assert.equal(result.evidenceType, 'jobposting_schema');
 });
