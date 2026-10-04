@@ -11,7 +11,7 @@ const job = {
 test('marks a job live only when source page has job-specific and application evidence', () => {
   const result = classifySourceResponse({ job, statusCode: 200, finalUrl: job.source.url, body: '<h1>Software Engineer</h1><p>Responsibilities and requirements.</p><button>Apply now</button>' });
   assert.equal(result.status, 'live');
-  assert.equal(result.evidenceType, 'page_text');
+  assert.equal(result.evidenceType, 'custom_job_page_text');
 });
 
 test('marks a job closed from explicit source-page closure language', () => {
@@ -72,10 +72,7 @@ test('exposes ATS evidence helper conservatively', () => {
 });
 
 test('selects a job-specific apply URL over a generic source URL', () => {
-  const result = selectVerificationUrl({
-    source: { url: 'https://jobs.example.com/careers' },
-    applyUrl: 'https://jobs.lever.co/acme/abc123'
-  });
+  const result = selectVerificationUrl({ source: { url: 'https://jobs.example.com/careers' }, applyUrl: 'https://jobs.lever.co/acme/abc123' });
   assert.equal(result.field, 'applyUrl');
   assert.equal(result.url, 'https://jobs.lever.co/acme/abc123');
 });
@@ -88,15 +85,7 @@ test('falls back to the source URL when no job-specific apply URL exists', () =>
 
 test('verifies a job through its job-specific apply URL when source URL is generic', async () => {
   let requestedUrl = '';
-  const result = await verifyJobSource({
-    title: 'Software Engineer',
-    source: { url: 'https://jobs.example.com/careers' },
-    applyUrl: 'https://jobs.lever.co/acme/abc123',
-    dates: { closingAt: null }
-  }, { timeoutMs: 3000, fetchImpl: async (url) => {
-    requestedUrl = url;
-    return { status: 200, url, text: async () => '<h1>Software Engineer</h1><p>Lever job description</p><p>Responsibilities</p>' };
-  } });
+  const result = await verifyJobSource({ title: 'Software Engineer', source: { url: 'https://jobs.example.com/careers' }, applyUrl: 'https://jobs.lever.co/acme/abc123', dates: { closingAt: null } }, { timeoutMs: 3000, fetchImpl: async (url) => { requestedUrl = url; return { status: 200, url, text: async () => '<h1>Software Engineer</h1><p>Lever job description</p><p>Responsibilities</p>' }; } });
   assert.equal(requestedUrl, 'https://jobs.lever.co/acme/abc123');
   assert.equal(result.status, 'live');
   assert.equal(result.verificationUrl, 'https://jobs.lever.co/acme/abc123');
@@ -115,11 +104,7 @@ test('verifies through an injected fetch implementation and preserves source met
 
 test('retries transient HTTP failures before accepting a live source', async () => {
   let calls = 0;
-  const result = await verifyJobSource(job, { retryDelayMs: 0, maxRetries: 2, fetchImpl: async () => {
-    calls += 1;
-    if (calls < 3) return { status: 503, url: job.source.url, text: async () => '' };
-    return { status: 200, url: job.source.url, text: async () => '<h1>Software Engineer</h1><p>Requirements</p><a>Apply now</a>' };
-  } });
+  const result = await verifyJobSource(job, { retryDelayMs: 0, maxRetries: 2, fetchImpl: async () => { calls += 1; if (calls < 3) return { status: 503, url: job.source.url, text: async () => '' }; return { status: 200, url: job.source.url, text: async () => '<h1>Software Engineer</h1><p>Requirements</p><a>Apply now</a>' }; } });
   assert.equal(calls, 3);
   assert.equal(result.status, 'live');
   assert.equal(result.attempts, 3);
@@ -127,55 +112,32 @@ test('retries transient HTTP failures before accepting a live source', async () 
 
 test('does not retry definitive 404 closure responses', async () => {
   let calls = 0;
-  const result = await verifyJobSource(job, { retryDelayMs: 0, maxRetries: 2, fetchImpl: async () => {
-    calls += 1;
-    return { status: 404, url: job.source.url, text: async () => '' };
-  } });
+  const result = await verifyJobSource(job, { retryDelayMs: 0, maxRetries: 2, fetchImpl: async () => { calls += 1; return { status: 404, url: job.source.url, text: async () => '' }; } });
   assert.equal(calls, 1);
   assert.equal(result.status, 'closed');
   assert.equal(result.attempts, 1);
 });
 
 test('classifies a council or custom employer job page from title, job detail and application evidence', () => {
-  const result = classifySourceResponse({
-    job: { ...job, title: 'Planning Officer' },
-    statusCode: 200,
-    finalUrl: 'https://www.somerset.gov.uk/jobs/planning-officer-12345',
-    body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities include...</p><p>Qualifications and requirements</p><a>Apply online</a>'
-  });
+  const result = classifySourceResponse({ job: { ...job, title: 'Planning Officer' }, statusCode: 200, finalUrl: 'https://www.somerset.gov.uk/jobs/planning-officer-12345', body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities include...</p><p>Qualifications and requirements</p><a>Apply online</a>' });
   assert.equal(result.status, 'live');
   assert.equal(result.evidenceType, 'custom_job_page_text');
 });
 
 test('recognises council application wording without the exact Apply now phrase', () => {
-  const result = classifySourceResponse({
-    job: { ...job, title: 'Planning Officer' },
-    statusCode: 200,
-    finalUrl: 'https://www.somerset.gov.uk/jobs/planning-officer-12345',
-    body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities include...</p><p>Qualifications and requirements</p><p>How to apply: complete the application form.</p>'
-  });
+  const result = classifySourceResponse({ job: { ...job, title: 'Planning Officer' }, statusCode: 200, finalUrl: 'https://www.somerset.gov.uk/jobs/planning-officer-12345', body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities include...</p><p>Qualifications and requirements</p><p>How to apply: complete the application form.</p>' });
   assert.equal(result.status, 'live');
   assert.equal(result.evidenceType, 'custom_job_page_text');
 });
 
 test('does not classify a generic custom careers landing page as live', () => {
   assert.equal(isGenericCareerUrl('https://www.somerset.gov.uk/careers'), true);
-  const result = classifySourceResponse({
-    job: { ...job, title: 'Planning Officer' },
-    statusCode: 200,
-    finalUrl: 'https://www.somerset.gov.uk/careers',
-    body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities and requirements</p><a>Apply now</a>'
-  });
+  const result = classifySourceResponse({ job: { ...job, title: 'Planning Officer' }, statusCode: 200, finalUrl: 'https://www.somerset.gov.uk/careers', body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities and requirements</p><a>Apply now</a>' });
   assert.equal(result.status, 'unknown');
 });
 
 test('accepts a custom job page with structured JobPosting data', () => {
-  const result = classifySourceResponse({
-    job: { ...job, title: 'Planning Officer' },
-    statusCode: 200,
-    finalUrl: 'https://www.somerset.gov.uk/vacancies/planning-officer-12345',
-    body: '<h1>Planning Officer</h1><script type="application/ld+json">{"@type":"JobPosting","title":"Planning Officer"}</script>'
-  });
+  const result = classifySourceResponse({ job: { ...job, title: 'Planning Officer' }, statusCode: 200, finalUrl: 'https://www.somerset.gov.uk/vacancies/planning-officer-12345', body: '<h1>Planning Officer</h1><script type="application/ld+json">{"@type":"JobPosting","title":"Planning Officer"}</script>' });
   assert.equal(result.status, 'live');
   assert.equal(result.evidenceType, 'jobposting_schema');
 });
