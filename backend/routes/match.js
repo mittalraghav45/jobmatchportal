@@ -2,6 +2,7 @@ import express from 'express';
 import { connectMongo } from '../db/mongoose.js';
 import { Job } from '../models/Job.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
+import { JobMatchCache } from '../models/JobMatchCache.js';
 import { analyseJob, scoreCandidateAgainstJob } from '../jobIntelligence.js';
 import { evaluateSponsorship } from '../sponsorRegistry.js';
 import { getRecommendation } from '../cvJobMatcher.js';
@@ -129,24 +130,69 @@ router.post('/jobs', async (req, res) => {
 
     const companyIds = [...new Set(jobs.map(job => String(job.companyId || '')).filter(Boolean))];
     const { Company } = await import('../models/Company.js');
-    const companies = await Company.find({ companyId: { $in: companyIds }).select('companyId companyName sponsorship employerType').lean();
+    const companies = await Company.find({ companyId: { $in: companyIds } }).select('companyId companyName sponsorship employerType').lean();
     const companyMap = new Map(companies.map(company => [String(company.companyId), company]));
+
+    const profileId = profile.profileId ? String(profile.profileId) : null;
+    const profileUpdatedAt = profile.updatedAt ? new Date(profile.updatedAt).getTime() : null;
+    const jobFingerprints = jobs.map(job => String(job.fingerprint || '')).filter(Boolean);
+    const cachedMatches = profileId && jobFingerprints.length
+      ? await JobMatchCache.find({ profileId, jobFingerprint: { $in: jobFingerprints } }).lean()
+      : [];
+    const cacheMap = new Map(cachedMatches.map(item => [item.jobFingerprint, item]));
+    const cacheWrites = [];
+    let cacheHits = 0;
+    let cacheMisses = 0;
 
     const matches = jobs.map(job => {
       const company = companyMap.get(String(job.companyId || ''));
       const enrichedJob = company?.employerType && !job.employerType ? { ...job, employerType: company.employerType } : job;
-      const match = buildMatch(profile, enrichedJob, company?.sponsorship || null);
+      const jobUpdatedAt = job.updatedAt ? new Date(job.updatedAt).getTime() : null;
+      const cached = cacheMap.get(String(job.fingerprint || ''));
+      const cacheValid = profileId && cached
+        && (cached.jobUpdatedAt ? new Date(cached.jobUpdatedAt).getTime() === jobUpdatedAt : jobUpdatedAt === null)
+        && (cached.profileUpdatedAt ? new Date(cached.profileUpdatedAt).getTime() === profileUpdatedAt : profileUpdatedAt === null);
+
+      let match;
+      if (cacheValid) {
+        cacheHits += 1;
+        match = cached.match;
+      } else {
+        cacheMisses += 1;
+        match = buildMatch(profile, enrichedJob, company?.sponsorship || null);
+        if (profileId && job.fingerprint) {
+          cacheWrites.push({
+            updateOne: {
+              filter: { profileId, jobFingerprint: String(job.fingerprint) },
+              update: {
+                $set: {
+                  jobUpdatedAt: job.updatedAt || null,
+                  profileUpdatedAt: profile.updatedAt || null,
+                  score: match.score,
+                  match,
+                  calculatedAt: new Date()
+                }
+              },
+              upsert: true
+            }
+          });
+        }
+      }
+
       return { job: enrichedJob, companyName: company?.companyName || job.companyName || 'Unknown company', match };
     }).sort((a, b) => {
       const priorityDelta = b.match.applicationPriority.score - a.match.applicationPriority.score;
       return priorityDelta || b.match.score - a.match.score;
     });
 
+    if (cacheWrites.length) await JobMatchCache.bulkWrite(cacheWrites, { ordered: false });
+
     const start = (page - 1) * limit;
     return res.json({
       profile: { profileId: profile.profileId || null, name: profile.name || '' },
       matches: matches.slice(start, start + limit),
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      performance: { cacheHits, cacheMisses, cacheEnabled: Boolean(profileId) }
     });
   } catch (error) {
     console.error('Bulk match error:', error.message);
