@@ -193,17 +193,19 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
       return { status: 'live', evidenceType: 'ats_page', evidence: `${atsEvidence}; job title evidence present`, ...meta };
     }
 
+    // Custom employer/council pages must be classified before the generic
+    // page-text branch so their evidence type remains explicit and stable.
+    const customEvidence = customJobPageEvidence({ url: resolvedUrl, hasTitle, hasJobDetailContent, liveMatch, hasStructuredJob });
+    if (customEvidence) {
+      return { status: 'live', evidenceType: hasStructuredJob ? 'jobposting_schema' : 'custom_job_page_text', evidence: customEvidence, ...meta };
+    }
+
     if (hasTitle && (liveMatch || hasStructuredJob) && (jobSpecificUrl || hasStructuredJob)) {
       return { status: 'live', evidenceType: hasStructuredJob ? 'jobposting_schema' : 'page_text', evidence: hasStructuredJob ? 'JobPosting structured data and job title evidence present' : `${liveMatch}; job title evidence present`, ...meta };
     }
 
     if (hasTitle && jobSpecificUrl && hasJobDetailContent) {
       return { status: 'live', evidenceType: 'job_page', evidence: 'Job-specific source page contains title and job-detail content', ...meta };
-    }
-
-    const customEvidence = customJobPageEvidence({ url: resolvedUrl, hasTitle, hasJobDetailContent, liveMatch, hasStructuredJob });
-    if (customEvidence) {
-      return { status: 'live', evidenceType: hasStructuredJob ? 'jobposting_schema' : 'custom_job_page_text', evidence: customEvidence, ...meta };
     }
 
     if (hasStructuredJob && hasTitle) return { status: 'live', evidenceType: 'jobposting_schema', evidence: 'JobPosting structured data contains the discovered job title', ...meta };
