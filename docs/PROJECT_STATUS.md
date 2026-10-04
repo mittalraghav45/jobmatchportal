@@ -29,7 +29,7 @@ jobs updated:        2
 failed requests:     0
 ```
 
-A later 5-company experiment under the earlier direct-result filtering produced 0 records. The code was then changed to retain/crawl career and ATS source pages. A post-change real-ingestion yield is still pending.
+A later 5-company experiment after the first crawl-through change still produced 0 records, with 5 Serper queries and 0 source pages fetched. Investigation showed the script could have missing `careersUrl` values in the MongoDB Company documents; the discovery script now falls back across `careersUrl`, `website` and metadata career/website fields. The next real pilot should be rerun with per-company diagnostics before increasing the Serper budget.
 
 ## Data checkpoint
 
