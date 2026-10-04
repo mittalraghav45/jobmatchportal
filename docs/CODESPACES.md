@@ -24,9 +24,40 @@ MONGODB_URI
 ```
 
 Use the existing MongoDB Atlas connection string. Never commit it to the repository.
-5. The `.devcontainer/` configuration installs the Node.js 24 development environment and project dependencies automatically.
+5. The `.devcontainer/` configuration provides the Node.js 24 development environment.
+6. Project dependencies must be installed with `npm install` if the image does not already contain them.
 
 The repository's Codespace environment does not create or commit a `.env` file. `MONGODB_URI` is consumed from the Codespaces environment.
+
+## Automatic branch sync
+
+The Codespace automatically starts `.devcontainer/auto-sync.sh` through `postStartCommand`.
+
+The helper:
+
+- checks `feat/source-backed-job-verification` every 30 seconds;
+- fetches the remote branch;
+- fast-forwards only when the local worktree is clean and the histories are compatible;
+- never overwrites uncommitted local work;
+- does not merge divergent histories;
+- logs activity to `/tmp/jobmatchportal-auto-sync.log`.
+
+Therefore, when an agent commits/pushes a change to the active branch, a running clean Codespace should normally receive it without a manual `git pull`.
+
+If you have local changes, the helper waits. If the branch is changed, it does nothing until the configured development branch is checked out again.
+
+To inspect the helper log:
+
+```bash
+tail -50 /tmp/jobmatchportal-auto-sync.log
+```
+
+Manual synchronization remains available:
+
+```bash
+git fetch origin
+git merge --ff-only origin/feat/source-backed-job-verification
+```
 
 ## Verify the environment
 
@@ -70,25 +101,27 @@ cd backend
 npm test
 ```
 
-Targeted verification/discovery commands should be run deliberately because they perform network and database work:
-
-```bash
-npm run jobs:verify
-npm run jobs:analyse-unknown
-npm run jobs:google-fallback
-npm run jobs:crawl-google-fallback -- --limit=100
-```
+Targeted verification/discovery commands should be run deliberately because they perform network and database work.
 
 Inspect population summaries before and after large jobs. Preserve the job population invariant.
 
 ## Git workflow
 
-Codespaces is a normal Git working copy. Before changing code:
+The normal agent-assisted workflow is:
+
+1. Keep the Codespace on `feat/source-backed-job-verification`.
+2. Make sure local work is committed before expecting automatic remote sync.
+3. Let the auto-sync helper receive agent-side commits.
+4. Use targeted tests during development.
+5. Run the complete suite at meaningful integration checkpoints.
+
+For manual work, standard Git commands remain valid:
 
 ```bash
 git status
 git branch --show-current
-git pull --ff-only
+git fetch origin
+git merge --ff-only origin/feat/source-backed-job-verification
 ```
 
 After changes:
@@ -102,10 +135,8 @@ git commit -m "<message>"
 git push
 ```
 
-Prefer small commits and pull requests for meaningful changes.
-
 ## Recreating a Codespace
 
-The `.devcontainer/devcontainer.json` and `.devcontainer/setup.sh` files are the source of truth for the development environment. If a Codespace is deleted, create a new one from the repository and the bootstrap script will reinstall dependencies.
+The `.devcontainer/devcontainer.json` and `.devcontainer/auto-sync.sh` files are the source of truth for the cloud development environment. If a Codespace is deleted, create a new one from the repository and allow the dev container to initialise.
 
 Secrets are not stored in the dev container definition. Reconfigure repository Codespaces secrets if the repository/account configuration changes.
