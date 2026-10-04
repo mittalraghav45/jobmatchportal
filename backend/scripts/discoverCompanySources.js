@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Company } from '../models/Company.js';
 import { connectMongo, disconnectMongo } from '../db/mongoose.js';
-import { discoverCompanySourceCandidates, selectBestSource, verifySourceReachability } from '../services/companySourceDiscovery.js';
+import { discoverCompanySourceCandidates, prioritizeSourceReadyCompanies, selectBestSource, verifySourceReachability } from '../services/companySourceDiscovery.js';
 import { discoverWithATS } from '../ats/registry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -73,10 +73,34 @@ async function main() {
   await connectMongo();
   const registry = await loadRegistry();
   const registeredIds = new Set((registry.sources || []).map(source => String(source.companyId)));
-  const companies = await Company.find({ enabled: true, companyName: { $exists: true, $nin: ['', null] } })
+  const companyFilter = { enabled: true, companyName: { $exists: true, $nin: ['', null] } };
+
+  // Fetch a bounded source-ready pool first. This avoids spending Serper budget
+  // on companies for which we have no domain signal at all. If the source-ready
+  // pool is smaller than the requested limit, fill the remainder from the full
+  // enabled population so discovery can still bootstrap new domains.
+  const sourceReadyCompanies = await Company.find({
+    ...companyFilter,
+    $or: [
+      { website: { $nin: ['', null] } },
+      { careersUrl: { $nin: ['', null] } },
+      { 'metadata.website': { $nin: ['', null] } },
+      { 'metadata.careersUrl': { $nin: ['', null] } }
+    ]
+  })
     .sort({ priority: -1, companyId: 1 })
-    .limit(limit)
+    .limit(limit * 2)
     .lean();
+
+  const fallbackCompanies = await Company.find(companyFilter)
+    .sort({ priority: -1, companyId: 1 })
+    .limit(limit * 2)
+    .lean();
+
+  const companies = prioritizeSourceReadyCompanies(
+    [...sourceReadyCompanies, ...fallbackCompanies],
+    { limit, registeredIds }
+  );
 
   const summary = {
     attempted: 0,
@@ -86,6 +110,7 @@ async function main() {
     skippedRegistered: 0,
     failed: 0,
     queries: 0,
+    sourceReadySelected: companies.filter(company => Boolean(company.website || company.careersUrl || company.metadata?.website || company.metadata?.careersUrl)).length,
     rejectionCounts: {}
   };
 
