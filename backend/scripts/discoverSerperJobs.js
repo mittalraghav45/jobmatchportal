@@ -7,6 +7,9 @@ import { ingestJobs } from '../services/jobIngestion.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 import { discoverCompanyJobsWithSerper } from '../services/serperJobDiscovery.js';
 import { extractJobPostingJsonLd, extractLinks, normaliseUrl, classifyDiscoveredUrl } from '../services/googleCareersCrawler.js';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 dotenv.config();
 
@@ -24,7 +27,6 @@ const MAX_QUERIES_PER_COMPANY = Math.max(1, Number(arg('max-queries-per-company'
 const MAX_QUERIES_PER_RUN = Math.max(1, Number(arg('max-queries', process.env.SERPER_MAX_QUERIES_PER_RUN || 100)) || 100);
 const SOURCE_PAGES_PER_COMPANY = Math.max(1, Number(arg('source-pages', process.env.SERPER_SOURCE_PAGES_PER_COMPANY || 2)) || 2);
 const SOURCE_PAGE_TIMEOUT_MS = Math.max(3000, Number(process.env.SERPER_SOURCE_PAGE_TIMEOUT_MS || 10000) || 10000);
-const sourceUrlFor = company => company.careersUrl || company.website || company.metadata?.careersUrl || company.metadata?.careers_url || company.metadata?.website || '';
 const ATS_SITES = {
   greenhouse: 'boards.greenhouse.io',
   lever: 'jobs.lever.co',
@@ -44,19 +46,32 @@ if (!process.env.SERPER_API_KEY) {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+const registryPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../config/job-source-registry.json');
+const registry = JSON.parse(await readFile(registryPath, 'utf8'));
+const verifiedSources = (registry.sources || []).filter(source => source.status === 'verified' && source.companyId && source.sourceUrl);
+
 await connectMongo();
 
+const sourceCompanyIds = verifiedSources.slice(START, START + LIMIT).map(source => String(source.companyId));
 const companies = await Company.find({
   enabled: true,
+  companyId: { $in: sourceCompanyIds },
   companyName: { $exists: true, $nin: ['', null] }
-})
-  .sort({ priority: -1, companyName: 1 })
-  .skip(START)
-  .limit(LIMIT)
-  .lean();
+}).lean();
+
+const companyById = new Map(companies.map(company => [String(company.companyId), company]));
+const orderedCompanies = verifiedSources
+  .slice(START, START + LIMIT)
+  .map(source => ({
+    source,
+    company: companyById.get(String(source.companyId))
+  }))
+  .filter(item => item.company);
 
 const summary = {
-  attempted: companies.length,
+  attempted: orderedCompanies.length,
+  verifiedSourcesAvailable: verifiedSources.length,
+  missingCompanies: verifiedSources.slice(START, START + LIMIT).filter(source => !companyById.has(String(source.companyId))).length,
   companiesWithResults: 0,
   queries: 0,
   discovered: 0,
@@ -73,7 +88,7 @@ const summary = {
   budgetExhausted: false
 };
 
-for (const company of companies) {
+for (const { source, company } of orderedCompanies) {
   const remainingBudget = MAX_QUERIES_PER_RUN - summary.queries;
   if (remainingBudget <= 0) {
     summary.budgetExhausted = true;
@@ -81,11 +96,13 @@ for (const company of companies) {
   }
 
   try {
+    const sourceUrl = source.sourceUrl;
+    const ats = source.ats || company.ats;
     const discovery = await discoverCompanyJobsWithSerper({
       companyId: company.companyId,
       companyName: company.companyName,
-      careersUrl: sourceUrlFor(company),
-      sites: ATS_SITES[company.ats] ? [ATS_SITES[company.ats]] : [],
+      careersUrl: sourceUrl,
+      sites: ATS_SITES[ats] ? [ATS_SITES[ats]] : [],
       maxQueriesPerCompany: Math.min(MAX_QUERIES_PER_COMPANY, remainingBudget),
       perQuery: PER_QUERY
     });
@@ -159,7 +176,9 @@ for (const company of companies) {
     console.log(JSON.stringify({
       company: company.companyName,
       companyId: company.companyId,
-      sourceUrl: sourceUrlFor(company),
+      sourceUrl,
+      sourceStatus: source.status,
+      ats,
       queries: discovery.queries.length,
       serperDirectResults: discovery.results?.length || 0,
       sourcePages: discovery.sourcePages?.length || 0,
@@ -174,6 +193,7 @@ for (const company of companies) {
     console.error(JSON.stringify({
       company: company.companyName,
       companyId: company.companyId,
+      sourceUrl: source.sourceUrl,
       error: error.message
     }));
   }
