@@ -8,6 +8,8 @@ const SEARCH_TERMS = [
   'jobs hiring'
 ];
 
+const ATS_FALLBACK_QUERY = '("COMPANY" site:boards.greenhouse.io OR site:job-boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com OR site:myworkdayjobs.com) jobs UK';
+
 const SEARCH_IGNORED_TOKENS = new Set([
   'the', 'and', 'of', 'for', 'uk', 'ltd', 'limited', 'plc', 'llp',
   'group', 'company', 'university', 'council', 'borough', 'city', 'nhs', 'trust'
@@ -54,13 +56,7 @@ function scoreCandidate({ company, result }) {
   const careerPath = isCareerPath(url);
   const credibleCareerResult = careerPath || sameOfficialHost || Boolean(detected.ats);
 
-  // If we cannot establish either an employer-domain, ATS, or career-path
-  // relationship, reject the result rather than polluting the source registry.
   if (!credibleCareerResult) return null;
-
-  // Unrelated generic career pages still require company evidence. ATS results
-  // and results on the configured official domain are trusted as source-level
-  // evidence even when the search snippet omits the company name.
   if (!sameOfficialHost && !detected.ats && tokens.length && tokenMatches === 0) return null;
 
   const score =
@@ -101,14 +97,13 @@ export function buildCompanySourceQueries({ companyName, website = '', careersUr
     queries.push(`site:${officialHost} careers jobs ${location}`);
   }
 
+  // Keep the ATS fallback inside the default bounded query budget. This is
+  // essential for employers whose career pages live entirely on an ATS host.
+  queries.push(ATS_FALLBACK_QUERY.replace('COMPANY', name).replace('UK', location));
+
   for (const term of SEARCH_TERMS) {
     queries.push(`"${name}" ${term} ${location}`);
   }
-
-  // One ATS-oriented fallback catches employers whose careers pages are hosted
-  // entirely off-domain. It is deliberately one bounded query rather than a
-  // separate request for every ATS.
-  queries.push(`("${name}" site:boards.greenhouse.io OR site:job-boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com OR site:myworkdayjobs.com) jobs ${location}`);
 
   return [...new Set(queries)];
 }
