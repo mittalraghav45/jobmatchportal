@@ -88,6 +88,17 @@ function isJobSpecificUrl(url = '') {
   }
 }
 
+function isGenericCareerUrl(url = '') {
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split('/').filter(Boolean).map(segment => segment.toLowerCase());
+    if (!segments.length) return true;
+    return segments.length === 1 && /^(?:careers?|jobs?|vacancies?|opportunities|work-with-us|join-us)$/.test(segments[0]);
+  } catch {
+    return false;
+  }
+}
+
 export function selectVerificationUrl(job = {}) {
   const candidates = [
     { field: 'applyUrl', url: String(job?.applyUrl || '').trim() },
@@ -133,6 +144,13 @@ function atsPageEvidence(finalUrl, body) {
   return null;
 }
 
+function customJobPageEvidence({ url, hasTitle, hasJobDetailContent, liveMatch, hasStructuredJob }) {
+  if (!hasTitle || isGenericCareerUrl(url)) return null;
+  if (hasStructuredJob) return 'JobPosting structured data and job title evidence present';
+  if (hasJobDetailContent && liveMatch) return `${liveMatch}; job title and job-detail content present`;
+  return null;
+}
+
 export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', body = '', now = new Date(), attempts = 1, verificationUrl = '' } = {}) {
   const text = normaliseText(body);
   const lower = text.toLowerCase();
@@ -157,10 +175,11 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
     const liveMatch = findMatch(LIVE_PATTERNS, lower);
     const originalUrl = job?.source?.url || '';
     const originalJobSpecificUrl = isJobSpecificUrl(originalUrl);
-    const jobSpecificUrl = isJobSpecificUrl(finalUrl || verificationUrl || originalUrl);
+    const resolvedUrl = finalUrl || verificationUrl || originalUrl;
+    const jobSpecificUrl = isJobSpecificUrl(resolvedUrl);
     const hasStructuredJob = structuredJobEvidence(body);
     const hasJobDetailContent = /\b(?:job description|responsibilities|requirements|qualifications|salary|location|about the role|what you will do|what you'll do)\b/i.test(text);
-    const atsEvidence = atsPageEvidence(finalUrl || verificationUrl || originalUrl, body);
+    const atsEvidence = atsPageEvidence(resolvedUrl, body);
 
     if (originalJobSpecificUrl && finalUrl && !jobSpecificUrl && !hasStructuredJob) {
       return { status: 'unknown', evidenceType: 'redirected_source', evidence: 'Job-specific source URL redirected to a non-job page', ...meta };
@@ -176,6 +195,11 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
 
     if (hasTitle && jobSpecificUrl && hasJobDetailContent) {
       return { status: 'live', evidenceType: 'job_page', evidence: 'Job-specific source page contains title and job-detail content', ...meta };
+    }
+
+    const customEvidence = customJobPageEvidence({ url: resolvedUrl, hasTitle, hasJobDetailContent, liveMatch, hasStructuredJob });
+    if (customEvidence) {
+      return { status: 'live', evidenceType: hasStructuredJob ? 'jobposting_schema' : 'custom_job_page', evidence: customEvidence, ...meta };
     }
 
     if (hasStructuredJob && hasTitle) return { status: 'live', evidenceType: 'jobposting_schema', evidence: 'JobPosting structured data contains the discovered job title', ...meta };
@@ -254,4 +278,4 @@ export async function verifyJobSource(job, options = {}) {
   }
 }
 
-export { normaliseText, titleEvidence, isJobSpecificUrl, structuredJobEvidence, atsPageEvidence };
+export { normaliseText, titleEvidence, isJobSpecificUrl, structuredJobEvidence, atsPageEvidence, isGenericCareerUrl, customJobPageEvidence };
