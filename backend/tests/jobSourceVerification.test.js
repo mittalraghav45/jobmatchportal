@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifySourceResponse, verifyJobSource } from '../services/jobSourceVerification.js';
+import { classifySourceResponse, verifyJobSource, atsPageEvidence } from '../services/jobSourceVerification.js';
 
 const job = {
   title: 'Software Engineer',
@@ -46,6 +46,29 @@ test('marks a job unknown when a job URL redirects to a generic board', () => {
   const result = classifySourceResponse({ job, statusCode: 200, finalUrl: 'https://jobs.example.com/jobs', body: '<h1>Software Engineer</h1><p>Responsibilities and requirements.</p><button>Apply now</button>' });
   assert.equal(result.status, 'unknown');
   assert.equal(result.evidenceType, 'redirected_source');
+});
+
+test('recognises ATS-specific job URLs for Greenhouse, Lever, SmartRecruiters and Workable', () => {
+  assert.equal(classifySourceResponse({ job, statusCode: 200, finalUrl: 'https://job-boards.greenhouse.io/acme/jobs/123', body: '<h1>Software Engineer</h1><p>Greenhouse job description</p><button>Apply</button>' }).status, 'live');
+  assert.equal(classifySourceResponse({ job, statusCode: 200, finalUrl: 'https://jobs.lever.co/acme/abc123', body: '<h1>Software Engineer</h1><p>Lever job description</p><button>Apply</button>' }).status, 'live');
+  assert.equal(classifySourceResponse({ job, statusCode: 200, finalUrl: 'https://jobs.smartrecruiters.com/Acme/123', body: '<h1>Software Engineer</h1><p>SmartRecruiters job description</p><button>Apply</button>' }).status, 'live');
+  assert.equal(classifySourceResponse({ job, statusCode: 200, finalUrl: 'https://apply.workable.com/acme/j/123', body: '<h1>Software Engineer</h1><p>Workable job description</p><button>Apply</button>' }).status, 'live');
+});
+
+test('uses ATS page evidence without requiring a generic Apply phrase', () => {
+  const result = classifySourceResponse({ job, statusCode: 200, finalUrl: 'https://jobs.lever.co/acme/abc123', body: '<h1>Software Engineer</h1><p>Lever</p><p>Responsibilities</p><p>Qualifications</p>' });
+  assert.equal(result.status, 'live');
+  assert.equal(result.evidenceType, 'ats_page');
+});
+
+test('does not treat an ATS homepage as a job posting', () => {
+  const result = classifySourceResponse({ job, statusCode: 200, finalUrl: 'https://jobs.lever.co/acme', body: '<h1>Careers</h1><p>Lever</p><p>Explore our opportunities.</p>' });
+  assert.equal(result.status, 'unknown');
+});
+
+test('exposes ATS evidence helper conservatively', () => {
+  assert.equal(atsPageEvidence('https://jobs.ashbyhq.com/acme/123', '<h1>Software Engineer</h1><p>Apply</p>'), 'ATS job-page markers present');
+  assert.equal(atsPageEvidence('https://example.com/jobs/123', '<h1>Software Engineer</h1><p>Apply</p>'), null);
 });
 
 test('verifies through an injected fetch implementation and preserves source metadata', async () => {
