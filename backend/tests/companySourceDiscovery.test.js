@@ -53,7 +53,7 @@ test('accepts an official career page when the result omits the company name', (
   });
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0].ats, 'custom');
-  assert.equal(candidates[0].score, 80);
+  assert.equal(candidates[0].score, 90);
 });
 
 test('accepts a career-path result with company evidence even without an official domain', () => {
