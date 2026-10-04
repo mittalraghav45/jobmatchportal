@@ -11,7 +11,7 @@ function sponsorshipFit(job, profile) {
   const negative = ['unable to sponsor', 'cannot sponsor', 'no sponsorship', 'not able to sponsor', 'does not sponsor', 'without sponsorship'];
   if (hasAny(text, negative)) return { score: 0, status: 'explicitly_unavailable', reason: 'sponsorship_not_supported' };
   if (hasAny(text, positive)) return { score: 1, status: 'confirmed', reason: 'sponsorship_evidence' };
-  return { score: 0.5, status: 'unconfirmed', reason: 'sponsorship_not_confirmed' };
+  return { score: 0.25, status: 'unconfirmed', reason: 'sponsorship_not_confirmed' };
 }
 
 function containsExcludedTerm(text, value) {
