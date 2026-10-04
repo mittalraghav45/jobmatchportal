@@ -10,11 +10,11 @@ fi
 
 BRANCH="feat/source-backed-job-verification"
 LOG_FILE="/tmp/jobmatchportal-auto-sync.log"
-INTERVAL_SECONDS="30"
+INTERVAL_SECONDS="10"
 
 cd "$REPO_ROOT" || exit 0
 
-echo "[$(date -Is)] auto-sync started for $BRANCH" >> "$LOG_FILE"
+echo "[$(date -Is)] auto-sync started for $BRANCH (interval=${INTERVAL_SECONDS}s)" >> "$LOG_FILE"
 
 while true; do
   current_branch="$(git branch --show-current 2>/dev/null || true)"
