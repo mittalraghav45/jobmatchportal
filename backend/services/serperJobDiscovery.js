@@ -135,7 +135,8 @@ export function buildCompanySerperQueries({
   location = 'UK',
   keyword = DEFAULT_ROLE_QUERY,
   sites = DEFAULT_SERPER_SITES,
-  careersUrl = ''
+  careersUrl = '',
+  maxQueriesPerCompany = Math.max(1, Number(process.env.SERPER_MAX_QUERIES_PER_COMPANY || 2) || 2)
 } = {}) {
   const company = String(companyName).trim();
   if (!company) return [];
@@ -167,7 +168,8 @@ export async function discoverCompanyJobsWithSerper({
   if (!companyId) throw new Error('companyId is required');
   if (!companyName) throw new Error('companyName is required');
 
-  const queries = buildCompanySerperQueries({ companyName, location, keyword, sites, careersUrl });
+  const allQueries = buildCompanySerperQueries({ companyName, location, keyword, sites, careersUrl });
+  const queries = allQueries.slice(0, Math.max(1, Number(maxQueriesPerCompany) || 1));
   const responses = [];
 
   for (const query of queries) {
