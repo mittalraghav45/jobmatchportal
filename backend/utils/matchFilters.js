@@ -6,6 +6,8 @@ export function buildVerifiedLiveMatchFilter(sponsorshipCompanyIds = null) {
     $and: [
       { 'status.isLive': true },
       { 'verification.status': 'live' },
+      { applyUrl: { $type: 'string', $ne: '' } },
+      { 'processing.status': 'complete' },
       ukJobMongoFilter(),
       techJobMongoFilter()
     ]
