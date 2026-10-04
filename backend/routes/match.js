@@ -5,6 +5,7 @@ import { CandidateProfile } from '../models/CandidateProfile.js';
 import { analyseJob, scoreCandidateAgainstJob } from '../jobIntelligence.js';
 import { evaluateSponsorship } from '../sponsorRegistry.js';
 import { getRecommendation } from '../cvJobMatcher.js';
+import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
 
 const router = express.Router();
 
@@ -84,8 +85,9 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Score a candidate against a page of real MongoDB jobs in one request.
-// This is intentionally bounded to keep the endpoint responsive.
+// Score the verified, live, UK technology inventory and return the highest-fit
+// jobs first. Pagination is applied after scoring so page 1 contains the best
+// matches rather than simply the newest jobs.
 router.post('/jobs', async (req, res) => {
   try {
     await connectMongo();
@@ -94,11 +96,11 @@ router.post('/jobs', async (req, res) => {
     const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 50, 1), 100);
     const requestedPage = Number(req.body?.page ?? 1);
     const page = Math.max(Number.isFinite(requestedPage) ? requestedPage : 1, 1);
-    const skip = (page - 1) * limit;
 
+    const filter = buildVerifiedLiveMatchFilter();
     const [jobs, total] = await Promise.all([
-      Job.find({}).sort({ 'dates.postedAt': -1, postedAt: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
-      Job.countDocuments({})
+      Job.find(filter).sort({ 'dates.lastSeenAt': -1, 'dates.postedAt': -1, createdAt: -1 }).limit(1000).lean(),
+      Job.countDocuments(filter)
     ]);
 
     const companyIds = [...new Set(jobs.map(job => String(job.companyId || '')).filter(Boolean))];
@@ -116,9 +118,12 @@ router.post('/jobs', async (req, res) => {
       };
     }).sort((a, b) => b.match.score - a.match.score);
 
+    const start = (page - 1) * limit;
+    const pagedMatches = matches.slice(start, start + limit);
+
     return res.json({
       profile: { profileId: profile.profileId || null, name: profile.name || '' },
-      matches,
+      matches: pagedMatches,
       pagination: {
         page,
         limit,
