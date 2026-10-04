@@ -69,12 +69,15 @@ Discovery flow:
 
 1. Direct company/ATS discovery.
 2. Google fallback when direct discovery produces no jobs.
-3. Bounded careers/ATS crawl where a useful fallback target exists.
-4. Canonicalisation and fingerprint-based upsert.
-5. Incremental source-backed verification.
-6. API/frontend exposure of verified jobs.
+3. Bounded Serper discovery for sponsor-company job search.
+4. When Serper returns a useful career/ATS source page rather than an individual posting, crawl that page for structured `JobPosting` data and job links.
+5. Canonicalisation and fingerprint-based upsert.
+6. Incremental source-backed verification.
+7. API/frontend exposure of verified jobs.
 
-Google search URLs are discovery aids only. They are not proof that a vacancy exists.
+Serper is an additional discovery source, not a verification source. Application-level safeguards currently default to 2 queries per company, 100 queries per run and 10 requested results per query. These controls do not alter Serper's provider-side quota or billing.
+
+Search snippets and generic career pages are discovery evidence only. A specific vacancy must retain a source URL and still pass the existing source-backed verification contract before it is eligible as verified-live.
 
 ## 5. Job identity and persistence
 
