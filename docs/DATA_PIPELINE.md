@@ -5,16 +5,16 @@
 ```text
 21,516-company protected population
         |
-        v
-Checkpointed direct/ATS discovery
+        +--> direct/ATS discovery
         |
-        +--> bounded parallel company ranges
-        |
-        v
-Google career fallback for companies with no direct jobs
-        |
-        v
-Careers/ATS crawl
+        +--> Serper bounded discovery
+        |       |
+        |       +--> direct job result
+        |       |
+        |       +--> career/ATS source page
+        |                  |
+        |                  v
+        |              bounded source-page crawl
         |
         v
 Canonical job records in MongoDB
@@ -49,6 +49,14 @@ For large runs, company ranges may be processed in parallel. Ranges must not ove
 4. A generic search result must never become a fabricated job record.
 5. Source URLs and canonical identity must be retained.
 6. Discovery writes canonical records through the job repository's fingerprint/idempotency path.
+
+## Serper discovery
+
+Serper is an additional bounded discovery source. It searches sponsor-company names against UK technology-job queries and, when a result is a career/ATS source page rather than an individual posting, retains that page for downstream crawling.
+
+The current script enforces application-level budgets of 2 queries per company and 100 queries per run by default. These controls protect the application from accidental overuse; they do not change Serper's own account quota/billing limits.
+
+Source-page crawling uses the existing careers crawler's structured JobPosting extraction and job-link classification before canonical ingestion. A Serper search result or snippet alone is never considered live-job evidence.
 
 ## Google fallback
 
