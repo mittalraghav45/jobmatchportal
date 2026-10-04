@@ -1,0 +1,141 @@
+import axios from 'axios';
+import { searchJobsWithSerper } from './serperJobDiscovery.js';
+import { resolveATSConfig } from '../ats/detector.js';
+
+const SEARCH_TERMS = [
+  'careers jobs',
+  'careers ATS jobs'
+];
+
+const SEARCH_IGNORED_TOKENS = new Set([
+  'the', 'and', 'of', 'for', 'uk', 'ltd', 'limited', 'plc', 'llp',
+  'group', 'company', 'university', 'council', 'borough', 'city', 'nhs', 'trust'
+]);
+
+function hostOf(url = '') {
+  try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ''); } catch { return ''; }
+}
+
+function companyTokens(companyName = '') {
+  return String(companyName).toLowerCase().match(/[a-z0-9]+/g)
+    ?.filter(token => token.length >= 4 && !SEARCH_IGNORED_TOKENS.has(token)) || [];
+}
+
+function isSearchEngineHost(host = '') {
+  return /^(?:google\.|www\.google\.|bing\.|www\.bing\.|search\.)/i.test(host);
+}
+
+function isCareerPath(url = '') {
+  try {
+    const parsed = new URL(url);
+    return /(?:career|jobs?|vacanc|opportunit|recruit|talent|work-with-us)/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function scoreCandidate({ company, result }) {
+  const url = String(result?.url || '').trim();
+  const host = hostOf(url);
+  if (!url || !host || isSearchEngineHost(host)) return null;
+
+  const tokens = companyTokens(company.companyName);
+  const haystack = `${result.title || ''} ${result.snippet || ''} ${url}`.toLowerCase();
+  const tokenMatches = tokens.filter(token => haystack.includes(token)).length;
+  if (tokens.length && tokenMatches === 0) return null;
+
+  const detected = resolveATSConfig({ careersUrl: url });
+  const officialHost = hostOf(company.website);
+  const sameOfficialHost = Boolean(officialHost && (host === officialHost || host.endsWith(`.${officialHost}`)));
+  const careerPath = isCareerPath(url);
+  const score =
+    (detected.ats ? 100 : 0) +
+    (sameOfficialHost ? 45 : 0) +
+    (careerPath ? 25 : 0) +
+    Math.min(tokenMatches, 3) * 10;
+
+  return {
+    companyId: String(company.companyId),
+    companyName: company.companyName,
+    sourceUrl: url,
+    ats: detected.ats || (sameOfficialHost && careerPath ? 'custom' : null),
+    atsSlug: detected.slug || null,
+    atsSite: detected.site || null,
+    sourceType: detected.ats ? 'ats' : 'career-site',
+    score,
+    evidence: {
+      title: result.title || '',
+      snippet: result.snippet || '',
+      sourceHost: host,
+      officialHost: officialHost || null,
+      sameOfficialHost,
+      careerPath,
+      tokenMatches
+    }
+  };
+}
+
+export function buildCompanySourceQueries({ companyName, location = 'UK' } = {}) {
+  const name = String(companyName || '').trim();
+  if (!name) return [];
+  return SEARCH_TERMS.map(term => `"${name}" ${term} ${location}`);
+}
+
+export function rankSourceCandidates({ company, results = [] } = {}) {
+  const candidates = results
+    .map(result => scoreCandidate({ company, result }))
+    .filter(Boolean);
+
+  const byUrl = new Map();
+  for (const candidate of candidates) {
+    const existing = byUrl.get(candidate.sourceUrl);
+    if (!existing || candidate.score > existing.score) byUrl.set(candidate.sourceUrl, candidate);
+  }
+
+  return [...byUrl.values()].sort((a, b) => b.score - a.score);
+}
+
+export async function discoverCompanySourceCandidates({
+  company,
+  apiKey = process.env.SERPER_API_KEY,
+  perQuery = 10,
+  maxQueries = 2,
+  location = 'UK'
+} = {}) {
+  if (!company?.companyId || !company?.companyName) throw new Error('companyId and companyName are required');
+
+  const queries = buildCompanySourceQueries({ companyName: company.companyName, location }).slice(0, Math.max(1, Number(maxQueries) || 1));
+  const responses = [];
+  for (const query of queries) {
+    responses.push(await searchJobsWithSerper({ query, apiKey, num: perQuery }));
+  }
+
+  return {
+    companyId: String(company.companyId),
+    companyName: company.companyName,
+    queries,
+    candidates: rankSourceCandidates({ company, results: responses.flatMap(response => response.results) })
+  };
+}
+
+export async function verifySourceReachability(url, { timeoutMs = 8000 } = {}) {
+  try {
+    const response = await axios.get(url, {
+      timeout: timeoutMs,
+      maxRedirects: 5,
+      validateStatus: () => true,
+      headers: { 'User-Agent': 'JobMatchPortal/1.0 source verification' }
+    });
+    return {
+      ok: response.status >= 200 && response.status < 400,
+      httpStatus: response.status,
+      finalUrl: response.request?.res?.responseUrl || url
+    };
+  } catch (error) {
+    return { ok: false, httpStatus: null, finalUrl: url, error: error.message };
+  }
+}
+
+export function selectBestSource(candidates = []) {
+  return candidates.find(candidate => candidate.ats) || candidates[0] || null;
+}
