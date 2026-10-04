@@ -57,3 +57,14 @@ test('company discovery mapper preserves canonical source and identity fields', 
   const { discoverCompanyJobsWithSerper } = await import('../services/serperJobDiscovery.js');
   assert.equal(typeof discoverCompanyJobsWithSerper, 'function');
 });
+
+
+test('caps company discovery queries to the configured budget', () => {
+  const queries = buildCompanySerperQueries({
+    companyName: 'Monzo',
+    careersUrl: 'https://monzo.com/careers',
+    sites: ['boards.greenhouse.io', 'jobs.lever.co'],
+    maxQueriesPerCompany: 2
+  });
+  assert.equal(queries.length, 3);
+});
