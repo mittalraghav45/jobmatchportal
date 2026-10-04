@@ -55,6 +55,14 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 - Source-search results from jobs.ac.uk must be visibly distinguishable from the verified MongoDB job index and must retain their external source link.
 - API/network failures should produce a recoverable UI state rather than a page crash.
 
+## Matching rules
+
+- Reuse the existing profile/job matching engine rather than creating parallel scoring implementations.
+- Matching must remain explainable: preserve matched skills, missing skills, role-fit/seniority evidence and sponsorship recommendation.
+- `/match/jobs` should apply the frontend-ready/verified-live contract before returning match results.
+- Match scoring must happen before pagination when ranking is requested, so page boundaries do not hide higher-scoring matches.
+- Do not invent candidate skills or job evidence.
+
 ## Operational rules
 
 - MongoDB is the source of persisted job/company state.
@@ -64,6 +72,19 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 - Before scaling a crawl, inspect a smaller pilot and confirm throughput, error rate, duplicate rate and database health.
 - If a process fails, inspect its run summary/checkpoint before retrying.
 
+## Codespaces auto-sync
+
+The `.devcontainer/auto-sync.sh` helper keeps the development branch `feat/source-backed-job-verification` current with GitHub.
+
+- It starts automatically when the Codespace starts.
+- It checks every 30 seconds.
+- It only fast-forwards when the working tree is clean and the remote history is an ancestor of the local branch.
+- It never overwrites uncommitted changes.
+- It does not auto-merge divergent histories.
+- Its log is written to `/tmp/jobmatchportal-auto-sync.log`.
+
+This removes the need to manually run `git pull` after agent-side commits during the normal development workflow. If local work is uncommitted, the sync waits until the worktree is clean.
+
 ## Development workflow
 
 Before changing code:
@@ -71,7 +92,7 @@ Before changing code:
 1. Read the relevant existing implementation, tests and docs.
 2. Prefer small, targeted changes.
 3. Add/update tests for behaviour changes.
-4. Run `npm test` in `backend`.
+4. Run targeted tests first; run the complete `npm test` suite at meaningful integration checkpoints rather than after every small edit.
 5. Run `npm run build` in `frontend` when frontend code changes.
 6. Run `git diff --check`.
 7. Update relevant documentation in the same change.
@@ -88,6 +109,7 @@ Keep these documents current:
 - `docs/CODESPACES.md` — cloud development environment and MongoDB connectivity.
 - `docs/PROJECT_STATUS.md` — current milestone, metrics and known limitations.
 - `docs/PROJECT_HANDOFF.md` — concise context for a new agent/chat.
+- `docs/MIGRATION_HANDOFF.md` — current context and rules for moving development to a new chat/agent.
 - `AGENTS.md` — durable engineering rules for future agents.
 
 When a meaningful architectural or operational decision is made, update the appropriate document rather than relying only on chat history.
