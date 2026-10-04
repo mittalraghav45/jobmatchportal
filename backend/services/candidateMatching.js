@@ -47,7 +47,8 @@ export function matchJobToCandidate(job, profile = {}) {
   const strongCoreMatch = base.components.title >= 75 && base.components.skills >= 75;
   const trustedFreshJob = base.components.verification >= 100 && base.components.freshness >= 80;
   const sponsorshipBlocked = sponsorship.status === 'explicitly_unavailable';
-  const strongApplicationCandidate = strongCoreMatch && trustedFreshJob && sponsorship.status === 'confirmed' && !sponsorshipBlocked && experience.score >= 0.65;
+  const matchStrength = strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65 ? 'strong' : (matchScore >= 65 && !sponsorshipBlocked ? 'possible' : 'weak');
+  const strongApplicationCandidate = matchStrength === 'strong' && sponsorship.status === 'confirmed';
 
   if (strongApplicationCandidate) matchScore = Math.max(matchScore, 85);
   if (excluded) matchScore = Math.min(matchScore, 20);
@@ -56,15 +57,18 @@ export function matchJobToCandidate(job, profile = {}) {
   if (sponsorship.reason) reasons.push(sponsorship.reason);
   if (experience.reason) reasons.push(experience.reason);
   if (strongCoreMatch) reasons.push('strong_core_match');
+  if (matchStrength === 'strong') reasons.push('strong_match');
   if (strongApplicationCandidate) reasons.push('strong_application_candidate');
   if (excluded) reasons.push(`excluded_keyword:${normalise(excluded)}`);
 
-  let applicationFit = 'weak';
-  if (strongApplicationCandidate && !excluded) applicationFit = 'strong';
-  else if (matchScore >= 65 && !excluded && !sponsorshipBlocked) applicationFit = 'possible';
+  let applicationFit = matchStrength;
+  if (strongApplicationCandidate) applicationFit = 'strong';
+  else if (matchStrength === 'strong' && sponsorship.status === 'unconfirmed') applicationFit = 'strong_unconfirmed_sponsorship';
+  if (excluded || sponsorshipBlocked) applicationFit = 'weak';
 
   return {
     matchScore: Math.max(0, Math.min(100, matchScore)),
+    matchStrength,
     applicationFit,
     reasons: [...new Set(reasons)],
     components: {
