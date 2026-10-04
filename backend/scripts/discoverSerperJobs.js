@@ -18,6 +18,8 @@ const LIMIT = Math.max(1, Number(arg('limit', process.env.SERPER_COMPANY_LIMIT |
 const PER_QUERY = Math.max(1, Math.min(10, Number(arg('per-query', process.env.SERPER_RESULTS_PER_QUERY || 10)) || 10));
 const START = Math.max(0, Number(arg('skip', 0)) || 0);
 const DELAY_MS = Math.max(0, Number(arg('delay', process.env.SERPER_DELAY_MS || 250)) || 250);
+const MAX_QUERIES_PER_COMPANY = Math.max(1, Number(arg('max-queries-per-company', process.env.SERPER_MAX_QUERIES_PER_COMPANY || 2)) || 2);
+const MAX_QUERIES_PER_RUN = Math.max(1, Number(arg('max-queries', process.env.SERPER_MAX_QUERIES_PER_RUN || 100)) || 100);
 const ATS_SITES = {
   greenhouse: 'boards.greenhouse.io',
   lever: 'jobs.lever.co',
@@ -57,16 +59,26 @@ const summary = {
   updated: 0,
   duplicatesRemoved: 0,
   rejected: 0,
-  failed: 0
+  failed: 0,
+  maxQueriesPerCompany: MAX_QUERIES_PER_COMPANY,
+  maxQueriesPerRun: MAX_QUERIES_PER_RUN,
+  budgetExhausted: false
 };
 
 for (const company of companies) {
+  const remainingBudget = MAX_QUERIES_PER_RUN - summary.queries;
+  if (remainingBudget <= 0) {
+    summary.budgetExhausted = true;
+    break;
+  }
+
   try {
     const discovery = await discoverCompanyJobsWithSerper({
       companyId: company.companyId,
       companyName: company.companyName,
       careersUrl: company.careersUrl || '',
       sites: ATS_SITES[company.ats] ? [ATS_SITES[company.ats]] : [],
+      maxQueriesPerCompany: Math.min(MAX_QUERIES_PER_COMPANY, remainingBudget),
       perQuery: PER_QUERY
     });
 
