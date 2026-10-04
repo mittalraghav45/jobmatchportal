@@ -93,8 +93,8 @@ export async function discoverJobsWithSerper({
 }
 
 
-const DEFAULT_ROLE_QUERY = 'software engineer jobs careers';
-const DEFAULT_SERPER_SITES = ['jobs.lever.co', 'boards.greenhouse.io', 'jobs.ashbyhq.com', 'myworkdayjobs.com'];
+const DEFAULT_ROLE_QUERY = 'software engineer software developer frontend developer full stack developer web developer jobs careers';
+const DEFAULT_SERPER_SITES = [];
 
 function significantCompanyTokens(companyName = '') {
   const ignored = new Set(['the', 'and', 'of', 'for', 'uk', 'ltd', 'limited', 'plc', 'llp', 'group', 'company', 'university', 'council', 'borough', 'city', 'nhs', 'trust']);
