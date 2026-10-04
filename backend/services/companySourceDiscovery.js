@@ -4,7 +4,8 @@ import { resolveATSConfig } from '../ats/detector.js';
 
 const SEARCH_TERMS = [
   'careers jobs',
-  'careers ATS jobs'
+  'careers jobs vacancies',
+  'jobs hiring'
 ];
 
 const SEARCH_IGNORED_TOKENS = new Set([
@@ -28,14 +29,14 @@ function isSearchEngineHost(host = '') {
 function isCareerPath(url = '') {
   try {
     const parsed = new URL(url);
-    return /(?:career|jobs?|vacanc|opportunit|recruit|talent|work-with-us)/i.test(parsed.pathname);
+    return /(?:career|jobs?|vacanc|opportunit|recruit|talent|work-with-us|join-us|join-our-team)/i.test(parsed.pathname);
   } catch {
     return false;
   }
 }
 
 function officialHostOf(company) {
-  return hostOf(company?.website || company?.careersUrl || '');
+  return hostOf(company?.website || company?.careersUrl || company?.metadata?.website || company?.metadata?.careersUrl || '');
 }
 
 function scoreCandidate({ company, result }) {
@@ -51,11 +52,16 @@ function scoreCandidate({ company, result }) {
   const officialHost = officialHostOf(company);
   const sameOfficialHost = Boolean(officialHost && (host === officialHost || host.endsWith(`.${officialHost}`)));
   const careerPath = isCareerPath(url);
+  const credibleCareerResult = careerPath || sameOfficialHost || Boolean(detected.ats);
 
-  // A result on the company's own configured website is strong evidence even
-  // when Google/Serper does not repeat the company name in the result text.
-  // Keep unrelated domains subject to company-token matching.
-  if (!sameOfficialHost && tokens.length && tokenMatches === 0 && !detected.ats) return null;
+  // If we cannot establish either an employer-domain, ATS, or career-path
+  // relationship, reject the result rather than polluting the source registry.
+  if (!credibleCareerResult) return null;
+
+  // Unrelated generic career pages still require company evidence. ATS results
+  // and results on the configured official domain are trusted as source-level
+  // evidence even when the search snippet omits the company name.
+  if (!sameOfficialHost && !detected.ats && tokens.length && tokenMatches === 0) return null;
 
   const score =
     (detected.ats ? 100 : 0) +
@@ -84,16 +90,13 @@ function scoreCandidate({ company, result }) {
   };
 }
 
-export function buildCompanySourceQueries({ companyName, website = '', location = 'UK' } = {}) {
+export function buildCompanySourceQueries({ companyName, website = '', careersUrl = '', location = 'UK' } = {}) {
   const name = String(companyName || '').trim();
   if (!name) return [];
 
-  const officialHost = hostOf(website);
+  const officialHost = hostOf(website || careersUrl);
   const queries = [];
 
-  // Prefer the company's known official domain. This avoids depending on
-  // Serper repeating the company name in the title/snippet and sharply reduces
-  // false negatives for small or obscure employers.
   if (officialHost) {
     queries.push(`site:${officialHost} careers jobs ${location}`);
   }
@@ -101,6 +104,11 @@ export function buildCompanySourceQueries({ companyName, website = '', location 
   for (const term of SEARCH_TERMS) {
     queries.push(`"${name}" ${term} ${location}`);
   }
+
+  // One ATS-oriented fallback catches employers whose careers pages are hosted
+  // entirely off-domain. It is deliberately one bounded query rather than a
+  // separate request for every ATS.
+  queries.push(`("${name}" site:boards.greenhouse.io OR site:job-boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com OR site:myworkdayjobs.com) jobs ${location}`);
 
   return [...new Set(queries)];
 }
@@ -123,7 +131,7 @@ export async function discoverCompanySourceCandidates({
   company,
   apiKey = process.env.SERPER_API_KEY,
   perQuery = 10,
-  maxQueries = 2,
+  maxQueries = 3,
   location = 'UK'
 } = {}) {
   if (!company?.companyId || !company?.companyName) throw new Error('companyId and companyName are required');
@@ -131,6 +139,7 @@ export async function discoverCompanySourceCandidates({
   const queries = buildCompanySourceQueries({
     companyName: company.companyName,
     website: company.website,
+    careersUrl: company.careersUrl,
     location
   }).slice(0, Math.max(1, Number(maxQueries) || 1));
   const responses = [];
