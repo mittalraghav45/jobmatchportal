@@ -1,39 +1,91 @@
-# Project Status — 2026-10-02
+# Project Status — 2026-10-04
 
 ## Current milestone
 
-Source-backed job verification and scaled, checkpointed sponsor-company discovery are operational. The system is being hardened for the full 21,516-company population while verified jobs are exposed incrementally through the API and frontend.
+Source-backed job verification, frontend-ready filtering, sponsorship-aware filtering and explainable profile-to-job matching are operational. The current product focus is ranking the frontend-ready population by candidate relevance without creating a second independent scoring engine.
 
 ## Data checkpoint
 
-- Canonical company population: 21,516.
-- Latest verified-job population checkpoint: 3,481 jobs.
-- Latest verification checkpoint: 1,565 live, 155 closed, 1,761 unknown, 0 unverified.
-- Verification population invariant passed.
-- Earlier duplicate repair completed with no remaining duplicate live `applyUrl` groups at the final audit checkpoint.
-- A 500-company discovery test produced 171 discovered jobs, 60 additions, 111 updates and 7 rejected records; this validated the checkpointed/resumable discovery path before full-scale execution.
+Latest backend filter audit:
 
-## Current scaled pipeline
+- Canonical company population: **21,516**.
+- All jobs: **8,811**.
+- UK jobs: **5,193**.
+- Technology jobs: **1,729**.
+- UK technology jobs: **979**.
+- UK technology live jobs: **784**.
+- UK technology live + verified jobs: **488**.
+- UK technology live + verified + apply URL: **488**.
+- Frontend-ready jobs: **309**.
+- UK technology closed: **39**.
+- UK technology unknown status: **0**.
 
-The full company population is processed in bounded, non-overlapping ranges. Multiple discovery workers may run concurrently, each with its own run ID and checkpoint state. Newly discovered jobs can be picked up by the verification worker without waiting for the entire company population to finish.
+Frontend-ready processing backfill completed safely:
+
+```text
+matchedBeforeUpdate: 179
+modified:            179
+remainingMissing:      0
+frontendReadyAfter:  488
+```
+
+Live `applyUrl` duplicate audit:
+
+```text
+urlGroups:        5,018
+duplicateGroups:     0
+duplicateDocuments:  0
+excessDuplicates:    0
+largestGroup:        1
+```
+
+## Test checkpoint
+
+Latest full backend test checkpoint:
+
+```text
+158 tests
+154 passed
+0 failed
+4 skipped
+```
+
+Latest targeted matching checkpoint:
+
+```text
+3 tests
+3 passed
+0 failed
+```
+
+## Current architecture
 
 ```text
 21,516 companies
       |
-      +--> parallel checkpointed discovery ranges
+      +--> checkpointed discovery
       |
       v
 MongoDB canonical jobs
       |
-      +--> incremental source-backed verification
+      +--> source-backed verification
       |
-      +--> live / closed / unknown
+      +--> UK + technology classification
+      |
+      +--> frontend-ready processing contract
       |
       v
 /api/jobs
       |
+      +--> profile/job matching
+      |
+      +--> sponsorship-aware filtering
+      |
       v
-React/Vite frontend
+frontend
+      |
+      v
+application workflow
 ```
 
 ## Implemented
@@ -42,37 +94,35 @@ React/Vite frontend
 - Conservative redirect handling.
 - ATS-aware source handling and structured `JobPosting` evidence.
 - Canonical job identity and duplicate auditing/repair.
-- Google career-search fallback URL generation.
-- Bounded Google careers/ATS crawler for second-stage discovery.
-- Google result redirect unwrapping so search-result URLs can become crawl targets.
-- Recursive, bounded careers → ATS/job-link crawl within a per-company page budget.
-- Checkpointed/resumable golden discovery runner.
+- Checkpointed/resumable discovery.
 - Parallel discovery support using non-overlapping company ranges.
 - Incremental verification of newly discovered jobs.
-- Backend API filtering, pagination and live-job queries.
+- UK and technology job classification/filtering.
+- Frontend-ready processing backfill.
+- Server-side job pagination/filtering.
+- Sponsorship and employer-type filtering.
+- Explainable candidate/job matching.
+- Matching filter contract aligned with verified-live/frontend-ready jobs.
+- Targeted matching tests.
 - Frontend live verified-job integration and recoverable API failure handling.
-- Application dashboard and application lifecycle UI.
-- Automated backend test workflow.
-- Scheduled/manual source-verification workflow.
-- Scheduled/manual controlled Google discovery workflow.
-- Durable agent and operations documentation.
+- Application dashboard and application lifecycle tooling.
+- Codespaces auto-sync for the active development branch.
+- Durable agent and migration handoff documentation.
 
 ## Known limitations
 
-- `unknown` jobs still require targeted provider-specific resolution.
-- Google discovery is a fallback and can produce no useful careers URL or can be blocked/rate-limited.
+- The 309 frontend-ready count is a current data checkpoint, not a permanent limit; discovery can increase it.
+- Some jobs still lack complete metadata such as posted date, employment type or location granularity.
+- `unknown` source-verification evidence remains a valid state in the broader job population.
 - Some ATS providers rate-limit or block automated requests.
-- Large crawls must remain bounded, rate-limited and observable.
-- The current frontend/API integration is suitable for incremental display, but matching and application ranking still need to be hardened against the larger live population.
-- API documentation should be expanded whenever route contracts are materially changed.
-- The Google API is intentionally not configured; the current crawler uses existing Google search fallback URLs.
+- Matching/ranking still needs stronger candidate-specific relevance prioritisation over the frontend-ready population.
+- Vacancy → match → application integration is not yet complete end-to-end.
 
 ## Current next priorities
 
-1. Let the parallel discovery ranges complete while monitoring MongoDB health, throughput, failures and checkpoints.
-2. Continue incremental verification as new jobs arrive.
-3. Expose verified-live jobs through the frontend without waiting for the complete 21,516-company run.
-4. Harden profile-to-job matching and sponsorship-aware filtering against the growing verified population.
-5. Complete the application dashboard/API integration and end-to-end vacancy → match → application flow.
-6. Run the complete backend test suite and frontend build after the current integration changes.
-7. Reconcile this status document with measured MongoDB totals after the full discovery run completes.
+1. Build candidate-specific relevance/ranking on top of the existing explainable matching engine.
+2. Keep ranking before pagination so the best matches are visible on page one.
+3. Add focused relevance tests rather than repeatedly running the full suite.
+4. Complete vacancy → match → application integration.
+5. Run the complete backend suite at integration checkpoints and frontend build after frontend changes.
+6. Reconcile data/status documentation after meaningful discovery or verification changes.
