@@ -4,11 +4,11 @@
   "remoteUser": "node",
   "postStartCommand": "nohup bash .devcontainer/auto-sync.sh >/tmp/jobmatchportal-auto-sync-start.log 2>&1 &",
   "forwardPorts": [
-    3000,
+    3001,
     5173
   ],
   "portsAttributes": {
-    "3000": {
+    "3001": {
       "label": "Backend API",
       "onAutoForward": "notify"
     },
