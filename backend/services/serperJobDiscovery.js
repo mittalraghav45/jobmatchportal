@@ -93,7 +93,7 @@ export async function discoverJobsWithSerper({
 }
 
 
-const DEFAULT_ROLE_QUERY = '(software engineer OR software developer OR frontend developer OR full stack developer OR web developer)';
+const DEFAULT_ROLE_QUERY = 'software engineer jobs careers';
 const DEFAULT_SERPER_SITES = ['jobs.lever.co', 'boards.greenhouse.io', 'jobs.ashbyhq.com', 'myworkdayjobs.com'];
 
 function significantCompanyTokens(companyName = '') {
@@ -101,26 +101,56 @@ function significantCompanyTokens(companyName = '') {
   return String(companyName).toLowerCase().match(/[a-z0-9]+/g)?.filter(token => token.length >= 4 && !ignored.has(token)) || [];
 }
 
-function resultContainsCompany(result, companyName) {
-  const tokens = significantCompanyTokens(companyName);
-  if (!tokens.length) return true;
-  const haystack = `${result?.title || ''} ${result?.snippet || ''}`.toLowerCase();
-  return tokens.some(token => haystack.includes(token));
+function extractHost(url = '') {
+  try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ''); } catch { return ''; }
+}
+
+function companyHostFromUrl(url = '') {
+  const host = extractHost(url);
+  return host && !/^(?:google|bing|search\.)/i.test(host) ? host : '';
+}
+
+export function isLikelyJobPostingUrl(url = '', careerHost = '') {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    const path = parsed.pathname.toLowerCase();
+    const atsHosts = ['jobs.lever.co', 'boards.greenhouse.io', 'job-boards.greenhouse.io', 'jobs.ashbyhq.com'];
+    const atsJob = atsHosts.includes(host) && path.split('/').filter(Boolean).length >= 2;
+    const workdayJob = host.endsWith('.myworkdayjobs.com') && /\\/job\\//i.test(path);
+    const genericJobPath = /(?:^|\\/)(?:jobs?|careers?|vacancies?|positions?|openings?|opportunit(?:y|ies)|roles?)(?:[\\/?#-]|$)/i.test(path)
+      && path.split('/').filter(Boolean).length >= 2;
+    const sameCareerHost = careerHost && host === careerHost
+      && /(?:job|career|vacanc|position|opening|opportunit|role)/i.test(path)
+      && path.split('/').filter(Boolean).length >= 2;
+    return Boolean(atsJob || workdayJob || genericJobPath || sameCareerHost);
+  } catch {
+    return false;
+  }
 }
 
 export function buildCompanySerperQueries({
   companyName = '',
   location = 'UK',
   keyword = DEFAULT_ROLE_QUERY,
-  sites = DEFAULT_SERPER_SITES
+  sites = DEFAULT_SERPER_SITES,
+  careersUrl = ''
 } = {}) {
   const company = String(companyName).trim();
   if (!company) return [];
-  return sites.map(site => buildSerperQuery({
-    keyword: `"${company}" ${keyword}`,
-    location,
-    site
-  }));
+
+  const queries = [
+    `"${company}" ${keyword} ${location}`
+  ];
+
+  const careerHost = companyHostFromUrl(careersUrl);
+  if (careerHost) queries.push(`site:${careerHost} "${company}" software engineer ${location}`);
+
+  for (const site of sites || []) {
+    if (site) queries.push(`site:${site} "${company}" software engineer ${location}`);
+  }
+
+  return [...new Set(queries)];
 }
 
 export async function discoverCompanyJobsWithSerper({
@@ -129,25 +159,36 @@ export async function discoverCompanyJobsWithSerper({
   location = 'UK',
   keyword = DEFAULT_ROLE_QUERY,
   sites = DEFAULT_SERPER_SITES,
+  careersUrl = '',
   apiKey = process.env.SERPER_API_KEY,
   perQuery = 10
 } = {}) {
   if (!companyId) throw new Error('companyId is required');
   if (!companyName) throw new Error('companyName is required');
 
-  const queries = buildCompanySerperQueries({ companyName, location, keyword, sites });
+  const queries = buildCompanySerperQueries({ companyName, location, keyword, sites, careersUrl });
   const responses = [];
 
   for (const query of queries) {
     responses.push(await searchJobsWithSerper({ query, apiKey, num: perQuery }));
   }
 
+  const careerHost = companyHostFromUrl(careersUrl);
   const seen = new Set();
-  const results = responses.flatMap(response => response.results).filter(result => {
-    if (!resultContainsCompany(result, companyName) || seen.has(result.url)) return false;
-    seen.add(result.url);
-    return true;
-  });
+  const results = responses
+    .flatMap(response => response.results)
+    .filter(result => isLikelyJobPostingUrl(result.url, careerHost) && !seen.has(result.url))
+    .filter(result => {
+      const tokens = significantCompanyTokens(companyName);
+      if (!tokens.length) return true;
+      const haystack = `${result.title || ''} ${result.snippet || ''} ${result.url || ''}`.toLowerCase();
+      return tokens.some(token => haystack.includes(token));
+    })
+    .filter(result => {
+      if (seen.has(result.url)) return false;
+      seen.add(result.url);
+      return true;
+    });
 
   return {
     companyId: String(companyId),
