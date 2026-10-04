@@ -9,6 +9,16 @@ test('builds bounded company source queries', () => {
   assert.match(queries[0], /careers jobs UK/);
 });
 
+test('prefers a known official domain before broad company searches', () => {
+  const queries = buildCompanySourceQueries({
+    companyName: 'Acme Technologies',
+    website: 'https://www.acme.example/about',
+    location: 'UK'
+  });
+  assert.equal(queries.length, 3);
+  assert.equal(queries[0], 'site:acme.example careers jobs UK');
+});
+
 test('ranks ATS sources above generic career pages', () => {
   const company = {
     companyId: '123',
@@ -18,13 +28,24 @@ test('ranks ATS sources above generic career pages', () => {
   const candidates = rankSourceCandidates({
     company,
     results: [
-      { url: 'https://acme.example/careers', title: 'Acme Careers', snippet: 'Join Acme Technologies' },
+      { url: 'https://acme.example/careers', title: 'Careers', snippet: 'Join our team' },
       { url: 'https://jobs.ashbyhq.com/acme', title: 'Acme Technologies jobs', snippet: 'Software Engineer' }
     ]
   });
 
   assert.equal(candidates[0].ats, 'ashby');
   assert.equal(candidates[0].sourceUrl, 'https://jobs.ashbyhq.com/acme');
+});
+
+test('accepts an official career page when the result omits the company name', () => {
+  const candidates = rankSourceCandidates({
+    company: { companyId: '123', companyName: 'Acme Technologies', website: 'https://acme.example' },
+    results: [{ url: 'https://acme.example/careers', title: 'Careers', snippet: 'Join our team' }]
+  });
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].ats, 'custom');
+  assert.equal(candidates[0].score, 80);
 });
 
 test('rejects unrelated search results', () => {
