@@ -53,5 +53,6 @@ JobSchema.index({ nation: 1, employerType: 1, 'status.isLive': 1 });
 JobSchema.index({ nation: 1, 'dates.lastSeenAt': -1 });
 JobSchema.index({ 'verification.status': 1, 'verification.checkedAt': -1 });
 JobSchema.index({ 'processing.status': 1, 'processing.claimedAt': 1 });
+JobSchema.index({ 'status.isLive': 1, 'verification.status': 1, 'processing.status': 1, 'dates.lastSeenAt': -1 });
 
 export const Job = mongoose.models.Job || mongoose.model('Job', JobSchema);
