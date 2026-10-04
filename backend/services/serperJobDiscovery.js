@@ -140,16 +140,18 @@ export function buildCompanySerperQueries({
   const company = String(companyName).trim();
   if (!company) return [];
 
-  const queries = [
-    `"${company}" ${keyword} ${location}`
-  ];
-
+  const queries = [];
   const careerHost = companyHostFromUrl(careersUrl);
-  if (careerHost) queries.push(`site:${careerHost} "${company}" software engineer ${location}`);
 
+  // Prefer sources that can expose direct application pages. When a company has
+  // a configured ATS, spend the limited query budget on that ATS before using
+  // the employer's general career domain or a broad web search.
   for (const site of sites || []) {
     if (site) queries.push(`site:${site} "${company}" software engineer ${location}`);
   }
+
+  if (careerHost) queries.push(`site:${careerHost} "${company}" software engineer ${location}`);
+  queries.push(`"${company}" ${keyword} ${location}`);
 
   return [...new Set(queries)];
 }
