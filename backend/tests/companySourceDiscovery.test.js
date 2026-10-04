@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCompanySourceQueries, rankSourceCandidates, selectBestSource } from '../services/companySourceDiscovery.js';
+import {
+  buildCompanySourceQueries,
+  prioritizeSourceReadyCompanies,
+  rankSourceCandidates,
+  selectBestSource
+} from '../services/companySourceDiscovery.js';
 
 test('builds bounded company source queries', () => {
   const queries = buildCompanySourceQueries({ companyName: 'Acme Ltd', location: 'UK' });
@@ -11,40 +16,25 @@ test('builds bounded company source queries', () => {
 });
 
 test('keeps ATS discovery inside the default three-query budget', () => {
-  const queries = buildCompanySourceQueries({
-    companyName: 'Acme Ltd',
-    location: 'UK'
-  });
+  const queries = buildCompanySourceQueries({ companyName: 'Acme Ltd', location: 'UK' });
   assert.match(queries.slice(0, 3).join(' '), /boards\.greenhouse\.io/);
   assert.match(queries.slice(0, 3).join(' '), /jobs\.ashbyhq\.com/);
 });
 
 test('prefers a known official domain before broad company searches', () => {
-  const queries = buildCompanySourceQueries({
-    companyName: 'Acme Technologies',
-    website: 'https://www.acme.example/about',
-    location: 'UK'
-  });
+  const queries = buildCompanySourceQueries({ companyName: 'Acme Technologies', website: 'https://www.acme.example/about', location: 'UK' });
   assert.equal(queries.length, 5);
   assert.equal(queries[0], 'site:acme.example careers jobs UK');
   assert.match(queries[1], /jobs\.ashbyhq\.com/);
 });
 
 test('uses a careers URL as the known official domain when website is absent', () => {
-  const queries = buildCompanySourceQueries({
-    companyName: 'Acme Technologies',
-    careersUrl: 'https://careers.acme.example/jobs',
-    location: 'UK'
-  });
+  const queries = buildCompanySourceQueries({ companyName: 'Acme Technologies', careersUrl: 'https://careers.acme.example/jobs', location: 'UK' });
   assert.equal(queries[0], 'site:careers.acme.example careers jobs UK');
 });
 
 test('ranks ATS sources above generic career pages', () => {
-  const company = {
-    companyId: '123',
-    companyName: 'Acme Technologies',
-    website: 'https://acme.example'
-  };
+  const company = { companyId: '123', companyName: 'Acme Technologies', website: 'https://acme.example' };
   const candidates = rankSourceCandidates({
     company,
     results: [
@@ -52,7 +42,6 @@ test('ranks ATS sources above generic career pages', () => {
       { url: 'https://jobs.ashbyhq.com/acme', title: 'Acme Technologies jobs', snippet: 'Software Engineer' }
     ]
   });
-
   assert.equal(candidates[0].ats, 'ashby');
   assert.equal(candidates[0].sourceUrl, 'https://jobs.ashbyhq.com/acme');
 });
@@ -62,7 +51,6 @@ test('accepts an official career page when the result omits the company name', (
     company: { companyId: '123', companyName: 'Acme Technologies', website: 'https://acme.example' },
     results: [{ url: 'https://acme.example/careers', title: 'Careers', snippet: 'Join our team' }]
   });
-
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0].ats, 'custom');
   assert.equal(candidates[0].score, 80);
@@ -73,10 +61,20 @@ test('accepts a career-path result with company evidence even without an officia
     company: { companyId: '123', companyName: 'Acme Technologies' },
     results: [{ url: 'https://careers.example.com/acme/jobs', title: 'Acme Technologies Careers', snippet: 'Join our team' }]
   });
-
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0].ats, null);
-  assert.equal(candidates[0].score, 35);
+  assert.equal(candidates[0].score, 45);
+});
+
+test('prioritises companies with known source domains and excludes registered sources', () => {
+  const companies = [
+    { companyId: '1', companyName: 'No Domain', priority: 'high' },
+    { companyId: '2', companyName: 'Has Website', website: 'https://has.example', priority: 'low' },
+    { companyId: '3', companyName: 'Has Careers', careersUrl: 'https://careers.has.example', priority: 'medium' },
+    { companyId: '4', companyName: 'Registered', website: 'https://registered.example', priority: 'high' }
+  ];
+  const selected = prioritizeSourceReadyCompanies(companies, { limit: 3, registeredIds: new Set(['4']) });
+  assert.deepEqual(selected.map(company => company.companyId), ['2', '3', '1']);
 });
 
 test('rejects unrelated search results', () => {
