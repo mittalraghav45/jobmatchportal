@@ -116,7 +116,7 @@ jobs updated:        2
 failed requests:     0
 ```
 
-A later 5-company experiment under the earlier direct-result filtering produced zero records. The implementation was subsequently changed to retain/crawl career and ATS source pages. A post-change production-yield measurement is still pending.
+A later 5-company experiment after the first crawl-through change still produced zero records (5 Serper queries, 0 source pages fetched). The discovery script has since been hardened to derive the company source URL from `careersUrl`, `website` and metadata fields, because the persisted Company records may not have the same careers URL coverage as the CSV seed. The next step is a diagnostic rerun before increasing the Serper budget.
 
 ### Frontend-ready contract
 
