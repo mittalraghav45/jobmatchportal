@@ -66,8 +66,8 @@ async function verifyCandidate(candidate, company) {
 async function main() {
   const limit = Math.max(1, Number(argValue('limit', 10)) || 10);
   const perQuery = Math.max(1, Number(argValue('per-query', 10)) || 10);
-  const maxQueries = Math.max(1, Number(argValue('max-queries', 2)) || 2);
-  const minScore = Math.max(0, Number(argValue('min-score', 80)) || 80);
+  const maxQueries = Math.max(1, Number(argValue('max-queries', 3)) || 3);
+  const minScore = Math.max(0, Number(argValue('min-score', 50)) || 50);
   const verify = hasFlag('verify');
 
   await connectMongo();
@@ -85,7 +85,8 @@ async function main() {
     verified: 0,
     skippedRegistered: 0,
     failed: 0,
-    queries: 0
+    queries: 0,
+    rejectionCounts: {}
   };
 
   for (const company of companies) {
@@ -104,7 +105,8 @@ async function main() {
 
       const best = selectBestSource(candidates);
       if (!best) {
-        console.log(JSON.stringify({ company: company.companyName, companyId: company.companyId, status: 'no-candidate' }));
+        summary.rejectionCounts.noCandidate = (summary.rejectionCounts.noCandidate || 0) + 1;
+        console.log(JSON.stringify({ company: company.companyName, companyId: company.companyId, status: 'no-candidate', queries: result.queries }));
         continue;
       }
 
@@ -131,7 +133,8 @@ async function main() {
         sourceUrl: resolved.sourceUrl,
         ats: resolved.ats,
         score: resolved.score,
-        status: resolved.status
+        status: resolved.status,
+        verification: resolved.verification || null
       }));
     } catch (error) {
       summary.failed += 1;
