@@ -59,12 +59,14 @@ test('company discovery mapper preserves canonical source and identity fields', 
 });
 
 
-test('caps company discovery queries to the configured budget', () => {
+
+
+test('supports generating a bounded set of company discovery candidates', () => {
   const queries = buildCompanySerperQueries({
     companyName: 'Monzo',
     careersUrl: 'https://monzo.com/careers',
-    sites: ['boards.greenhouse.io', 'jobs.lever.co'],
-    maxQueriesPerCompany: 2
+    sites: ['boards.greenhouse.io', 'jobs.lever.co']
   });
-  assert.equal(queries.length, 3);
+  assert.equal(queries.length, 4);
+  assert.equal(queries.slice(0, 2).length, 2);
 });
