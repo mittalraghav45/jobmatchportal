@@ -1,4 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 12000;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_DELAY_MS = 250;
 
 const CLOSED_PATTERNS = [
   /job\s+(?:is\s+)?(?:closed|no longer available|no longer accepting)/i,
@@ -85,23 +87,24 @@ function structuredJobEvidence(body = '') {
   return false;
 }
 
-export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', body = '', now = new Date() } = {}) {
+export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', body = '', now = new Date(), attempts = 1 } = {}) {
   const text = normaliseText(body);
   const lower = text.toLowerCase();
   const checkedAt = new Date(now).toISOString();
   const closingAt = job?.dates?.closingAt ? new Date(job.dates.closingAt) : null;
+  const meta = { checkedAt, attempts };
 
   if (closingAt && !Number.isNaN(closingAt.getTime()) && closingAt.getTime() <= new Date(now).getTime()) {
-    return { status: 'closed', evidenceType: 'closing_date', evidence: `Known closing date ${closingAt.toISOString()} has passed`, checkedAt };
+    return { status: 'closed', evidenceType: 'closing_date', evidence: `Known closing date ${closingAt.toISOString()} has passed`, ...meta };
   }
 
-  if (statusCode === 404 || statusCode === 410) return { status: 'closed', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}`, checkedAt };
-  if (statusCode == null) return { status: 'unknown', evidenceType: 'request_error', evidence: 'Source request failed before an HTTP response was received', checkedAt };
-  if (statusCode === 403 || statusCode === 429) return { status: 'unknown', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}; access was not independently verifiable`, checkedAt };
-  if (statusCode >= 500) return { status: 'unknown', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}`, checkedAt };
+  if (statusCode === 404 || statusCode === 410) return { status: 'closed', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}`, ...meta };
+  if (statusCode == null) return { status: 'unknown', evidenceType: 'request_error', evidence: 'Source request failed before an HTTP response was received', ...meta };
+  if (statusCode === 403 || statusCode === 429) return { status: 'unknown', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}; access was not independently verifiable`, ...meta };
+  if (statusCode >= 500) return { status: 'unknown', evidenceType: 'http_status', evidence: `Source returned HTTP ${statusCode}`, ...meta };
 
   const closedMatch = findMatch(CLOSED_PATTERNS, text);
-  if (closedMatch) return { status: 'closed', evidenceType: 'page_text', evidence: closedMatch, checkedAt };
+  if (closedMatch) return { status: 'closed', evidenceType: 'page_text', evidence: closedMatch, ...meta };
 
   if (statusCode >= 200 && statusCode < 400) {
     const hasTitle = titleEvidence(job.title, lower);
@@ -112,9 +115,8 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
     const hasStructuredJob = structuredJobEvidence(body);
     const hasJobDetailContent = /\b(?:job description|responsibilities|requirements|qualifications|salary|location|about the role|what you will do|what you'll do)\b/i.test(text);
 
-    // A posting URL redirecting to a generic board/homepage is not sufficient evidence.
     if (originalJobSpecificUrl && finalUrl && !jobSpecificUrl && !hasStructuredJob) {
-      return { status: 'unknown', evidenceType: 'redirected_source', evidence: 'Job-specific source URL redirected to a non-job page', checkedAt };
+      return { status: 'unknown', evidenceType: 'redirected_source', evidence: 'Job-specific source URL redirected to a non-job page', ...meta };
     }
 
     if (hasTitle && (liveMatch || hasStructuredJob) && (jobSpecificUrl || hasStructuredJob)) {
@@ -122,47 +124,68 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
         status: 'live',
         evidenceType: hasStructuredJob ? 'jobposting_schema' : 'page_text',
         evidence: hasStructuredJob ? 'JobPosting structured data and job title evidence present' : `${liveMatch}; job title evidence present`,
-        checkedAt
+        ...meta
       };
     }
 
     if (hasTitle && jobSpecificUrl && hasJobDetailContent) {
-      return { status: 'live', evidenceType: 'job_page', evidence: 'Job-specific source page contains title and job-detail content', checkedAt };
+      return { status: 'live', evidenceType: 'job_page', evidence: 'Job-specific source page contains title and job-detail content', ...meta };
     }
 
-    if (hasStructuredJob && hasTitle) return { status: 'live', evidenceType: 'jobposting_schema', evidence: 'JobPosting structured data contains the discovered job title', checkedAt };
+    if (hasStructuredJob && hasTitle) return { status: 'live', evidenceType: 'jobposting_schema', evidence: 'JobPosting structured data contains the discovered job title', ...meta };
   }
 
-  return { status: 'unknown', evidenceType: 'insufficient_evidence', evidence: `HTTP ${statusCode}; source page did not provide sufficiently strong live/closed evidence`, checkedAt };
+  return { status: 'unknown', evidenceType: 'insufficient_evidence', evidence: `HTTP ${statusCode}; source page did not provide sufficiently strong live/closed evidence`, ...meta };
 }
 
-async function fetchSource(url, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = globalThis.fetch } = {}) {
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchSource(url, { timeoutMs = DEFAULT_TIMEOUT_MS, maxRetries = DEFAULT_MAX_RETRIES, retryDelayMs = DEFAULT_RETRY_DELAY_MS, fetchImpl = globalThis.fetch } = {}) {
   if (!url) throw new Error('Missing source URL');
   if (typeof fetchImpl !== 'function') throw new Error('fetch is not available');
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetchImpl(url, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'JobMatchPortal/1.0 (+source-verification)',
-        Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8'
-      }
-    });
-    const body = await response.text();
-    return { statusCode: response.status, finalUrl: response.url || url, body };
-  } finally {
-    clearTimeout(timeout);
+  let attempts = 0;
+  let lastResponse = null;
+  let lastError = null;
+
+  while (attempts <= maxRetries) {
+    attempts += 1;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetchImpl(url, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'JobMatchPortal/1.0 (+source-verification)',
+          Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8'
+        }
+      });
+      const body = await response.text();
+      lastResponse = { statusCode: response.status, finalUrl: response.url || url, body, attempts };
+      if (!RETRYABLE_STATUS.has(response.status) || attempts > maxRetries) return lastResponse;
+    } catch (error) {
+      lastError = error;
+      if (attempts > maxRetries) throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+    await sleep(retryDelayMs * attempts);
   }
+
+  if (lastResponse) return lastResponse;
+  throw lastError || new Error('Source request failed');
 }
 
 export async function verifyJobSource(job, options = {}) {
   const checkedAt = new Date().toISOString();
   const url = String(job?.source?.url || '').trim();
-  if (!url) return { status: 'unknown', evidenceType: 'missing_url', evidence: 'Job has no source URL', checkedAt, sourceUrl: '' };
+  if (!url) return { status: 'unknown', evidenceType: 'missing_url', evidence: 'Job has no source URL', checkedAt, sourceUrl: '', attempts: 0 };
 
   try {
     const response = await fetchSource(url, options);
@@ -171,7 +194,7 @@ export async function verifyJobSource(job, options = {}) {
     return {
       status: 'unknown', evidenceType: 'request_error',
       evidence: error?.name === 'AbortError' ? `Source request timed out after ${options.timeoutMs || DEFAULT_TIMEOUT_MS}ms` : `Source request failed: ${error.message}`,
-      checkedAt, sourceUrl: url
+      checkedAt, sourceUrl: url, attempts: (options.maxRetries ?? DEFAULT_MAX_RETRIES) + 1
     };
   }
 }
