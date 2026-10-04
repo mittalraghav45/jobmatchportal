@@ -92,7 +92,6 @@ export async function discoverJobsWithSerper({
   return { queries, results, source: 'serper' };
 }
 
-
 const DEFAULT_ROLE_QUERY = 'software engineer software developer frontend developer full stack developer web developer jobs careers';
 const DEFAULT_SERPER_SITES = [];
 
@@ -114,8 +113,25 @@ const ATS_RESULT_HOSTS = [
   'jobs.lever.co',
   'boards.greenhouse.io',
   'job-boards.greenhouse.io',
-  'jobs.ashbyhq.com'
+  'jobs.ashbyhq.com',
+  'apply.workable.com',
+  'jobs.smartrecruiters.com',
+  'jobs.jobvite.com'
 ];
+
+export function inferAtsFromUrl(url = '') {
+  const host = extractHost(url);
+  if (host === 'jobs.lever.co') return 'lever';
+  if (host === 'boards.greenhouse.io' || host === 'job-boards.greenhouse.io') return 'greenhouse';
+  if (host === 'jobs.ashbyhq.com') return 'ashby';
+  if (host === 'apply.workable.com') return 'workable';
+  if (host === 'jobs.smartrecruiters.com') return 'smartrecruiters';
+  if (host === 'jobs.jobvite.com') return 'jobvite';
+  if (host.endsWith('.myworkdayjobs.com')) return 'workday';
+  if (host.endsWith('.applytojob.com')) return 'applytojob';
+  if (host.endsWith('.careers.hibob.com')) return 'hibob';
+  return 'unknown';
+}
 
 export function isLikelyCareerSourceUrl(url = '', careerHost = '') {
   try {
@@ -135,7 +151,7 @@ export function isLikelyJobPostingUrl(url = '', careerHost = '') {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
     const path = parsed.pathname.toLowerCase();
-    const atsHosts = ['jobs.lever.co', 'boards.greenhouse.io', 'job-boards.greenhouse.io', 'jobs.ashbyhq.com'];
+    const atsHosts = ATS_RESULT_HOSTS;
     const atsJob = atsHosts.includes(host) && path.split('/').filter(Boolean).length >= 2;
     const workdayJob = host.endsWith('.myworkdayjobs.com') && path.includes('/job/');
     const pathSegments = path.split('/').filter(Boolean);
@@ -163,9 +179,6 @@ export function buildCompanySerperQueries({
   const queries = [];
   const careerHost = companyHostFromUrl(careersUrl);
 
-  // Prefer sources that can expose direct application pages. When a company has
-  // a configured ATS, spend the limited query budget on that ATS before using
-  // the employer's general career domain or a broad web search.
   for (const site of sites || []) {
     if (site) queries.push(`site:${site} "${company}" software engineer ${location}`);
   }
@@ -228,7 +241,7 @@ export async function discoverCompanyJobsWithSerper({
       description: result.snippet || '',
       location,
       externalId: result.url,
-      source: { ats: 'serper', url: result.url },
+      source: { ats: inferAtsFromUrl(result.url), url: result.url },
       applyUrl: result.url
     })),
     source: 'serper'
