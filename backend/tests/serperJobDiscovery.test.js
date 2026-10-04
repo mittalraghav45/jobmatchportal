@@ -4,7 +4,8 @@ import {
   buildSerperQuery,
   normaliseSerperResults,
   buildCompanySerperQueries,
-  isLikelyJobPostingUrl
+  isLikelyJobPostingUrl,
+  isLikelyCareerSourceUrl
 } from '../services/serperJobDiscovery.js';
 
 test('builds a UK ATS Serper query', () => {
@@ -69,4 +70,11 @@ test('supports generating a bounded set of company discovery candidates', () => 
   });
   assert.equal(queries.length, 4);
   assert.equal(queries.slice(0, 2).length, 2);
+});
+
+
+test('retains career source pages for downstream extraction', () => {
+  assert.equal(isLikelyCareerSourceUrl('https://monzo.com/careers', 'monzo.com'), true);
+  assert.equal(isLikelyCareerSourceUrl('https://boards.greenhouse.io/monzo', ''), true);
+  assert.equal(isLikelyCareerSourceUrl('https://example.com/about', 'monzo.com'), false);
 });
