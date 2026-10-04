@@ -5,8 +5,9 @@ import { buildCompanySourceQueries, rankSourceCandidates, selectBestSource } fro
 test('builds bounded company source queries', () => {
   const queries = buildCompanySourceQueries({ companyName: 'Acme Ltd', location: 'UK' });
   assert.equal(queries.length, 4);
-  assert.match(queries[0], /"Acme Ltd" careers jobs UK/);
-  assert.match(queries[1], /boards\.greenhouse\.io/);
+  assert.match(queries[0], /boards\.greenhouse\.io/);
+  assert.match(queries[0], /jobs\.ashbyhq\.com/);
+  assert.match(queries.at(-1), /"Acme Ltd" jobs hiring UK/);
 });
 
 test('keeps ATS discovery inside the default three-query budget', () => {
