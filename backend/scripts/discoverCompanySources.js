@@ -94,25 +94,32 @@ async function main() {
   }).select({ companyId: 1 }).lean();
   for (const company of registeredMetadata) registeredIds.add(String(company.companyId));
 
-  const companyFilter = {
-    enabled: true,
-    companyName: { $exists: true, $nin: ['', null] },
+  const discoveryState = {
     $or: [
       { 'metadata.sourceDiscovery.status': { $exists: false } },
       { 'metadata.sourceDiscovery.status': { $ne: 'verified' } },
       { 'metadata.sourceDiscovery.lastAttemptedAt': { $lte: retryCutoff } }
     ]
   };
+  const companyFilter = {
+    enabled: true,
+    companyName: { $exists: true, $nin: ['', null] },
+    ...discoveryState
+  };
 
   // Fetch a bounded source-ready pool first. We deliberately over-fetch because
   // registered/verified companies are removed after loading the pool.
   const sourceReadyCompanies = await Company.find({
-    ...companyFilter,
-    $or: [
-      { website: { $nin: ['', null] } },
-      { careersUrl: { $nin: ['', null] } },
-      { 'metadata.website': { $nin: ['', null] } },
-      { 'metadata.careersUrl': { $nin: ['', null] } }
+    $and: [
+      companyFilter,
+      {
+        $or: [
+          { website: { $nin: ['', null] } },
+          { careersUrl: { $nin: ['', null] } },
+          { 'metadata.website': { $nin: ['', null] } },
+          { 'metadata.careersUrl': { $nin: ['', null] } }
+        ]
+      }
     ]
   })
     .sort({ priority: -1, 'metadata.sourceDiscovery.lastAttemptedAt': 1, companyId: 1 })
