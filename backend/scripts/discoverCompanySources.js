@@ -32,6 +32,30 @@ function mergeSource(registry, source) {
   registry.sources = sources;
 }
 
+async function syncVerifiedSourcesFromMongo(registry) {
+  const verifiedCompanies = await Company.find({
+    enabled: true,
+    'metadata.sourceDiscovery.status': 'verified',
+    'metadata.sourceDiscovery.sourceUrl': { $exists: true, $nin: ['', null] },
+    'metadata.sourceDiscovery.ats': { $exists: true, $nin: ['', null] }
+  }).lean();
+
+  for (const company of verifiedCompanies) {
+    const discovery = company.metadata.sourceDiscovery;
+    mergeSource(registry, {
+      companyId: String(company.companyId),
+      companyName: company.companyName,
+      ats: discovery.ats,
+      sourceUrl: discovery.sourceUrl,
+      sourceType: discovery.ats ? 'ats' : 'career-site',
+      status: 'verified',
+      notes: discovery.verification?.jobsFound
+        ? `Auto-discovered and verified; ${discovery.verification.jobsFound} jobs found.`
+        : 'Auto-discovered and verified.'
+    });
+  }
+}
+
 async function verifyCandidate(candidate, company) {
   if (!candidate?.ats) return { ...candidate, status: 'candidate' };
 
@@ -83,28 +107,17 @@ async function main() {
 
   await connectMongo();
   const registry = await loadRegistry();
+  await syncVerifiedSourcesFromMongo(registry);
+
   const registeredIds = new Set((registry.sources || []).map(source => String(source.companyId)));
-
-  // MongoDB metadata is the durable discovery state; the JSON registry remains
-  // the export consumed by the job-ingestion pipeline. This means a source does
-  // not have to be re-discovered just because the generated registry has not
-  // yet been committed to Git.
-  const registeredMetadata = await Company.find({
-    'metadata.sourceDiscovery.status': 'verified'
-  }).select({ companyId: 1 }).lean();
-  for (const company of registeredMetadata) registeredIds.add(String(company.companyId));
-
-  const discoveryState = {
+  const companyFilter = {
+    enabled: true,
+    companyName: { $exists: true, $nin: ['', null] },
     $or: [
       { 'metadata.sourceDiscovery.status': { $exists: false } },
       { 'metadata.sourceDiscovery.status': { $ne: 'verified' } },
       { 'metadata.sourceDiscovery.lastAttemptedAt': { $lte: retryCutoff } }
     ]
-  };
-  const companyFilter = {
-    enabled: true,
-    companyName: { $exists: true, $nin: ['', null] },
-    ...discoveryState
   };
 
   // Fetch a bounded source-ready pool first. We deliberately over-fetch because
@@ -238,7 +251,8 @@ async function main() {
     }
   }
 
-  if (verify && summary.verified > 0) {
+  if (verify) {
+    await syncVerifiedSourcesFromMongo(registry);
     registry.sources = (registry.sources || []).filter(source => source.status === 'verified');
     await fs.writeFile(registryPath, `${JSON.stringify(registry, null, 2)}\n`, 'utf8');
   }
