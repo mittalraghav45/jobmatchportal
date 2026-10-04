@@ -26,7 +26,9 @@
     "jobs:enrich": "node -r dotenv/config scripts/enrichExistingJobs.js",
     "jobs:digest": "node -r dotenv/config scripts/sendJobDigest.js",
     "docs:check": "node scripts/checkDocumentation.js",
-    "db:check": "node scripts/checkMongo.js"
+    "db:check": "node scripts/checkMongo.js",
+    "jobs:serper": "node -r dotenv/config scripts/discoverSerperJobs.js",
+    "test:serper": "node --test tests/serperJobDiscovery.test.js"
   },
   "dependencies": {
     "axios": "^1.20.0",
