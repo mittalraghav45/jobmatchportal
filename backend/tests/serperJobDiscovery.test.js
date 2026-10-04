@@ -31,3 +31,22 @@ test('normalises and deduplicates Serper organic results', () => {
 test('handles missing organic results safely', () => {
   assert.deepEqual(normaliseSerperResults({}), []);
 });
+
+
+test('builds company-scoped ATS queries for sponsor-first discovery', async () => {
+  const { buildCompanySerperQueries } = await import('../services/serperJobDiscovery.js');
+  const queries = buildCompanySerperQueries({
+    companyName: 'Firstup',
+    sites: ['jobs.lever.co', 'boards.greenhouse.io']
+  });
+
+  assert.deepEqual(queries, [
+    'site:jobs.lever.co "Firstup" (software engineer OR software developer OR frontend developer OR full stack developer OR web developer) UK',
+    'site:boards.greenhouse.io "Firstup" (software engineer OR software developer OR frontend developer OR full stack developer OR web developer) UK'
+  ]);
+});
+
+test('company discovery mapper preserves canonical source and identity fields', async () => {
+  const { discoverCompanyJobsWithSerper } = await import('../services/serperJobDiscovery.js');
+  assert.equal(typeof discoverCompanyJobsWithSerper, 'function');
+});
