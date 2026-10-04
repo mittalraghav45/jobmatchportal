@@ -47,9 +47,9 @@ export function matchJobToCandidate(job, profile = {}) {
   const strongCoreMatch = base.components.title >= 75 && base.components.skills >= 75;
   const trustedFreshJob = base.components.verification >= 100 && base.components.freshness >= 80;
   const sponsorshipBlocked = sponsorship.status === 'explicitly_unavailable';
-  const strongApplicationCandidate = strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65;
+  const strongApplicationCandidate = strongCoreMatch && trustedFreshJob && sponsorship.status === 'confirmed' && !sponsorshipBlocked && experience.score >= 0.65;
 
-  if (strongApplicationCandidate) matchScore = Math.max(matchScore, sponsorship.status === 'confirmed' ? 85 : 80);
+  if (strongApplicationCandidate) matchScore = Math.max(matchScore, 85);
   if (excluded) matchScore = Math.min(matchScore, 20);
 
   const reasons = [...base.reasons];
