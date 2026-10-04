@@ -2,7 +2,7 @@
 
 ## Resume point
 
-Continue from branch `feat/source-backed-job-verification`. The project is now in the scaled discovery + incremental verification phase; do not restart the historical pilot unless a new controlled experiment is required.
+Continue from branch `feat/source-backed-job-verification`. The project is now in the bounded Serper discovery + source-backed verification phase. Do not restart historical large discovery pilots unless a new controlled experiment is required.
 
 ## Goal
 
@@ -77,14 +77,11 @@ For large discovery runs, use the checkpointed `jobDiscoveryGoldenFull.js` scrip
 
 ## Current next work
 
-1. Let the current 21,516-company discovery ranges complete while monitoring MongoDB health and checkpoints.
-2. Continue incremental verification as new jobs arrive.
-3. Reconcile final discovery and verification totals against the database.
-4. Harden profile-to-job matching and sponsorship-aware filtering against the growing verified population.
-5. Complete vacancy → match → application end-to-end integration.
-6. Run the complete backend test suite and frontend build after integration changes.
-7. Keep API, architecture, operations, status and agent documentation synchronized.
+1. Run the post-change Serper 5-company pilot and measure direct-job vs source-page extraction yield.
+2. Harden Serper-discovered job records with automatic source-backed verification before they become eligible for verified-live/API consumption.
+3. Keep the Serper query budget bounded and observable; do not scale to the full company population until pilot yield, duplicate rate, verification rate and source-page success rate are acceptable.
+4. Continue incremental verification as newly discovered jobs arrive.
+5. Harden profile-to-job relevance/ranking against the growing verified population.
+6. Complete vacancy → match → application end-to-end integration.
+7. Run the complete backend test suite and frontend build at integration checkpoints, then keep all documentation synchronized.
 
-## Agent instruction
-
-Read `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/DATA_PIPELINE.md`, `docs/OPERATIONS.md` and `docs/PROJECT_STATUS.md` before making substantial changes. Use the existing tests and implementation as the source of truth; do not reconstruct project history from chat memory when the repository documents it.
