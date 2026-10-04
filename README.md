@@ -30,6 +30,30 @@ MongoDB repositories (optional/local integration)
 - MongoDB models and repositories for persistent company/job data.
 - Source-backed job verification with canonical URL identity and duplicate auditing.
 
+## Serper discovery
+
+The portal now includes a bounded Serper-based discovery path for sponsor-company technology jobs. Serper is used to find direct ATS postings and relevant career/ATS source pages; it is not treated as live-job verification.
+
+From `backend/`:
+
+```bash
+npm run test:serper
+npm run jobs:serper -- --limit=5 --per-query=5 --max-queries=10
+```
+
+Application-level safeguards currently default to:
+
+```text
+2 Serper queries/company
+100 Serper queries/run
+10 results/query
+2 source pages/company
+```
+
+The real Serper API smoke test has succeeded in Codespaces. The API key is supplied through the `SERPER_API_KEY` environment secret and must never be committed.
+
+Serper-discovered records still pass through canonical ingestion/deduplication and the existing source-backed verification pipeline before they can become verified-live jobs.
+
 ## Job identity and verification
 
 Jobs are persisted using `fingerprint` as the MongoDB idempotency key. Identity is resolved in this order:
