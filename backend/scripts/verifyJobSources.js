@@ -18,6 +18,8 @@ const LIMIT = Math.max(0, Number(arg('limit', 0)) || 0);
 const ONLY_UNVERIFIED = arg('only-unverified', 'true') !== 'false';
 const RECHECK_DAYS = Math.max(0, Number(arg('recheck-days', 0)) || 0);
 const TIMEOUT_MS = Math.max(3000, Math.min(30000, Number(arg('timeout-ms', 12000)) || 12000));
+const MAX_RETRIES = Math.max(0, Math.min(5, Number(arg('max-retries', 2)) || 0));
+const RETRY_DELAY_MS = Math.max(0, Math.min(5000, Number(arg('retry-delay-ms', 250)) || 0));
 
 async function mapConcurrent(items, worker, concurrency) {
   const results = new Array(items.length);
@@ -70,7 +72,7 @@ async function main() {
   const before = await getPopulationSummary();
   console.log('=== VERIFICATION POPULATION BEFORE ===');
   console.log(JSON.stringify(before, null, 2));
-  console.log(`Source verification: batch=${BATCH_SIZE}, concurrency=${CONCURRENCY}, limit=${LIMIT || 'all'}, onlyUnverified=${ONLY_UNVERIFIED}, recheckDays=${RECHECK_DAYS}`);
+  console.log(`Source verification: batch=${BATCH_SIZE}, concurrency=${CONCURRENCY}, limit=${LIMIT || 'all'}, onlyUnverified=${ONLY_UNVERIFIED}, recheckDays=${RECHECK_DAYS}, maxRetries=${MAX_RETRIES}, retryDelayMs=${RETRY_DELAY_MS}`);
 
   const summary = {
     startedAt: startedAt.toISOString(),
@@ -81,7 +83,8 @@ async function main() {
     closed: 0,
     unknown: 0,
     missingUrl: 0,
-    failed: 0
+    failed: 0,
+    retriesUsed: 0
   };
 
   let lastId = null;
@@ -97,12 +100,9 @@ async function main() {
 
     const results = await mapConcurrent(jobs, async job => {
       try {
-        return await verifyJobSource(job, { timeoutMs: TIMEOUT_MS });
+        return await verifyJobSource(job, { timeoutMs: TIMEOUT_MS, maxRetries: MAX_RETRIES, retryDelayMs: RETRY_DELAY_MS });
       } catch (error) {
-        return {
-          status: 'unknown', evidenceType: 'verifier_error', evidence: error.message,
-          checkedAt: new Date().toISOString(), sourceUrl: job.source?.url || ''
-        };
+        return { status: 'unknown', evidenceType: 'verifier_error', evidence: error.message, checkedAt: new Date().toISOString(), sourceUrl: job.source?.url || '', attempts: MAX_RETRIES + 1 };
       }
     }, CONCURRENCY);
 
@@ -112,6 +112,7 @@ async function main() {
       if (!result) { summary.failed += 1; return; }
       summary[result.status] = (summary[result.status] || 0) + 1;
       if (result.evidenceType === 'missing_url') summary.missingUrl += 1;
+      summary.retriesUsed += Math.max(0, (result.attempts || 1) - 1);
 
       const set = {
         'verification.status': result.status,
@@ -120,7 +121,8 @@ async function main() {
         'verification.finalUrl': result.finalUrl || '',
         'verification.httpStatus': result.httpStatus ?? null,
         'verification.evidenceType': result.evidenceType || '',
-        'verification.evidence': result.evidence || ''
+        'verification.evidence': result.evidence || '',
+        'verification.attempts': result.attempts || 1
       };
       if (result.status === 'live') set['status.isLive'] = true;
       if (result.status === 'closed') set['status.isLive'] = false;
@@ -132,7 +134,7 @@ async function main() {
     if (operations.length) await Job.bulkWrite(operations, { ordered: false });
     summary.processed += jobs.length;
     lastId = jobs[jobs.length - 1]._id;
-    console.log(`[verify] selected=${summary.selected}${LIMIT ? `/${LIMIT}` : ''} processed=${summary.processed} live=${summary.live} closed=${summary.closed} unknown=${summary.unknown}`);
+    console.log(`[verify] selected=${summary.selected}${LIMIT ? `/${LIMIT}` : ''} processed=${summary.processed} live=${summary.live} closed=${summary.closed} unknown=${summary.unknown} retries=${summary.retriesUsed}`);
   }
 
   const after = await getPopulationSummary();
