@@ -17,9 +17,13 @@ const LIVE_PATTERNS = [
   /\bapply\s+(?:now|here|online|for this (?:job|role|position))\b/i,
   /\bsubmit\s+(?:an?\s+)?application\b/i,
   /\bstart\s+(?:your\s+)?application\b/i,
-  /\bapplication\s+(?:form|portal)\b/i,
+  /\bapplication\s+(?:form|portal|process)\b/i,
   /\bapply\s+before\b/i,
-  /\bapply\s+by\b/i
+  /\bapply\s+by\b/i,
+  /\bhow\s+to\s+apply\b/i,
+  /\bto\s+apply\b/i,
+  /\bapplications?\s+(?:close|accepted|open)\b/i,
+  /\bapplication\s+deadline\b/i
 ];
 
 const ATS_HOSTS = new Set([
@@ -199,7 +203,7 @@ export function classifySourceResponse({ job = {}, statusCode, finalUrl = '', bo
 
     const customEvidence = customJobPageEvidence({ url: resolvedUrl, hasTitle, hasJobDetailContent, liveMatch, hasStructuredJob });
     if (customEvidence) {
-      return { status: 'live', evidenceType: hasStructuredJob ? 'jobposting_schema' : 'custom_job_page', evidence: customEvidence, ...meta };
+      return { status: 'live', evidenceType: hasStructuredJob ? 'jobposting_schema' : 'custom_job_page_text', evidence: customEvidence, ...meta };
     }
 
     if (hasStructuredJob && hasTitle) return { status: 'live', evidenceType: 'jobposting_schema', evidence: 'JobPosting structured data contains the discovered job title', ...meta };
