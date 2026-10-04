@@ -97,8 +97,6 @@ export function buildCompanySourceQueries({ companyName, website = '', careersUr
     queries.push(`site:${officialHost} careers jobs ${location}`);
   }
 
-  // Keep the ATS fallback inside the default bounded query budget. This is
-  // essential for employers whose career pages live entirely on an ATS host.
   queries.push(ATS_FALLBACK_QUERY.replace('COMPANY', name).replace('UK', location));
 
   for (const term of SEARCH_TERMS) {
@@ -120,6 +118,19 @@ export function rankSourceCandidates({ company, results = [] } = {}) {
   }
 
   return [...byUrl.values()].sort((a, b) => b.score - a.score);
+}
+
+export function prioritizeSourceReadyCompanies(companies = [], { limit = 25, registeredIds = new Set() } = {}) {
+  const eligible = companies.filter(company => !registeredIds.has(String(company.companyId)));
+  const sourceReady = eligible.filter(company => Boolean(
+    company.website ||
+    company.careersUrl ||
+    company.metadata?.website ||
+    company.metadata?.careersUrl
+  ));
+  const sourceReadyIds = new Set(sourceReady.map(company => String(company.companyId)));
+  const fallback = eligible.filter(company => !sourceReadyIds.has(String(company.companyId)));
+  return [...sourceReady, ...fallback].slice(0, Math.max(1, Number(limit) || 1));
 }
 
 export async function discoverCompanySourceCandidates({
