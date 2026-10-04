@@ -6,7 +6,16 @@ test('builds bounded company source queries', () => {
   const queries = buildCompanySourceQueries({ companyName: 'Acme Ltd', location: 'UK' });
   assert.equal(queries.length, 4);
   assert.match(queries[0], /"Acme Ltd" careers jobs UK/);
-  assert.match(queries.at(-1), /boards\.greenhouse\.io/);
+  assert.match(queries[1], /boards\.greenhouse\.io/);
+});
+
+test('keeps ATS discovery inside the default three-query budget', () => {
+  const queries = buildCompanySourceQueries({
+    companyName: 'Acme Ltd',
+    location: 'UK'
+  });
+  assert.match(queries.slice(0, 3).join(' '), /boards\.greenhouse\.io/);
+  assert.match(queries.slice(0, 3).join(' '), /jobs\.ashbyhq\.com/);
 });
 
 test('prefers a known official domain before broad company searches', () => {
@@ -17,6 +26,7 @@ test('prefers a known official domain before broad company searches', () => {
   });
   assert.equal(queries.length, 5);
   assert.equal(queries[0], 'site:acme.example careers jobs UK');
+  assert.match(queries[1], /jobs\.ashbyhq\.com/);
 });
 
 test('uses a careers URL as the known official domain when website is absent', () => {
