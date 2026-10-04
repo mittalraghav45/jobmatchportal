@@ -34,6 +34,10 @@ function isCareerPath(url = '') {
   }
 }
 
+function officialHostOf(company) {
+  return hostOf(company?.website || company?.careersUrl || '');
+}
+
 function scoreCandidate({ company, result }) {
   const url = String(result?.url || '').trim();
   const host = hostOf(url);
@@ -42,15 +46,20 @@ function scoreCandidate({ company, result }) {
   const tokens = companyTokens(company.companyName);
   const haystack = `${result.title || ''} ${result.snippet || ''} ${url}`.toLowerCase();
   const tokenMatches = tokens.filter(token => haystack.includes(token)).length;
-  if (tokens.length && tokenMatches === 0) return null;
 
   const detected = resolveATSConfig({ careersUrl: url });
-  const officialHost = hostOf(company.website);
+  const officialHost = officialHostOf(company);
   const sameOfficialHost = Boolean(officialHost && (host === officialHost || host.endsWith(`.${officialHost}`)));
   const careerPath = isCareerPath(url);
+
+  // A result on the company's own configured website is strong evidence even
+  // when Google/Serper does not repeat the company name in the result text.
+  // Keep unrelated domains subject to company-token matching.
+  if (!sameOfficialHost && tokens.length && tokenMatches === 0 && !detected.ats) return null;
+
   const score =
     (detected.ats ? 100 : 0) +
-    (sameOfficialHost ? 45 : 0) +
+    (sameOfficialHost ? 55 : 0) +
     (careerPath ? 25 : 0) +
     Math.min(tokenMatches, 3) * 10;
 
@@ -75,10 +84,25 @@ function scoreCandidate({ company, result }) {
   };
 }
 
-export function buildCompanySourceQueries({ companyName, location = 'UK' } = {}) {
+export function buildCompanySourceQueries({ companyName, website = '', location = 'UK' } = {}) {
   const name = String(companyName || '').trim();
   if (!name) return [];
-  return SEARCH_TERMS.map(term => `"${name}" ${term} ${location}`);
+
+  const officialHost = hostOf(website);
+  const queries = [];
+
+  // Prefer the company's known official domain. This avoids depending on
+  // Serper repeating the company name in the title/snippet and sharply reduces
+  // false negatives for small or obscure employers.
+  if (officialHost) {
+    queries.push(`site:${officialHost} careers jobs ${location}`);
+  }
+
+  for (const term of SEARCH_TERMS) {
+    queries.push(`"${name}" ${term} ${location}`);
+  }
+
+  return [...new Set(queries)];
 }
 
 export function rankSourceCandidates({ company, results = [] } = {}) {
@@ -104,7 +128,11 @@ export async function discoverCompanySourceCandidates({
 } = {}) {
   if (!company?.companyId || !company?.companyName) throw new Error('companyId and companyName are required');
 
-  const queries = buildCompanySourceQueries({ companyName: company.companyName, location }).slice(0, Math.max(1, Number(maxQueries) || 1));
+  const queries = buildCompanySourceQueries({
+    companyName: company.companyName,
+    website: company.website,
+    location
+  }).slice(0, Math.max(1, Number(maxQueries) || 1));
   const responses = [];
   for (const query of queries) {
     responses.push(await searchJobsWithSerper({ query, apiKey, num: perQuery }));
