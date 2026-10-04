@@ -117,9 +117,10 @@ export function isLikelyJobPostingUrl(url = '', careerHost = '') {
     const path = parsed.pathname.toLowerCase();
     const atsHosts = ['jobs.lever.co', 'boards.greenhouse.io', 'job-boards.greenhouse.io', 'jobs.ashbyhq.com'];
     const atsJob = atsHosts.includes(host) && path.split('/').filter(Boolean).length >= 2;
-    const workdayJob = host.endsWith('.myworkdayjobs.com') && /\\/job\\//i.test(path);
-    const genericJobPath = /(?:^|\\/)(?:jobs?|careers?|vacancies?|positions?|openings?|opportunit(?:y|ies)|roles?)(?:[\\/?#-]|$)/i.test(path)
-      && path.split('/').filter(Boolean).length >= 2;
+    const workdayJob = host.endsWith('.myworkdayjobs.com') && path.includes('/job/');
+    const pathSegments = path.split('/').filter(Boolean);
+    const jobPathMarkers = new Set(['job', 'jobs', 'career', 'careers', 'vacancy', 'vacancies', 'position', 'positions', 'opening', 'openings', 'opportunity', 'opportunities', 'role', 'roles']);
+    const genericJobPath = pathSegments.length >= 2 && pathSegments.slice(0, -1).some(segment => jobPathMarkers.has(segment));
     const sameCareerHost = careerHost && host === careerHost
       && /(?:job|career|vacanc|position|opening|opportunit|role)/i.test(path)
       && path.split('/').filter(Boolean).length >= 2;
