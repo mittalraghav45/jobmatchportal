@@ -7,6 +7,7 @@ import { ingestJobs } from '../services/jobIngestion.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 import { discoverCompanyJobsWithSerper } from '../services/serperJobDiscovery.js';
 import { extractJobPostingJsonLd, extractLinks, normaliseUrl, classifyDiscoveredUrl } from '../services/googleCareersCrawler.js';
+import { shouldProcessSource, buildSourceIngestionState } from '../services/jobSourceIngestionState.js';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -27,6 +28,8 @@ const MAX_QUERIES_PER_COMPANY = Math.max(1, Number(arg('max-queries-per-company'
 const MAX_QUERIES_PER_RUN = Math.max(1, Number(arg('max-queries', process.env.SERPER_MAX_QUERIES_PER_RUN || 100)) || 100);
 const SOURCE_PAGES_PER_COMPANY = Math.max(1, Number(arg('source-pages', process.env.SERPER_SOURCE_PAGES_PER_COMPANY || 2)) || 2);
 const SOURCE_PAGE_TIMEOUT_MS = Math.max(3000, Number(process.env.SERPER_SOURCE_PAGE_TIMEOUT_MS || 10000) || 10000);
+const RETRY_AFTER_HOURS = Math.max(0, Number(arg('retry-after-hours', process.env.SERPER_SOURCE_RETRY_AFTER_HOURS || 24)) || 24);
+const FORCE = process.argv.includes('--force');
 const ATS_SITES = {
   greenhouse: 'boards.greenhouse.io',
   lever: 'jobs.lever.co',
@@ -40,12 +43,9 @@ const ATS_SITES = {
   bamboohr: 'bamboohr.com'
 };
 
-if (!process.env.SERPER_API_KEY) {
-  throw new Error('SERPER_API_KEY is required');
-}
+if (!process.env.SERPER_API_KEY) throw new Error('SERPER_API_KEY is required');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
 const registryPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../config/job-source-registry.json');
 const registry = JSON.parse(await readFile(registryPath, 'utf8'));
 const verifiedSources = (registry.sources || []).filter(source => source.status === 'verified' && source.companyId && source.sourceUrl);
@@ -62,14 +62,13 @@ const companies = await Company.find({
 const companyById = new Map(companies.map(company => [String(company.companyId), company]));
 const orderedCompanies = verifiedSources
   .slice(START, START + LIMIT)
-  .map(source => ({
-    source,
-    company: companyById.get(String(source.companyId))
-  }))
+  .map(source => ({ source, company: companyById.get(String(source.companyId)) }))
   .filter(item => item.company);
 
 const summary = {
   attempted: orderedCompanies.length,
+  processed: 0,
+  skippedRecentlyAttempted: 0,
   verifiedSourcesAvailable: verifiedSources.length,
   missingCompanies: verifiedSources.slice(START, START + LIMIT).filter(source => !companyById.has(String(source.companyId))).length,
   companiesWithResults: 0,
@@ -85,15 +84,25 @@ const summary = {
   sourcePageFailures: 0,
   maxQueriesPerCompany: MAX_QUERIES_PER_COMPANY,
   maxQueriesPerRun: MAX_QUERIES_PER_RUN,
+  retryAfterHours: RETRY_AFTER_HOURS,
+  force: FORCE,
   budgetExhausted: false
 };
 
 for (const { source, company } of orderedCompanies) {
+  if (!FORCE && !shouldProcessSource(company.metadata?.jobSourceIngestion, { retryAfterHours: RETRY_AFTER_HOURS })) {
+    summary.skippedRecentlyAttempted += 1;
+    continue;
+  }
+
   const remainingBudget = MAX_QUERIES_PER_RUN - summary.queries;
   if (remainingBudget <= 0) {
     summary.budgetExhausted = true;
     break;
   }
+
+  summary.processed += 1;
+  const startedAt = new Date();
 
   try {
     const sourceUrl = source.sourceUrl;
@@ -124,8 +133,8 @@ for (const { source, company } of orderedCompanies) {
         summary.sourcePagesFetched += 1;
         const html = String(response.data || '');
         const finalUrl = response.request?.res?.responseUrl || sourcePage.url;
-        const structured = extractJobPostingJsonLd(html);
-        for (const posting of structured) {
+        const finalHost = new URL(finalUrl).hostname.replace(/^www\./, '');
+        for (const posting of extractJobPostingJsonLd(html)) {
           const url = normaliseUrl(posting.url || finalUrl, finalUrl);
           if (!url || !posting.title) continue;
           sourceJobs.push({
@@ -137,14 +146,13 @@ for (const { source, company } of orderedCompanies) {
             postedAt: posting.datePosted || null,
             closingAt: posting.validThrough || null,
             externalId: url,
-            source: { ats: classifyDiscoveredUrl(url, new URL(finalUrl).hostname.replace(/^www\\./, '')), url },
+            source: { ats: classifyDiscoveredUrl(url, finalHost), url },
             applyUrl: url,
             raw: { discovery: 'serper_source_page', sourcePage: finalUrl }
           });
         }
 
-        const links = extractLinks(html, finalUrl, new URL(finalUrl).hostname.replace(/^www\\./, ''));
-        for (const link of links.filter(item => ['job', 'ats_job'].includes(item.kind))) {
+        for (const link of extractLinks(html, finalUrl, finalHost).filter(item => ['job', 'ats_job'].includes(item.kind))) {
           sourceJobs.push({
             companyId: company.companyId,
             companyName: company.companyName,
@@ -152,7 +160,7 @@ for (const { source, company } of orderedCompanies) {
             description: '',
             location: 'UK',
             externalId: link.url,
-            source: { ats: classifyDiscoveredUrl(link.url, new URL(finalUrl).hostname.replace(/^www\\./, '')), url: link.url },
+            source: { ats: classifyDiscoveredUrl(link.url, finalHost), url: link.url },
             applyUrl: link.url,
             raw: { discovery: 'serper_source_page', sourcePage: finalUrl, pageKind: link.kind }
           });
@@ -163,8 +171,8 @@ for (const { source, company } of orderedCompanies) {
     }
 
     summary.jobsFromSourcePages += sourceJobs.length;
-    const ingested = ingestJobs([...discovery.results, ...sourceJobs], { now: new Date().toISOString() });
-    const persisted = await upsertJobs(ingested.jobs, { now: new Date() });
+    const ingested = ingestJobs([...discovery.results, ...sourceJobs], { now: startedAt.toISOString() });
+    const persisted = await upsertJobs(ingested.jobs, { now: startedAt });
 
     summary.discovered += ingested.jobs.length;
     summary.added += persisted.added;
@@ -172,6 +180,21 @@ for (const { source, company } of orderedCompanies) {
     summary.duplicatesRemoved += ingested.duplicatesRemoved;
     summary.rejected += ingested.rejected.length + persisted.rejected.length;
     if (ingested.jobs.length) summary.companiesWithResults += 1;
+
+    const state = buildSourceIngestionState({
+      previous: company.metadata?.jobSourceIngestion || {},
+      now: new Date(),
+      status: 'success',
+      queries: discovery.queries.length,
+      discovered: ingested.jobs.length,
+      added: persisted.added,
+      updated: persisted.updated,
+      duplicatesRemoved: ingested.duplicatesRemoved,
+      rejected: ingested.rejected.length + persisted.rejected.length,
+      sourcePagesFetched: (discovery.sourcePages || []).length,
+      sourcePageFailures: summary.sourcePageFailures
+    });
+    await Company.updateOne({ companyId: String(company.companyId) }, { $set: { 'metadata.jobSourceIngestion': state } });
 
     console.log(JSON.stringify({
       company: company.companyName,
@@ -190,12 +213,14 @@ for (const { source, company } of orderedCompanies) {
     }));
   } catch (error) {
     summary.failed += 1;
-    console.error(JSON.stringify({
-      company: company.companyName,
-      companyId: company.companyId,
-      sourceUrl: source.sourceUrl,
+    const state = buildSourceIngestionState({
+      previous: company.metadata?.jobSourceIngestion || {},
+      now: new Date(),
+      status: 'failed',
       error: error.message
-    }));
+    });
+    await Company.updateOne({ companyId: String(company.companyId) }, { $set: { 'metadata.jobSourceIngestion': state } }).catch(() => {});
+    console.error(JSON.stringify({ company: company.companyName, companyId: company.companyId, sourceUrl: source.sourceUrl, error: error.message }));
   }
 
   if (DELAY_MS) await sleep(DELAY_MS);
@@ -203,5 +228,4 @@ for (const { source, company } of orderedCompanies) {
 
 console.log('=== SERPER JOB DISCOVERY SUMMARY ===');
 console.log(JSON.stringify(summary, null, 2));
-
 await mongoose.disconnect();
