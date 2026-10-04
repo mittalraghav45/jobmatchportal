@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
-import Job from '../models/Job.js';
-import MatchResult from '../models/MatchResult.js';
+import { Job } from '../models/Job.js';
+import { MatchResult } from '../models/MatchResult.js';
 import { matchJobToCandidate } from '../services/candidateMatching.js';
 
 const args = Object.fromEntries(process.argv.slice(2).map((arg) => {
