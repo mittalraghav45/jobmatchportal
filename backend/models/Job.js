@@ -15,33 +15,30 @@ const JobSchema = new mongoose.Schema({
   employmentType: { type: String, default: '' },
   department: { type: String, default: '' },
   applyUrl: { type: String, default: '' },
-  source: {
-    ats: { type: String, default: 'unknown', index: true },
-    url: { type: String, default: '' }
-  },
+  source: { ats: { type: String, default: 'unknown', index: true }, url: { type: String, default: '' } },
   dates: {
     postedAt: { type: Date, default: null },
     closingAt: { type: Date, default: null },
     firstSeenAt: { type: Date, default: Date.now },
     lastSeenAt: { type: Date, default: Date.now }
   },
-  status: {
-    isLive: { type: Boolean, default: true, index: true }
-  },
+  status: { isLive: { type: Boolean, default: true, index: true } },
   verification: {
     status: { type: String, enum: ['live', 'closed', 'unknown'], default: 'unknown', index: true },
     checkedAt: { type: Date, default: null, index: true },
-    sourceUrl: { type: String, default: '' },
-    finalUrl: { type: String, default: '' },
-    httpStatus: { type: Number, default: null },
-    evidenceType: { type: String, default: '' },
-    evidence: { type: String, default: '' }
+    sourceUrl: { type: String, default: '' }, finalUrl: { type: String, default: '' },
+    httpStatus: { type: Number, default: null }, evidenceType: { type: String, default: '' }, evidence: { type: String, default: '' }
+  },
+  quality: {
+    score: { type: Number, default: 0, min: 0, max: 100, index: true },
+    freshness: { type: String, enum: ['fresh', 'recent', 'ageing', 'stale', 'expired', 'unknown'], default: 'unknown', index: true },
+    sourceConfidence: { type: Number, default: 0, min: 0, max: 1 },
+    reasons: { type: [String], default: [] },
+    calculatedAt: { type: Date, default: null, index: true }
   },
   processing: {
     status: { type: String, enum: ['pending', 'processing', 'complete', 'failed'], default: 'pending', index: true },
-    claimedAt: { type: Date, default: null },
-    completedAt: { type: Date, default: null },
-    error: { type: String, default: '' }
+    claimedAt: { type: Date, default: null }, completedAt: { type: Date, default: null }, error: { type: String, default: '' }
   },
   raw: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true, versionKey: false });
@@ -52,6 +49,7 @@ JobSchema.index({ 'source.ats': 1, externalId: 1 });
 JobSchema.index({ nation: 1, employerType: 1, 'status.isLive': 1 });
 JobSchema.index({ nation: 1, 'dates.lastSeenAt': -1 });
 JobSchema.index({ 'verification.status': 1, 'verification.checkedAt': -1 });
+JobSchema.index({ 'quality.freshness': 1, 'quality.score': -1 });
 JobSchema.index({ 'processing.status': 1, 'processing.claimedAt': 1 });
 JobSchema.index({ 'status.isLive': 1, 'verification.status': 1, 'processing.status': 1, 'dates.lastSeenAt': -1 });
 
