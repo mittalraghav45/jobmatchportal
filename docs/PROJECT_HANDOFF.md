@@ -77,7 +77,7 @@ For large discovery runs, use the checkpointed `jobDiscoveryGoldenFull.js` scrip
 
 ## Current next work
 
-1. Run the post-change Serper 5-company pilot and measure direct-job vs source-page extraction yield.
+1. Rerun the Serper 5-company pilot with per-company diagnostics after the source-URL fallback fix; measure direct-job vs source-page extraction yield.
 2. Harden Serper-discovered job records with automatic source-backed verification before they become eligible for verified-live/API consumption.
 3. Keep the Serper query budget bounded and observable; do not scale to the full company population until pilot yield, duplicate rate, verification rate and source-page success rate are acceptable.
 4. Continue incremental verification as newly discovered jobs arrive.
