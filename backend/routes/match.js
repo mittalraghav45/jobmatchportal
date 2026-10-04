@@ -115,7 +115,7 @@ router.post('/jobs', async (req, res) => {
 
     const companyIds = [...new Set(jobs.map(job => String(job.companyId || '')).filter(Boolean))];
     const { Company } = await import('../models/Company.js');
-    const companies = await Company.find({ companyId: { $in: companyIds }).select('companyId companyName sponsorship employerType').lean();
+    const companies = await Company.find({ companyId: { $in: companyIds } }).select('companyId companyName sponsorship employerType').lean();
     const companyMap = new Map(companies.map(company => [String(company.companyId), company]));
 
     const matches = jobs.map(job => {
