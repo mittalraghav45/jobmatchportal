@@ -110,6 +110,26 @@ function companyHostFromUrl(url = '') {
   return host && !/^(?:google|bing|search\.)/i.test(host) ? host : '';
 }
 
+const ATS_RESULT_HOSTS = [
+  'jobs.lever.co',
+  'boards.greenhouse.io',
+  'job-boards.greenhouse.io',
+  'jobs.ashbyhq.com'
+];
+
+export function isLikelyCareerSourceUrl(url = '', careerHost = '') {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    const path = parsed.pathname.toLowerCase();
+    if (careerHost && host === careerHost) return true;
+    if (ATS_RESULT_HOSTS.includes(host)) return true;
+    return /(?:career|jobs?|vacanc|opportunit|recruit|talent)/i.test(path);
+  } catch {
+    return false;
+  }
+}
+
 export function isLikelyJobPostingUrl(url = '', careerHost = '') {
   try {
     const parsed = new URL(url);
@@ -180,26 +200,27 @@ export async function discoverCompanyJobsWithSerper({
 
   const careerHost = companyHostFromUrl(careersUrl);
   const seen = new Set();
-  const results = responses
-    .flatMap(response => response.results)
-    .filter(result => isLikelyJobPostingUrl(result.url, careerHost) && !seen.has(result.url))
-    .filter(result => {
-      const tokens = significantCompanyTokens(companyName);
-      if (!tokens.length) return true;
-      const haystack = `${result.title || ''} ${result.snippet || ''} ${result.url || ''}`.toLowerCase();
-      return tokens.some(token => haystack.includes(token));
-    })
-    .filter(result => {
-      if (seen.has(result.url)) return false;
-      seen.add(result.url);
-      return true;
-    });
+  const sourcePages = [];
+  const directJobs = [];
+
+  for (const result of responses.flatMap(response => response.results)) {
+    if (!result?.url || seen.has(result.url)) continue;
+    const tokens = significantCompanyTokens(companyName);
+    const haystack = `${result.title || ''} ${result.snippet || ''} ${result.url || ''}`.toLowerCase();
+    const companyMatch = !tokens.length || tokens.some(token => haystack.includes(token));
+    if (!companyMatch) continue;
+
+    seen.add(result.url);
+    if (isLikelyJobPostingUrl(result.url, careerHost)) directJobs.push(result);
+    else if (isLikelyCareerSourceUrl(result.url, careerHost)) sourcePages.push(result);
+  }
 
   return {
     companyId: String(companyId),
     companyName: String(companyName),
     queries,
-    results: results.map(result => ({
+    sourcePages: sourcePages.slice(0, 3),
+    results: directJobs.map(result => ({
       ...result,
       companyId: String(companyId),
       companyName: String(companyName),
