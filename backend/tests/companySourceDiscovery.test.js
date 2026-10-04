@@ -4,9 +4,9 @@ import { buildCompanySourceQueries, rankSourceCandidates, selectBestSource } fro
 
 test('builds bounded company source queries', () => {
   const queries = buildCompanySourceQueries({ companyName: 'Acme Ltd', location: 'UK' });
-  assert.equal(queries.length, 2);
-  assert.match(queries[0], /"Acme Ltd"/);
-  assert.match(queries[0], /careers jobs UK/);
+  assert.equal(queries.length, 4);
+  assert.match(queries[0], /"Acme Ltd" careers jobs UK/);
+  assert.match(queries.at(-1), /boards\.greenhouse\.io/);
 });
 
 test('prefers a known official domain before broad company searches', () => {
@@ -15,8 +15,17 @@ test('prefers a known official domain before broad company searches', () => {
     website: 'https://www.acme.example/about',
     location: 'UK'
   });
-  assert.equal(queries.length, 3);
+  assert.equal(queries.length, 5);
   assert.equal(queries[0], 'site:acme.example careers jobs UK');
+});
+
+test('uses a careers URL as the known official domain when website is absent', () => {
+  const queries = buildCompanySourceQueries({
+    companyName: 'Acme Technologies',
+    careersUrl: 'https://careers.acme.example/jobs',
+    location: 'UK'
+  });
+  assert.equal(queries[0], 'site:careers.acme.example careers jobs UK');
 });
 
 test('ranks ATS sources above generic career pages', () => {
@@ -46,6 +55,17 @@ test('accepts an official career page when the result omits the company name', (
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0].ats, 'custom');
   assert.equal(candidates[0].score, 80);
+});
+
+test('accepts a career-path result with company evidence even without an official domain', () => {
+  const candidates = rankSourceCandidates({
+    company: { companyId: '123', companyName: 'Acme Technologies' },
+    results: [{ url: 'https://careers.example.com/acme/jobs', title: 'Acme Technologies Careers', snippet: 'Join our team' }]
+  });
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].ats, null);
+  assert.equal(candidates[0].score, 35);
 });
 
 test('rejects unrelated search results', () => {
