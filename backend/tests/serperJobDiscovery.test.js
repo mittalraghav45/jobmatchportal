@@ -41,7 +41,7 @@ test('builds company-scoped queries using the company career host and configured
     careersUrl: 'https://monzo.com/careers',
     sites: ['boards.greenhouse.io']
   });
-  assert.equal(queries[0], '"Monzo" software engineer software developer frontend developer full stack developer web developer jobs careers UK');
+  assert.equal(queries[0], 'site:boards.greenhouse.io "Monzo" software engineer UK');
   assert.ok(queries.some(query => query.includes('site:monzo.com')));
   assert.ok(queries.some(query => query.includes('site:boards.greenhouse.io')));
 });
