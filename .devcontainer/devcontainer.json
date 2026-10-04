@@ -2,7 +2,6 @@
   "name": "JobMatchPortal Codespace",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
   "remoteUser": "node",
-  "postCreateCommand": "bash .devcontainer/setup.sh",
   "forwardPorts": [3000, 5173],
   "portsAttributes": {
     "3000": {
