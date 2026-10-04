@@ -144,7 +144,18 @@ test('classifies a council or custom employer job page from title, job detail an
     body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities include...</p><p>Qualifications and requirements</p><a>Apply online</a>'
   });
   assert.equal(result.status, 'live');
-  assert.equal(result.evidenceType, 'custom_job_page');
+  assert.equal(result.evidenceType, 'custom_job_page_text');
+});
+
+test('recognises council application wording without the exact Apply now phrase', () => {
+  const result = classifySourceResponse({
+    job: { ...job, title: 'Planning Officer' },
+    statusCode: 200,
+    finalUrl: 'https://www.somerset.gov.uk/jobs/planning-officer-12345',
+    body: '<h1>Planning Officer</h1><p>Job description</p><p>Responsibilities include...</p><p>Qualifications and requirements</p><p>How to apply: complete the application form.</p>'
+  });
+  assert.equal(result.status, 'live');
+  assert.equal(result.evidenceType, 'custom_job_page_text');
 });
 
 test('does not classify a generic custom careers landing page as live', () => {
