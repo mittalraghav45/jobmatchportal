@@ -75,6 +75,49 @@ The targeted matching suite currently passes:
 
 Operational. Jobs have source-backed verification states and the frontend/API contract distinguishes verified-live jobs from unverified records.
 
+### Serper discovery
+
+Implemented on this branch and the real API smoke test succeeded.
+
+Current application-level Serper controls:
+
+```text
+max queries/company: 2
+max queries/run:     100
+max results/query:   10
+source pages/company: 2
+```
+
+The discovery script is:
+
+```text
+backend/scripts/discoverSerperJobs.js
+```
+
+with:
+
+```bash
+cd backend
+npm run jobs:serper
+npm run test:serper
+```
+
+Serper results are normalised and deduplicated. Company discovery retains both direct job URLs and useful career/ATS source pages; source pages are then crawled for structured `JobPosting` records or individual job links before canonical ingestion.
+
+Measured experiment:
+
+```text
+requested companies: 10,000
+queries executed:    100
+companies with jobs: 7
+jobs discovered:     8
+jobs added:          6
+jobs updated:        2
+failed requests:     0
+```
+
+A later 5-company experiment under the earlier direct-result filtering produced zero records. The implementation was subsequently changed to retain/crawl career and ATS source pages. A post-change production-yield measurement is still pending.
+
 ### Frontend-ready contract
 
 Implemented. `/api/jobs` applies UK + technology filtering and the frontend-ready verification/apply/processing requirements unless `includeUnverified=true` is requested.
@@ -83,21 +126,17 @@ Implemented. `/api/jobs` applies UK + technology filtering and the frontend-read
 
 The existing explainable profile-to-job matching engine is being reused. Do not create a second independent scoring engine.
 
-The match path now applies the verified-live/frontend-ready contract before returning jobs, and ranking/scoring occurs before pagination where ranking is requested.
-
 ### Codespaces
 
-A safe auto-sync mechanism has been added:
+`.devcontainer/auto-sync.sh` runs every **10 seconds** and follows the currently checked-out branch when the worktree is clean. It never overwrites uncommitted changes or merges divergent history.
 
-- `.devcontainer/auto-sync.sh`
-- `.devcontainer/devcontainer.json` starts it automatically.
-- It checks the active branch every 30 seconds.
-- It only fast-forwards when the worktree is clean.
-- It never overwrites uncommitted changes.
-- It does not merge divergent histories.
-- Log: `/tmp/jobmatchportal-auto-sync.log`.
+`.devcontainer/devcontainer.json` also runs:
 
-This means an agent can commit to `feat/source-backed-job-verification` and the running Codespace will normally pick up the commit automatically.
+```bash
+cd backend && npm ci
+```
+
+on Codespace creation so backend dependencies such as `axios` are installed automatically.
 
 ## Development discipline
 
