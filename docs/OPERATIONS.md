@@ -5,15 +5,45 @@
 From `backend/`:
 
 ```powershell
-npm install
+npm ci
 npm test
+npm run test:serper
 npm run jobs:verify
 npm run jobs:analyse-unknown
 npm run jobs:google-fallback
 npm run jobs:crawl-google-fallback -- --limit=100
+npm run jobs:serper -- --limit=5 --per-query=5 --max-queries=10
 ```
 
 Run expensive network jobs deliberately; do not repeatedly rerun a full population without a reason.
+
+## Serper discovery
+
+Serper is a bounded discovery source for sponsor-company jobs. The implementation lives in:
+
+```text
+backend/services/serperJobDiscovery.js
+backend/scripts/discoverSerperJobs.js
+```
+
+Run a small pilot first:
+
+```bash
+npm run jobs:serper -- --limit=5 --per-query=5 --max-queries=10
+```
+
+Default application-level safeguards:
+
+```text
+2 queries/company
+100 queries/run
+10 results/query
+2 source pages/company
+```
+
+`--max-queries` and `--max-queries-per-company` are hard application-level caps. They do not change the quota or billing rules enforced by Serper.
+
+The pipeline may crawl retained career/ATS source pages and extract structured `JobPosting` records or individual job links. All discovered records still require canonical ingestion and source-backed verification. Never treat a Serper snippet or generic career page as proof that a vacancy is live.
 
 ## Large-scale discovery
 
