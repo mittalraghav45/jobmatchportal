@@ -101,6 +101,28 @@ The response includes the source search URL, source total when available, pagina
 
 The implementation currently reads the public search HTML. If jobs.ac.uk changes its markup or blocks automated requests, the endpoint must fail explicitly rather than fabricate an empty result set. jobs.ac.uk also exposes search/filter pages that demonstrate the academic-discipline and sub-discipline facet parameters used by this integration.
 
+## Serper discovery
+
+Serper is currently exposed as a backend discovery script rather than a public HTTP endpoint.
+
+From `backend/`:
+
+```bash
+npm run test:serper
+npm run jobs:serper -- --limit=5 --per-query=5 --max-queries=10
+```
+
+Current application-level defaults:
+
+- 2 Serper queries per company.
+- 100 Serper queries per run.
+- 10 requested results per query.
+- 2 retained career/ATS source pages per company for downstream crawling.
+
+The Serper API key is supplied through `SERPER_API_KEY`. It must never be returned by the API, committed to source control or written to documentation.
+
+A Serper result is not automatically a JobMatchPortal verified-live job. Direct job URLs are canonicalised and ingested; career/ATS source pages may be crawled for individual postings. All resulting jobs remain subject to the existing source-backed verification states and live-job filters.
+
 ## Application routes
 
 The application tracker is exposed through the application route module. When changing application routes, update this section with the exact method, path, parameters and response contract from the implementation and tests.
