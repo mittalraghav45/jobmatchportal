@@ -8,8 +8,15 @@ test('verified-live match filter only includes frontend-ready UK technology jobs
   assert.deepEqual(filter.$and[1], { 'verification.status': 'live' });
   assert.deepEqual(filter.$and[2], { applyUrl: { $type: 'string', $ne: '' } });
   assert.deepEqual(filter.$and[3], { 'processing.status': 'complete' });
-  assert.ok(filter.$and[4].$or);
-  assert.ok(filter.$and[5].$or);
+
+  const ukFilter = filter.$and[4];
+  assert.ok(ukFilter.$or);
+
+  const techFilter = filter.$and[5];
+  assert.ok(techFilter.$and);
+  assert.ok(techFilter.$and.some(condition => condition.$or));
+  assert.ok(techFilter.$and.some(condition => condition.$nor));
+
   assert.equal(filter.companyId, undefined);
 });
 
