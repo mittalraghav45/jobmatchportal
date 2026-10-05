@@ -57,5 +57,5 @@ export function createNhsJobsAdapter({ feedUrl, fetchImpl = globalThis.fetch } =
     });
     if (!response.ok) throw new Error(`NHS Jobs feed request failed: ${response.status}`);
     return parseNhsJobsFeed(await response.text());
-  });
+  }, { name: 'nhs' });
 }
