@@ -1,9 +1,19 @@
 company_id,company_name,enabled,priority,ats,ats_slug,careers_url
 amazon,Amazon,true,high,custom,,https://www.amazon.jobs/en/
 monzo,Monzo,true,high,greenhouse,monzo,https://monzo.com/careers
-wise,Wise,true,high,custom,,https://wise.jobs/
+airwallex,Airwallex,true,high,ashby,airwallex,https://www.airwallex.com/careers
+anthropic,Anthropic,true,high,greenhouse,anthropic,https://www.anthropic.com/careers
+coinbase,Coinbase,true,high,greenhouse,coinbase,https://www.coinbase.com/careers
 deliveroo,Deliveroo,true,high,greenhouse,deliveroo,https://careers.deliveroo.co.uk/
+faculty,Faculty,true,high,ashby,faculty,https://faculty.ai/careers
+freetrade,Freetrade,true,high,ashby,freetrade,https://freetrade.io/careers
+fundingcircle,Funding Circle,true,high,ashby,fundingcircle,https://www.fundingcircle.com/careers
+gocardless,GoCardless,true,high,greenhouse,gocardless,https://gocardless.com/careers
+quantexa,Quantexa,true,high,ashby,quantexa,https://www.quantexa.com/careers
 revolut,Revolut,true,high,custom,,https://www.revolut.com/careers/
+tide,Tide,true,high,greenhouse,tide,https://www.tide.co/careers/
+wayve,Wayve,true,high,greenhouse,wayve,https://wayve.ai/careers/
+wise,Wise,true,high,custom,,https://wise.jobs/
 
 # Add/remove companies here. Keep company_id stable. Set enabled=false instead of deleting a company when historical discovery data must be retained.
 # ats: greenhouse|lever|ashby|workday|smartrecruiters|workable|teamtailor|pinpoint|recruitee|bamboohr|nhs|custom|auto
