@@ -76,9 +76,3 @@ jobs:
           DISCOVERY_BATCH_SIZE: ${{ inputs.batch_size || '100' }}
           DISCOVERY_MAX_BATCHES: ${{ inputs.max_batches || '20' }}
         run: npm run nightly:discovery:full -- --batch-size="$DISCOVERY_BATCH_SIZE" --max-batches="$DISCOVERY_MAX_BATCHES"
-      - name: Crawl Google career fallbacks
-        if: github.event_name != 'workflow_dispatch' || inputs.mode == 'full'
-        env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          CRAWL_LIMIT: ${{ inputs.batch_size || '100' }}
-        run: npm run jobs:crawl-google-fallback -- --limit="$CRAWL_LIMIT"
