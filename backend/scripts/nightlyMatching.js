@@ -4,6 +4,7 @@ import { Job } from '../models/Job.js';
 import { MatchResult } from '../models/MatchResult.js';
 import { CandidateProfile, DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
 import { matchJobToCandidate } from '../services/candidateMatching.js';
+import { isUkJobLocation } from '../utils/ukJobLocation.js';
 
 const batchSize = Math.max(1, Number(process.env.MATCH_BATCH_SIZE || 100));
 const profileId = process.env.MATCH_PROFILE_ID || DEFAULT_PROFILE_ID;
@@ -15,10 +16,21 @@ try {
 
   // Scan the complete corpus without an unindexed sort. MongoDB's default
   // 32 MB in-memory sort limit can otherwise abort a full-corpus run.
+  // We deliberately keep every MatchResult: eligibility is a presentation /
+  // selection concern, not a deletion concern.
   const filter = {};
   const total = await Job.countDocuments(filter);
   const counts = { strong: 0, possible: 0, weak: 0, strong_unconfirmed_sponsorship: 0 };
-  const classification = { uk: 0, nonUk: 0, live: 0, notLive: 0, verified: 0, unverified: 0, processed: 0, unprocessed: 0 };
+  const classification = {
+    uk: 0,
+    nonUk: 0,
+    live: 0,
+    notLive: 0,
+    verified: 0,
+    unverified: 0,
+    processed: 0,
+    unprocessed: 0
+  };
   let processed = 0;
   let ops = [];
 
@@ -27,13 +39,14 @@ try {
     const result = matchJobToCandidate(job, profile);
     counts[result.applicationFit] = (counts[result.applicationFit] ?? 0) + 1;
 
-    const location = String(job.location || '').toLowerCase();
-    const nation = String(job.nation || '').toLowerCase();
-    const nonUkCountry = /\b(finland|germany|france|spain|italy|sweden|norway|denmark|netherlands|ireland|india|usa|united states|canada|australia)\b/.test(location);
-    const ukEvidence = /\b(uk|united kingdom|england|scotland|wales|northern ireland)\b/.test(`${location} ${nation}`);
-    if (nonUkCountry && !ukEvidence) classification.nonUk += 1;
-    else if (ukEvidence || job.nation) classification.uk += 1;
+    // UK eligibility must be based on explicit location evidence. A populated
+    // `nation` field alone is NOT evidence of UK; this prevents Finland (and
+    // other international jobs) from being counted as UK merely because the
+    // field exists.
+    const uk = isUkJobLocation(job.location);
+    if (uk) classification.uk += 1;
     else classification.nonUk += 1;
+
     if (job.status?.isLive) classification.live += 1; else classification.notLive += 1;
     if (job.verification?.status === 'live') classification.verified += 1; else classification.unverified += 1;
     if (job.processing?.status === 'complete') classification.processed += 1; else classification.unprocessed += 1;
@@ -41,7 +54,23 @@ try {
     ops.push({
       updateOne: {
         filter: { profileId, jobId: job._id },
-        update: { $set: { profileId, jobId: job._id, ...result, matcherVersion: 'v1', profileVersion: String(profile.metadata?.version || 'v1'), calculatedAt: new Date() } },
+        update: {
+          $set: {
+            profileId,
+            jobId: job._id,
+            ...result,
+            eligibility: {
+              uk,
+              live: Boolean(job.status?.isLive),
+              verified: job.verification?.status === 'live',
+              technology: true,
+              calculatedAt: new Date()
+            },
+            matcherVersion: 'v1',
+            profileVersion: String(profile.metadata?.version || 'v1'),
+            calculatedAt: new Date()
+          }
+        },
         upsert: true
       }
     });
