@@ -36,7 +36,7 @@ test('strongly matches an excellent full-stack role for a software/frontend cand
   const result = matchJobToCandidate({ title: 'Full Stack Software Engineer', description: 'React TypeScript JavaScript Node.js PostgreSQL.', location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' } }, profile);
   assert.equal(result.matchStrength, 'strong');
   assert.equal(result.applicationFit, 'strong_unconfirmed_sponsorship');
-  assert.equal(result.components.roleCompatibilityStatus, 'adjacent');
+  assert.equal(result.components.roleCompatibilityStatus, 'match');
   assert.ok(result.reasons.includes('strong_core_match'));
 });
 
