@@ -24,7 +24,22 @@ function scoreClass(score) {
   return 'partial';
 }
 
-function JobDetail({ item, onClose, onPrepare }) {
+const APPLICATION_STATUS_LABELS = {
+  saved: 'Saved',
+  tailoring: 'Tailoring',
+  ready_to_apply: 'Ready to apply',
+  applied: 'Applied',
+  interview: 'Interview',
+  offer: 'Offer',
+  rejected: 'Rejected',
+  withdrawn: 'Withdrawn'
+};
+
+function applicationKey(application) {
+  return String(application?.jobId || application?.job?.id || application?.job?._id || '');
+}
+
+function JobDetail({ item, onClose, onPrepare, application }) {
   const job = item?.job || {};
   const score = Number(item?.candidateScore?.score || 0);
   const sponsorship = item?.sponsorship || 'unknown';
@@ -34,6 +49,7 @@ function JobDetail({ item, onClose, onPrepare }) {
   const salary = job.salary || job.salaryRange || (job.salaryMin || job.salaryMax
     ? `£${Number(job.salaryMin || 0).toLocaleString()}${job.salaryMax ? `–£${Number(job.salaryMax).toLocaleString()}` : '+'}`
     : 'Not specified');
+  const applicationLabel = application ? APPLICATION_STATUS_LABELS[application.status] || application.status : 'Not tracked';
 
   return (
     <div className="job-detail-backdrop" role="presentation" onClick={onClose}>
@@ -51,6 +67,7 @@ function JobDetail({ item, onClose, onPrepare }) {
         <div className="job-detail-status">
           <span className="verified-live">✓ Verified live</span>
           <span className={`sponsor ${sponsorship === 'verified' ? 'verified' : ''}`}>{sponsorship} sponsorship</span>
+          <span className="sponsor">{applicationLabel}</span>
         </div>
 
         <div className="job-detail-grid">
@@ -84,7 +101,7 @@ function JobDetail({ item, onClose, onPrepare }) {
 
         <div className="job-detail-actions">
           {source && <a href={source} target="_blank" rel="noreferrer"><button type="button">Open original job</button></a>}
-          {onPrepare && <button type="button" className="primary" onClick={() => { onClose(); onPrepare({ ...job, sponsorship, match: item.candidateScore }); }}>Prepare application</button>}
+          {onPrepare && <button type="button" className="primary" onClick={() => { onClose(); onPrepare({ ...job, sponsorship, match: item.candidateScore }); }}>{application ? 'Open application' : 'Prepare application'}</button>}
         </div>
       </section>
     </div>
@@ -93,6 +110,7 @@ function JobDetail({ item, onClose, onPrepare }) {
 
 export default function MyMatches({ profileId = 'default', onPrepare }) {
   const [matches, setMatches] = useState([]);
+  const [applications, setApplications] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -100,6 +118,16 @@ export default function MyMatches({ profileId = 'default', onPrepare }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedJob, setSelectedJob] = useState(null);
+
+  const loadApplications = async () => {
+    try {
+      const data = await api('/api/applications?limit=100');
+      const rows = Array.isArray(data) ? data : data.applications || data.data || [];
+      setApplications(rows);
+    } catch {
+      setApplications([]);
+    }
+  };
 
   const load = async (nextPage = page, nextSponsorship = sponsorship) => {
     setLoading(true);
@@ -119,6 +147,7 @@ export default function MyMatches({ profileId = 'default', onPrepare }) {
       setPage(data.page || nextPage);
       setPages(data.pages || 1);
       setTotal(Number(data.total) || 0);
+      await loadApplications();
     } catch (err) {
       setError(err.message);
       setMatches([]);
@@ -133,6 +162,8 @@ export default function MyMatches({ profileId = 'default', onPrepare }) {
     setSponsorship(value);
     load(1, value);
   };
+
+  const applicationByJobId = new Map(applications.map(application => [applicationKey(application), application]));
 
   return (
     <section className="my-matches">
@@ -164,9 +195,12 @@ export default function MyMatches({ profileId = 'default', onPrepare }) {
             {matches.map(item => {
               const score = Number(item.candidateScore?.score || 0);
               const job = item.job || {};
+              const jobId = String(job.id || job._id || '');
               const sponsorshipLabel = item.sponsorship || 'unknown';
+              const application = applicationByJobId.get(jobId);
+              const applicationLabel = application ? (APPLICATION_STATUS_LABELS[application.status] || application.status) : 'Not tracked';
               return (
-                <article className="match-card" key={job.id}>
+                <article className="match-card" key={jobId}>
                   <div className="match-card-main">
                     <small>{job.companyName} · {job.location || 'UK-wide'}</small>
                     <h3>{job.title}</h3>
@@ -181,9 +215,12 @@ export default function MyMatches({ profileId = 'default', onPrepare }) {
                     <div className={`match-percent ${scoreClass(score)}`}><strong>{score}%</strong><span>match</span></div>
                     <span className={`sponsor ${sponsorshipLabel === 'verified' ? 'verified' : ''}`}>{sponsorshipLabel}</span>
                     <span className="verified-live">✓ Verified live</span>
+                    <span className={`sponsor ${application ? 'verified' : ''}`} aria-label={`Application status: ${applicationLabel}`}>
+                      {application ? `Application: ${applicationLabel}` : 'Application: Not tracked'}
+                    </span>
                     <div className="match-actions">
                       <button type="button" onClick={() => setSelectedJob(item)}>View details</button>
-                      {onPrepare && <button type="button" className="primary" onClick={() => onPrepare({ ...job, sponsorship: sponsorshipLabel, match: item.candidateScore })}>Prepare</button>}
+                      {onPrepare && <button type="button" className="primary" onClick={() => onPrepare({ ...job, sponsorship: sponsorshipLabel, match: item.candidateScore })}>{application ? 'Open application' : 'Prepare'}</button>}
                     </div>
                   </div>
                 </article>
@@ -197,7 +234,7 @@ export default function MyMatches({ profileId = 'default', onPrepare }) {
           </div>
         </>
       )}
-      {selectedJob && <JobDetail item={selectedJob} onClose={() => setSelectedJob(null)} onPrepare={onPrepare} />}
+      {selectedJob && <JobDetail item={selectedJob} application={applicationByJobId.get(String(selectedJob.job?.id || selectedJob.job?._id || ''))} onClose={() => setSelectedJob(null)} onPrepare={onPrepare} />}
     </section>
   );
 }
