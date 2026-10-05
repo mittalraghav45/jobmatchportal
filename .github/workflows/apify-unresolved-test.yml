@@ -37,7 +37,7 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           APIFY_KEY: ${{ secrets.APIFY_KEY }}
-          APIFY_ACTOR_ID: ${{ vars.APIFY_ACTOR_ID || 'parseforge/career-site-jobs-scraper' }}
+          APIFY_ACTOR_ID: ${{ vars.APIFY_ACTOR_ID || 'conserving_celerytop/live-career-page-jobs-api' }}
           APIFY_TEST_MAX_ITEMS: '10'
           APIFY_MAX_TOTAL_CHARGE_USD: '2'
         run: npm run test:apify-unresolved -- --limit="${{ inputs.limit || '10' }}"
