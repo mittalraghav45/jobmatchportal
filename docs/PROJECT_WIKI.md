@@ -103,11 +103,11 @@ Do not change matcher thresholds because of a single job. First compare the full
 
 ## 8. Discovery architecture
 
-Discovery is now source-agnostic at the contract layer.
+Discovery is source-agnostic at the contract layer.
 
 `backend/discovery/sourceAdapter.js` defines the canonical `JobSourceAdapter` and normalises discovered jobs into the shared shape. Each record preserves `source`, `sourceKind`, `sourceJobId` and `applyUrl` for provenance and identity.
 
-`backend/discovery/publicSector.js` provides the first source-group abstraction for:
+`backend/discovery/publicSector.js` provides the source-group abstraction for:
 
 - councils
 - universities
@@ -115,7 +115,29 @@ Discovery is now source-agnostic at the contract layer.
 - Civil Service
 - other public bodies
 
-This is an adapter contract, not a site-specific scraper. Concrete official feeds/search paths should be added behind it one source at a time. All discovered jobs continue through canonical ingestion, deduplication and source-backed verification before becoming verified-live matches.
+### First concrete public-sector connector: NHS Jobs
+
+`backend/discovery/nhsJobs.js` implements an NHS Jobs XML/RSS feed adapter behind the public-sector contract. The NHS Business Services Authority documents a Self-Serve API using XML/RSS feeds that can expose NHS Jobs listings and supports the same filtering concepts as the NHS Jobs search service. The feed URL is deliberately supplied by configuration rather than hard-coded because the official feed specification and URL parameters can change. citeturn1search0
+
+The adapter is responsible only for retrieval and canonical normalisation. It does not mark a vacancy verified or live and does not bypass the existing verification pipeline.
+
+Configuration shape:
+
+```text
+NHS_JOBS_FEED_URL=<official NHS Jobs XML/RSS feed URL>
+```
+
+The adapter is tested with RSS and Atom-shaped fixtures and rejects failed upstream responses. It preserves the NHS source identifier and application URL for downstream URL identity and source evidence.
+
+### Source-selection rule
+
+Prefer an official, documented feed/API where one exists. Do not introduce an unofficial scraper or third-party data provider when the official source provides a suitable machine-readable route. NHS Jobs explicitly documents its XML/RSS self-serve feed; this is therefore the first concrete public-sector connector. citeturn1search0
+
+The NHS England general API platform is a separate healthcare integration platform and should not be confused with the NHS Jobs vacancy feed; its API access and assurance requirements are aimed at healthcare-system integrations rather than job discovery. citeturn0search0turn0search1
+
+Civil Service Jobs remains a subsequent connector. Current evidence indicates there is no public official vacancy API, so we should not pretend there is one; a compliant source-backed approach must be designed separately before implementation. citeturn1search1turn1search6
+
+All discovered jobs continue through canonical ingestion, deduplication and source-backed verification before becoming verified-live matches.
 
 Target source groups include:
 
@@ -184,6 +206,6 @@ Never print secret values into Actions logs.
 
 ## 12. Current project checkpoint
 
-Matcher v2 has reached the corpus-evaluation checkpoint. The quality gate is passing and the next engineering milestone is broader source coverage through the normalized discovery adapter layer. The immediate target is the first concrete public-sector source-backed connector, followed by university, NHS and Civil Service connectors using the same interface.
+Matcher v2 has reached the corpus-evaluation checkpoint. The quality gate is passing. The discovery layer now has a normalized public-sector contract plus a concrete NHS Jobs XML/RSS connector. The next engineering step is to wire the configured NHS feed into the existing ingestion pipeline and run a bounded end-to-end import before enabling it for recurring discovery.
 
 The project should not return to repeated individual-job matcher tuning unless a systematic regression is demonstrated by tests or corpus-quality evidence.
