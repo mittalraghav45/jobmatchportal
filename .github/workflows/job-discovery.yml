@@ -3,8 +3,16 @@ name: Job Discovery
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'Run mode'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - smoke
+          - full
       limit:
-        description: 'Maximum companies to process'
+        description: 'Maximum companies to process in full mode'
         required: false
         default: '100'
   schedule:
@@ -24,12 +32,23 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      - name: Sync configured discovery companies
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: node scripts/syncDiscoveryCompanies.js
+      - name: Run discovery smoke test
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke'
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: npm run nightly:discovery -- --companies=vercel,monzo,wise,deliveroo,revolut
       - name: Run unified ATS discovery
+        if: github.event_name != 'workflow_dispatch' || inputs.mode == 'full'
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           DISCOVERY_LIMIT: ${{ inputs.limit || '100' }}
         run: npm run nightly:discovery -- --limit="$DISCOVERY_LIMIT"
       - name: Crawl Google career fallbacks
+        if: github.event_name != 'workflow_dispatch' || inputs.mode == 'full'
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           CRAWL_LIMIT: ${{ inputs.limit || '100' }}
