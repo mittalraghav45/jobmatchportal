@@ -35,7 +35,10 @@ router.post('/persist-batch', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const applicationFit = req.query.applicationFit ? String(req.query.applicationFit).toLowerCase() : undefined;
-    if (applicationFit && !['strong', 'possible', 'weak'].includes(applicationFit)) return res.status(400).json({ error: 'applicationFit must be strong, possible, or weak' });
+    const validFits = ['strong', 'possible', 'weak', 'strong_unconfirmed_sponsorship'];
+    if (applicationFit && !validFits.includes(applicationFit)) {
+      return res.status(400).json({ error: `applicationFit must be one of: ${validFits.join(', ')}` });
+    }
     const result = await listPersistedMatches({
       profileId: req.query.profileId || DEFAULT_PROFILE_ID,
       page: req.query.page,
