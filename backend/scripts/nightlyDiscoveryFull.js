@@ -10,10 +10,20 @@ function arg(name, fallback) {
 const batchSize = Math.max(1, Number(arg('batch-size', process.env.DISCOVERY_BATCH_SIZE || 100)) || 100);
 const maxBatches = Math.max(1, Number(arg('max-batches', process.env.DISCOVERY_MAX_BATCHES || 20)) || 20);
 const delayMs = Math.max(0, Number(arg('batch-delay-ms', process.env.DISCOVERY_BATCH_DELAY_MS || 5000)) || 5000);
+const configuredOnly = String(arg('configured-only', process.env.DISCOVERY_CONFIGURED_ONLY || 'true')).toLowerCase() === 'true';
 
 function runBatch(skip) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['-r', 'dotenv/config', 'scripts/nightlyDiscovery.js', `--skip=${skip}`, `--limit=${batchSize}`], {
+    const args = [
+      '-r',
+      'dotenv/config',
+      'scripts/nightlyDiscovery.js',
+      `--skip=${skip}`,
+      `--limit=${batchSize}`,
+      `--configured-only=${configuredOnly}`
+    ];
+
+    const child = spawn(process.execPath, args, {
       cwd: process.cwd(),
       env: process.env,
       stdio: ['ignore', 'pipe', 'inherit']
@@ -81,6 +91,7 @@ if (total.invalid > 0) healthFailures.push(`invalid companies=${total.invalid}`)
 console.log('=== FULL NIGHTLY DISCOVERY SUMMARY ===');
 console.log(JSON.stringify({
   ...total,
+  configuredOnly,
   failureRate,
   health: healthFailures.length ? 'failed' : 'passed',
   healthFailures
