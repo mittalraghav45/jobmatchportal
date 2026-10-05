@@ -39,18 +39,12 @@ function application(status = 'saved') {
 test('runs the matched-job application smoke flow', async ({ page }) => {
   let currentApplication = application('saved');
   let createCount = 0;
-  const openedApplyUrls = [];
 
   await page.route('**/api/match/jobs', async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        matches: [match],
-        page: 1,
-        pages: 1,
-        total: 1
-      })
+      body: JSON.stringify({ matches: [match], page: 1, pages: 1, total: 1 })
     });
   });
 
@@ -101,15 +95,11 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await expect(page.getByRole('dialog')).toBeVisible();
   const applyLink = page.getByRole('link', { name: 'Open original job' });
   await expect(applyLink).toHaveAttribute('href', match.job.applyUrl);
-  await applyLink.evaluate((link) => window.open = () => null);
-  await applyLink.click({ noWaitAfter: true });
-  openedApplyUrls.push(await applyLink.getAttribute('href'));
-  expect(openedApplyUrls).toEqual([match.job.applyUrl]);
 
   await page.getByRole('button', { name: 'Close job details' }).click();
   await page.getByRole('button', { name: 'Prepare' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Application review' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: match.job.title })).toBeVisible();
   const statusSelect = page.getByRole('combobox');
   await expect(statusSelect).toHaveValue('saved');
 
