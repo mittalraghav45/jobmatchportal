@@ -1,9 +1,11 @@
 import { isTechJobTitle } from './techJobRole.js';
-import { isUkJobLocation } from './ukJobLocation.js';
+import { resolveUkJobLocation } from './ukJobLocation.js';
 
 export function classifyNightlyJob(job = {}) {
-  const locationEvidence = String(job.location || '').trim() || String(job.nation || '').trim();
-  const uk = isUkJobLocation(locationEvidence);
+  const location = job.location;
+  const fallbackCountry = job.nation || job.country || job.countryCode || '';
+  const locationResolution = resolveUkJobLocation(location, fallbackCountry);
+  const uk = locationResolution.status === 'confirmed_uk';
   const live = Boolean(job.status?.isLive);
   const verified = job.verification?.status === 'live';
   const hasApplyUrl = typeof job.applyUrl === 'string' && job.applyUrl.trim() !== '';
@@ -11,7 +13,7 @@ export function classifyNightlyJob(job = {}) {
   const technology = isTechJobTitle(job.title || '', job.department || '');
 
   const reasons = [];
-  if (!uk) reasons.push('non_uk');
+  if (!uk) reasons.push(locationResolution.status === 'non_uk' ? 'non_uk' : 'uk_location_unresolved');
   if (!live) reasons.push('not_live');
   if (!verified) reasons.push('unverified');
   if (!hasApplyUrl) reasons.push('missing_apply_url');
@@ -20,6 +22,9 @@ export function classifyNightlyJob(job = {}) {
 
   return {
     uk,
+    ukStatus: locationResolution.status,
+    ukEvidenceSource: locationResolution.evidenceSource,
+    locationEvidence: locationResolution.value,
     live,
     verified,
     hasApplyUrl,
