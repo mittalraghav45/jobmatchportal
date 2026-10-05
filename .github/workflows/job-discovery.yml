@@ -11,16 +11,21 @@ on:
         options:
           - smoke
           - full
-      limit:
-        description: 'Maximum companies to process in full mode'
+      batch_size:
+        description: 'Companies per discovery batch'
         required: false
         default: '100'
+      max_batches:
+        description: 'Maximum discovery batches per run'
+        required: false
+        default: '20'
   schedule:
     - cron: '0 3 * * 1'
 
 jobs:
   discover:
     runs-on: ubuntu-latest
+    timeout-minutes: 240
     defaults:
       run:
         working-directory: backend
@@ -64,15 +69,16 @@ jobs:
           }
           console.log(`Discovery smoke gate passed: ${summary.discovered} jobs discovered.`);
           NODE
-      - name: Run unified ATS discovery
+      - name: Run batched full discovery
         if: github.event_name != 'workflow_dispatch' || inputs.mode == 'full'
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          DISCOVERY_LIMIT: ${{ inputs.limit || '100' }}
-        run: npm run nightly:discovery -- --limit="$DISCOVERY_LIMIT"
+          DISCOVERY_BATCH_SIZE: ${{ inputs.batch_size || '100' }}
+          DISCOVERY_MAX_BATCHES: ${{ inputs.max_batches || '20' }}
+        run: npm run nightly:discovery:full -- --batch-size="$DISCOVERY_BATCH_SIZE" --max-batches="$DISCOVERY_MAX_BATCHES"
       - name: Crawl Google career fallbacks
         if: github.event_name != 'workflow_dispatch' || inputs.mode == 'full'
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          CRAWL_LIMIT: ${{ inputs.limit || '100' }}
+          CRAWL_LIMIT: ${{ inputs.batch_size || '100' }}
         run: npm run jobs:crawl-google-fallback -- --limit="$CRAWL_LIMIT"
