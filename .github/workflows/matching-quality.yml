@@ -9,8 +9,6 @@ on:
         default: 'feat/source-backed-job-verification'
         type: string
   schedule:
-    # 02:15 UK during British Summer Time (01:15 UTC).
-    # GitHub cron is UTC and does not follow UK daylight-saving changes.
     - cron: '15 1 * * *'
 
 permissions:
@@ -66,56 +64,31 @@ jobs:
           set -o pipefail
           npm run nightly:matching 2>&1 | tee nightly-matching.log
 
-      - name: Publish human-readable summary
+      - name: Render human-readable quality report
+        if: always()
+        working-directory: backend
+        run: node scripts/renderNightlyReport.js nightly-matching.log > nightly-quality-report.md
+
+      - name: Publish quality report to GitHub Summary
         if: always()
         working-directory: backend
         run: |
           {
-            echo '# JobMatchPortal nightly quality report'
+            cat nightly-quality-report.md
             echo
-            echo "- Run: #${{ github.run_number }}"
-            echo "- Requested ref: ${{ steps.ref.outputs.ref }}"
-            echo "- Checked-out commit: $(git rev-parse HEAD)"
-            echo "- Trigger: ${{ github.event_name }}"
-            echo "- Scheduled target: 02:15 UK / 01:15 UTC"
-            echo
-            echo '## Pipeline'
-            echo '- Backend tests: see previous step; a failed test stops the matcher.'
-            echo '- Full-corpus matcher: attempted against the complete jobs collection.'
-            echo '- Database writes: MatchResult upserts only; no job deletion is performed by this workflow.'
-            echo
-            echo '## Matcher output'
-            echo '```json'
-            python - <<'PY'
-import json
-from pathlib import Path
-text = Path('nightly-matching.log').read_text(errors='replace') if Path('nightly-matching.log').exists() else ''
-marker = text.rfind('{')
-if marker >= 0:
-    candidate = text[marker:]
-    try:
-        obj = json.loads(candidate)
-        print(json.dumps(obj, indent=2))
-    except Exception:
-        print(text[-12000:])
-else:
-    print(text[-12000:])
-PY
-            echo '```'
-            echo
-            echo '## Interpretation'
-            if grep -q '"strong": 0' nightly-matching.log 2>/dev/null; then
-              echo '⚠️ No Strong matches were produced. Treat this as a matcher-calibration signal, not a discovery failure.'
-            else
-              echo '✅ At least one Strong match was produced.'
-            fi
+            echo '## Automation notes'
+            echo '- Backend tests must pass before the full-corpus matcher runs.'
+            echo '- MatchResult records are upserted; jobs are never deleted by this workflow.'
+            echo '- Sponsorship-unconfirmed is a separate application-readiness state, not a sponsorship claim.'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload matcher log
+      - name: Upload matcher evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nightly-matching-${{ github.run_number }}
-          path: backend/nightly-matching.log
+          path: |
+            backend/nightly-matching.log
+            backend/nightly-quality-report.md
           if-no-files-found: ignore
           retention-days: 14
