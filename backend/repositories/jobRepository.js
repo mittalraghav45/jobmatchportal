@@ -18,6 +18,8 @@ function toMongoJob(rawJob, now) {
   const seenAt = toDateOrNull(now) || new Date();
   const postedAt = toDateOrNull(job.dates?.postedAt);
   const closingAt = toDateOrNull(job.dates?.closingAt);
+  const checkedAt = toDateOrNull(job.verification?.checkedAt);
+  const httpStatus = Number.isFinite(job.verification?.httpStatus) ? job.verification.httpStatus : null;
 
   return {
     fingerprint,
@@ -40,14 +42,18 @@ function toMongoJob(rawJob, now) {
       classificationVersion: job.classificationVersion,
       'dates.lastSeenAt': seenAt,
       'status.isLive': job.status?.isLive !== false,
+      'verification.status': job.verification?.status || 'unknown',
+      'verification.checkedAt': checkedAt,
+      'verification.sourceUrl': job.verification?.sourceUrl || job.source?.url || '',
+      'verification.finalUrl': job.verification?.finalUrl || '',
+      'verification.httpStatus': httpStatus,
+      'verification.evidenceType': job.verification?.evidenceType || '',
+      'verification.evidence': job.verification?.evidence || '',
       raw: job.raw
     }
   };
 }
 
-/**
- * Upsert one canonical job. The fingerprint is the idempotency key.
- */
 export async function upsertJob(rawJob, { now = new Date() } = {}) {
   const { fingerprint, update } = toMongoJob(rawJob, now);
 
@@ -64,11 +70,6 @@ export async function upsertJob(rawJob, { now = new Date() } = {}) {
   ).lean();
 }
 
-/**
- * Persist a discovery batch and report whether records were inserted or
- * already existed. Duplicate fingerprints inside the same batch are collapsed
- * before writing so one discovery response cannot inflate the counts.
- */
 export async function upsertJobs(rawJobs = [], { now = new Date() } = {}) {
   const operations = [];
   const rejected = [];
