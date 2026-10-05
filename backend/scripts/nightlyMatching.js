@@ -5,6 +5,7 @@ import { MatchResult } from '../models/MatchResult.js';
 import { CandidateProfile, DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
 import { matchJobToCandidate } from '../services/candidateMatching.js';
 import { classifyNightlyJob, incrementReasonCounts } from '../utils/nightlyDiagnostics.js';
+import { evaluateNightlyQualityGate } from '../utils/nightlyQualityGate.js';
 
 const batchSize = Math.max(1, Number(process.env.MATCH_BATCH_SIZE || 100));
 const calibrationLimit = Math.max(1, Number(process.env.MATCH_CALIBRATION_LIMIT || 25));
@@ -105,10 +106,13 @@ try {
     return distribution;
   }, {});
 
+  const qualityGate = evaluateNightlyQualityGate(calibrationCandidates);
+
   console.log(JSON.stringify({
     profileId, profileVersion, inputJobs: total, processed, classification, exclusionReasons,
     counts, eligibleCounts,
     calibration: { eligibleJobs: calibrationCandidates.length, scoreDistribution, topMatches },
+    qualityGate,
     matcherVersion: 'v1', mode: 'nightly_full_corpus'
   }, null, 2));
 } finally {
