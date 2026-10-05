@@ -24,9 +24,9 @@ export function normalizeDiscoveredJob(job, source, sourceKind = 'generic') {
     throw new TypeError('Discovered job requires title and applyUrl.');
   }
 
-  return {
+  const companyId = job.companyId ?? job.company_id;
+  const normalized = {
     title,
-    companyId: job.companyId ?? job.company_id ?? null,
     companyName: String(job.companyName ?? job.organisation ?? '').trim(),
     location: String(job.location ?? '').trim(),
     description: String(job.description ?? '').trim(),
@@ -39,6 +39,12 @@ export function normalizeDiscoveredJob(job, source, sourceKind = 'generic') {
     postedAt: job.postedAt ?? null,
     metadata: job.metadata && typeof job.metadata === 'object' ? job.metadata : {}
   };
+
+  if (companyId !== undefined && companyId !== null && String(companyId).trim()) {
+    normalized.companyId = companyId;
+  }
+
+  return normalized;
 }
 
 export function createDiscoveryRegistry(adapters = []) {
