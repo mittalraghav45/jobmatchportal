@@ -31,7 +31,7 @@ function firstUrl(...values) {
     if (!(value.startsWith('http://') || value.startsWith('https://'))) return false;
     try {
       const host = new URL(value).hostname.toLowerCase();
-      return !/^(?:www\\.)?(?:google|bing|search)\\./i.test(host);
+      return !['google.com', 'bing.com', 'search.com'].includes(host) && !host.endsWith('.google.com') && !host.endsWith('.bing.com') && !host.endsWith('.search.com');
     } catch {
       return false;
     }
