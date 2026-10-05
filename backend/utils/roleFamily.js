@@ -1,8 +1,8 @@
 const ROLE_FAMILIES = Object.freeze({
-  frontend: [/\bfrontend\b/i, /\bfront-end\b/i, /\bfront end\b/i, /\breact\b/i, /\bjavascript\b/i, /\btypescript\b/i, /\bweb (?:engineer|developer)\b/i],
+  frontend: [/\bfrontend\b/i, /\bfront-end\b/i, /\bfront end\b/i, /\bweb (?:engineer|developer)\b/i],
   fullstack: [/\bfull[- ]?stack\b/i],
   software: [/\bsoftware (?:engineer|developer)\b/i, /\bapplication (?:engineer|developer)\b/i, /\bprogrammer\b/i],
-  backend: [/\bbackend\b/i, /\bback-end\b/i, /\bback end\b/i, /\bnode(?:\.js)?\b/i, /\bphp\b/i],
+  backend: [/\bbackend\b/i, /\bback-end\b/i, /\bback end\b/i],
   data: [/\bdata scientist\b/i, /\bdata science\b/i, /\bdata engineer\b/i, /\bdata engineering\b/i],
   machine_learning: [/\bmachine learning\b/i, /\bml engineer\b/i, /\bai engineer\b/i, /\bartificial intelligence\b/i],
   security: [/\bsecurity engineer\b/i, /\bcybersecurity\b/i, /\bcyber security\b/i, /\bsecurity analyst\b/i],
@@ -15,33 +15,36 @@ const ADJACENT = new Set([
   'frontend|fullstack', 'frontend|software', 'frontend|backend',
   'fullstack|software', 'fullstack|backend', 'software|backend',
   'software|cloud_platform', 'software|devops', 'backend|cloud_platform',
-  'backend|devops', 'cloud_platform|devops', 'software|machine_learning',
-  'software|machine_learning'
+  'backend|devops', 'cloud_platform|devops', 'software|machine_learning'
 ]);
 
 const normalisePair = (a, b) => [a, b].sort().join('|');
 
 export function classifyRoleFamily(text = '') {
   const value = String(text);
-  const matches = Object.entries(ROLE_FAMILIES)
+  return Object.entries(ROLE_FAMILIES)
     .filter(([, patterns]) => patterns.some((pattern) => pattern.test(value)))
     .map(([family]) => family);
-  return matches;
 }
 
 function candidateFamilies(profile = {}) {
-  const text = [
-    ...(profile.targetTitles ?? []),
-    ...(profile.skills ?? []),
-    ...(profile.roleFamilies ?? [])
-  ].join(' ');
-  const families = classifyRoleFamily(text);
+  const explicit = Array.isArray(profile.roleFamilies) ? profile.roleFamilies.filter(Boolean) : [];
+  const text = [...(profile.targetTitles ?? []), ...(profile.skills ?? [])].join(' ');
+  const families = [...new Set([...explicit, ...classifyRoleFamily(text)])];
   return families.length ? families : ['software'];
 }
 
+function getJobFamilies(job = {}) {
+  // A job title is the primary role-family signal. Description text frequently
+  // contains adjacent technologies and must not turn a Data Scientist or
+  // Security Engineer into a frontend match just because React is mentioned.
+  const titleFamilies = classifyRoleFamily(job.title ?? '');
+  if (titleFamilies.length) return titleFamilies;
+  return classifyRoleFamily(job.description ?? '');
+}
+
 export function roleFamilyCompatibility(job = {}, profile = {}) {
-  const jobText = [job.title, job.description].filter(Boolean).join(' ');
-  const jobFamilies = classifyRoleFamily(jobText);
+  const jobFamilies = getJobFamilies(job);
   const candidate = candidateFamilies(profile);
 
   if (!jobFamilies.length) {
