@@ -30,6 +30,11 @@ const ADJACENT = new Set([
   'backend|devops', 'cloud_platform|devops'
 ]);
 
+const CORE_COMPATIBLE = new Set([
+  'frontend|fullstack', 'frontend|software', 'frontend|backend',
+  'fullstack|software', 'fullstack|backend', 'software|backend'
+]);
+
 const normalisePair = (a, b) => [a, b].sort().join('|');
 
 export function classifyRoleFamily(text = '') {
@@ -82,6 +87,13 @@ export function roleFamilyCompatibility(job = {}, profile = {}) {
   }
 
   if (jobFamilies.some((jobFamily) => candidate.includes(jobFamily))) {
+    return { score: 1, status: 'match', jobFamilies, candidateFamilies: candidate, jobSpecialisations, candidateSpecialisations };
+  }
+
+  // Core web/software families are interchangeable for this profile. They are
+  // not merely adjacent: software, frontend, backend and full-stack represent
+  // the same practical application family for matching purposes.
+  if (jobFamilies.some((jobFamily) => candidate.some((candidateFamily) => CORE_COMPATIBLE.has(normalisePair(jobFamily, candidateFamily))))) {
     return { score: 1, status: 'match', jobFamilies, candidateFamilies: candidate, jobSpecialisations, candidateSpecialisations };
   }
 
