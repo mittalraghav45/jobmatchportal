@@ -3,6 +3,7 @@ import { DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
 import { persistJobMatch, persistJobMatches, listPersistedMatches } from '../services/matchPersistence.js';
 import { Job } from '../models/Job.js';
 import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
+import { validateMatchResultFilters } from '../utils/matchResultFilters.js';
 
 const router = express.Router();
 
@@ -34,21 +35,13 @@ router.post('/persist-batch', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const applicationFit = req.query.applicationFit ? String(req.query.applicationFit).toLowerCase() : undefined;
-    const validFits = ['strong', 'possible', 'weak', 'strong_unconfirmed_sponsorship'];
-    const employerType = req.query.employerType ? String(req.query.employerType).toLowerCase() : undefined;
-    const validEmployerTypes = ['private', 'councils', 'universities', 'nhs', 'dwp'];
-    if (employerType && !validEmployerTypes.includes(employerType)) {
-      return res.status(400).json({ error: `employerType must be one of: ${validEmployerTypes.join(', ')}` });
+    let filters;
+    try {
+      filters = validateMatchResultFilters(req.query);
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
     }
-    const nation = req.query.nation ? String(req.query.nation) : undefined;
-    const validNations = ['England', 'Scotland', 'Wales', 'Northern Ireland', 'UK-wide'];
-    if (nation && !validNations.includes(nation)) {
-      return res.status(400).json({ error: `nation must be one of: ${validNations.join(', ')}` });
-    }
-    if (applicationFit && !validFits.includes(applicationFit)) {
-      return res.status(400).json({ error: `applicationFit must be one of: ${validFits.join(', ')}` });
-    }
+    const { applicationFit, employerType, nation } = filters;
     const result = await listPersistedMatches({
       profileId: req.query.profileId || DEFAULT_PROFILE_ID,
       profileVersion: req.query.profileVersion,
