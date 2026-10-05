@@ -17,13 +17,13 @@ function tagValue(block, tag) {
 }
 
 function extractItems(xml) {
-  const rssItems = [...xml.matchAll(/<item(?:\\s[^>]*)?>([\\s\\S]*?)<\\/item>/gi)].map(match => match[1]);
+  const rssItems = [...xml.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)].map(match => match[1]);
   if (rssItems.length) return rssItems;
-  return [...xml.matchAll(/<entry(?:\\s[^>]*)?>([\\s\\S]*?)<\\/entry>/gi)].map(match => match[1]);
+  return [...xml.matchAll(/<entry(?:\s[^>]*)?>([\s\S]*?)<\/entry>/gi)].map(match => match[1]);
 }
 
 function entryLink(block) {
-  const href = block.match(/<link\\b[^>]*\\bhref=["']([^"']+)["'][^>]*\\/?>(?:<\\/link>)?/i);
+  const href = block.match(/<link\b[^>]*\bhref=["']([^"']+)["'][^>]*\/?>(?:<\/link>)?/i);
   if (href) return decodeXml(href[1]);
   return tagValue(block, 'link') || tagValue(block, 'guid');
 }
