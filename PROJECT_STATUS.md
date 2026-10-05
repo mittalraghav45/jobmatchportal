@@ -1,36 +1,40 @@
 # JobMatchPortal — Project Status
 
-Last updated: 2026-10-02
+Last updated: 2026-10-05
 
 ## Verified state
 
 - Golden sponsor dataset: `backend/config/sponsor-companies.json`
 - Golden dataset size: 21,516 companies
 - MongoDB database: `jobmatchportal`
-- Current job population: 3,222 jobs at the last audit
-- Current verification state at the last audit: 1,309 live, 155 closed, 1,758 unknown
-- Verification classification invariant: 3,222 / 3,222 jobs classified
-- Live jobs currently have complete `applyUrl`, company identity, and title fields: 1,309 / 1,309
-- Live job identity uses the canonical source/apply URL when available.
-- Live URL duplicate audit: 0 duplicate groups, 0 duplicate documents, 0 excess duplicates, largest group 1
-- Live URL groups: 1,309 total, all unique
-- Backend test suite: 145 passing, 0 failing, 3 skipped (148 total)
-- Frontend production build: passes with Vite.
-- Frontend now exposes a live verified-job counter, polling the verified-live jobs API every 5 seconds.
+- Latest full matching corpus observed: 9,008 jobs.
+- Latest full matching classification observed: 4,974 UK, 4,034 non-UK; 7,738 live, 1,270 not live; 6,168 verified, 2,840 unverified.
+- Latest matching baseline: 3,500 possible, 5,508 weak, 0 strong, 0 strong-unconfirmed in the pre-UK-eligibility calibration run.
+- Backend matching now records explicit UK/live/verified/technology eligibility metadata and keeps non-UK records in historical storage rather than deleting them.
+- Backend test suite is passing after synchronising the `strong_unconfirmed_sponsorship` application-fit state with its persistence test.
+- Frontend production build passes with Vite.
 
-## Completed migration work
+## Matching and eligibility milestone
 
-The live URL duplicate migration has been completed and re-audited. The database currently has no duplicate live `applyUrl` values.
+The full-corpus matcher can now process the 9,000+ job corpus using bounded batching without the unindexed MongoDB sort that previously exceeded the 32 MB in-memory sort limit.
 
-The verification population also satisfies the current invariant: every job is classified as `live`, `closed`, or `unknown`, with no unverified remainder.
+Candidate-facing eligibility is explicitly UK-only. A normalised country/nation value is preferred and location text is a fallback. Non-UK jobs such as Finland remain stored for historical/audit purposes but must not enter the UK candidate pool.
 
-The frontend jobs API is now restricted by default to frontend-ready verified jobs: `verification.status=live`, a non-empty `applyUrl`, and processing status `complete` or `pending`. This keeps unverified/unknown records out of the user-facing job feed while ingestion continues.
+Match results preserve component scores, sponsorship status, eligibility metadata and explainable reasons. Valid fit states are `strong`, `strong_unconfirmed_sponsorship`, `possible`, and `weak`.
+
+`strong_unconfirmed_sponsorship` means strong profile/role fit with sponsorship still unconfirmed. It does not assert that the employer sponsors Skilled Worker visas.
+
+## Nightly automation
+
+`.github/workflows/matching-quality.yml` provides a bounded full-corpus matching workflow with manual dispatch and a scheduled 02:15 UK target during BST (`01:15 UTC`; GitHub cron is UTC and does not follow UK daylight-saving changes).
+
+The workflow checks out the selected ref, installs Node 20 dependencies, runs the complete backend test suite, runs `npm run nightly:matching` against the complete jobs collection, performs MatchResult upserts only, publishes a human-readable GitHub Actions Summary, and uploads the raw matcher log for 14 days.
+
+The workflow is diagnostic/reproducible automation. It does not autonomously rewrite source code.
 
 ## Current scaling step
 
-The golden sponsor discovery pipeline is now being run across the 21,516-company dataset using four bounded, checkpointed terminal workers. The current partitioning is approximately 1–6k, 6k–12k, 12k–18k, and 18k–end.
-
-`backend/scripts/jobDiscoveryGoldenFull.js` supports bounded discovery concurrency in addition to source-resolution concurrency. Discovery remains checkpointed in `golden_discovery_checkpoints`, and run state is tracked in `golden_discovery_runs`.
+The golden sponsor discovery pipeline is being run across the 21,516-company dataset using bounded, checkpointed workers. `backend/scripts/jobDiscoveryGoldenFull.js` supports bounded discovery concurrency and resumable checkpoints.
 
 Relevant controls:
 
@@ -41,16 +45,7 @@ GOLDEN_DISCOVERY_CONCURRENCY=3
 GOLDEN_DELAY_MS=750
 ```
 
-The same controls can be supplied as command-line arguments, for example:
-
-```bash
-cd /workspaces/jobmatchportal/backend
-node -r dotenv/config scripts/jobDiscoveryGoldenFull.js --limit=50 --discovery-concurrency=3
-```
-
-The limited validation runs completed without duplicate growth. A 500-company test produced 171 discovered jobs, 60 added and 111 updated, with 2 failed companies and 7 rejected records; the runner remains checkpointed and resumable.
-
-The full run is resumable with the same run ID. Completed, unresolved, and invalid checkpoints are skipped unless `--retry-completed=true` is explicitly requested. Failed companies are checkpointed and can be retried on a later run.
+The full discovery run remains checkpointed and resumable. Completed, unresolved, and invalid checkpoints are skipped unless explicitly retried.
 
 ## Identity invariants
 
@@ -66,19 +61,19 @@ The full run is resumable with the same run ID. Completed, unresolved, and inval
 - Job ingestion should use verified sources from `backend/config/job-source-registry.json`.
 - Failed/unverified career URLs must be skipped and recorded rather than guessed.
 - URL identity must remain stable across company records when the source URL is identical.
-- Large discovery runs must use bounded concurrency, checkpointing, and failure isolation rather than unbounded parallel requests.
-- The frontend should expose only verified-live, applyable jobs by default while the discovery pipeline is still running.
+- Large discovery and matching runs must use bounded concurrency, batching/checkpointing and failure isolation rather than unbounded parallel requests.
+- The frontend should expose only verified-live, applyable, UK-eligible jobs by default.
+- Historical jobs and match results are retained; eligibility is a filtering property, not a deletion instruction.
 
 ## Remaining roadmap
 
-1. Complete and monitor the full 21,516-company golden discovery run.
-2. Re-run live-job verification and duplicate audits after discovery completes or after a material ingestion milestone.
-3. Enforce the database uniqueness constraint for canonical live job URLs after the populated dataset is proven clean.
-4. Confirm MongoDB startup + bulk matching endpoint.
-5. Connect match results to the verified live-job feed.
+1. Re-run the full 9,008+ matching corpus with the corrected UK eligibility and sponsorship-fit schema.
+2. Inspect top UK matches and calibrate component weights/thresholds from representative evidence.
+3. Expand discovery across UK councils, universities, startups, scale-ups, sponsorship employers and general profile-relevant employers.
+4. Re-run live-job verification and duplicate audits after material ingestion milestones.
+5. Connect calibrated match results to the verified live-job feed.
 6. Verify deterministic match explanations and sponsorship filtering.
 7. Application tracking.
 8. CV/cover-letter workflow.
 9. Automated refresh scheduling.
-10. End-to-end, performance, and security testing.
-11. Release hardening.
+10. End-to-end, performance, security and release hardening.
