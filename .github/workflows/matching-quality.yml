@@ -69,6 +69,11 @@ jobs:
         working-directory: backend
         run: node scripts/renderNightlyReport.js nightly-matching.log > nightly-quality-report.md
 
+      - name: Enforce matcher quality gate
+        if: always()
+        working-directory: backend
+        run: node scripts/enforceNightlyQualityGate.js nightly-matching.log
+
       - name: Publish quality report to GitHub Summary
         if: always()
         working-directory: backend
@@ -80,6 +85,7 @@ jobs:
             echo '- Backend tests must pass before the full-corpus matcher runs.'
             echo '- MatchResult records are upserted; jobs are never deleted by this workflow.'
             echo '- Sponsorship-unconfirmed is a separate application-readiness state, not a sponsorship claim.'
+            echo '- A FAIL quality gate means the matcher produced at least one Strong result that violates a hard quality invariant.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload matcher evidence
