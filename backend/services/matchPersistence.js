@@ -2,6 +2,7 @@ import { Job } from '../models/Job.js';
 import { MatchResult } from '../models/MatchResult.js';
 import { CandidateProfile, DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
 import { matchJobToCandidate } from './candidateMatching.js';
+import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
 
 export async function persistJobMatch({ profileId = DEFAULT_PROFILE_ID, jobId }) {
   const id = String(profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
@@ -65,21 +66,53 @@ export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, pag
   const id = String(profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
   const safePage = Math.max(1, Number(page) || 1);
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
-  const filter = { profileId: id, matchScore: { $gte: Math.max(0, Number(minimumScore) || 0) } };
-  if (applicationFit && ['strong', 'possible', 'weak'].includes(applicationFit)) filter.applicationFit = applicationFit;
+  const matchFilter = {
+    profileId: id,
+    matchScore: { $gte: Math.max(0, Number(minimumScore) || 0) }
+  };
+  if (applicationFit && ['strong', 'possible', 'weak', 'strong_unconfirmed_sponsorship'].includes(applicationFit)) {
+    matchFilter.applicationFit = applicationFit;
+  }
+
+  // MatchResults can outlive a job's current eligibility. Always derive the
+  // result set from the same live/verified/UK/technology filter used by the
+  // discovery pipeline so stale non-UK or dead jobs cannot leak into My Matches.
+  const eligibleJobs = await Job.find(buildVerifiedLiveMatchFilter(null)).select('_id').lean();
+  const eligibleJobIds = eligibleJobs.map(job => job._id);
+  if (!eligibleJobIds.length) {
+    return {
+      page: safePage,
+      limit: safeLimit,
+      total: 0,
+      pages: 0,
+      matches: []
+    };
+  }
+
+  matchFilter.jobId = { $in: eligibleJobIds };
 
   const [rows, total] = await Promise.all([
-    MatchResult.find(filter).sort({ matchScore: -1, calculatedAt: -1 }).skip((safePage - 1) * safeLimit).limit(safeLimit).lean(),
-    MatchResult.countDocuments(filter)
+    MatchResult.find(matchFilter)
+      .sort({ matchScore: -1, calculatedAt: -1 })
+      .skip((safePage - 1) * safeLimit)
+      .limit(safeLimit)
+      .lean(),
+    MatchResult.countDocuments(matchFilter)
   ]);
+
   const jobIds = rows.map(row => row.jobId);
-  const jobs = await Job.find({ _id: { $in: jobIds } }).select('title companyName companyId location employmentType source dates status verification quality applyUrl').lean();
+  const jobs = await Job.find({ _id: { $in: jobIds } })
+    .select('title companyName companyId location employmentType source dates status verification quality applyUrl')
+    .lean();
   const jobMap = new Map(jobs.map(job => [String(job._id), job]));
+
   return {
     page: safePage,
     limit: safeLimit,
     total,
     pages: Math.ceil(total / safeLimit),
-    matches: rows.map(row => ({ ...row, job: jobMap.get(String(row.jobId)) || null })).filter(row => row.job)
+    matches: rows
+      .map(row => ({ ...row, job: jobMap.get(String(row.jobId)) || null }))
+      .filter(row => row.job)
   };
 }
