@@ -1,9 +1,62 @@
-export const JOB_SCHEMA_VERSION = '1.0';
+export const JOB_SCHEMA_VERSION = '1.2';
 
 const clean = value => String(value ?? '').trim();
 
+function normaliseAts(value, depth = 0) {
+  if (depth > 4 || value === undefined || value === null || value === '') return 'unknown';
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const text = String(value).trim();
+    return text && text !== '[object Object]' ? text.toLowerCase() : 'unknown';
+  }
+
+  if (typeof value === 'object') {
+    const keys = ['ats', 'name', 'type', 'platform', 'provider', 'slug', 'id'];
+    for (const key of keys) {
+      const candidate = normaliseAts(value[key], depth + 1);
+      if (candidate !== 'unknown') return candidate;
+    }
+  }
+
+  return 'unknown';
+}
+
+function firstHttpUrl(...values) {
+  const queue = values.flat();
+  const seen = new Set();
+
+  while (queue.length) {
+    const value = queue.shift();
+    if (typeof value === 'string') {
+      const url = value.trim();
+      if (/^https?:\/\//i.test(url)) return url;
+      continue;
+    }
+
+    if (!value || typeof value !== 'object' || seen.has(value)) continue;
+    seen.add(value);
+
+    for (const key of [
+      'application', 'apply', 'job', 'source',
+      'applicationUrl', 'application_url', 'applyUrl', 'apply_url', 'atsUrl',
+      'ats_url', 'jobUrl', 'job_url', 'url'
+    ]) {
+      if (value[key] !== undefined) queue.push(value[key]);
+    }
+  }
+
+  return '';
+}
+
+function normaliseLiveState(raw) {
+  if (raw?.isLive === true || raw?.status === 'live' || raw?.status === 'open') return { isLive: true, liveState: 'live' };
+  if (raw?.isLive === false || raw?.status === 'closed' || raw?.status === 'expired') return { isLive: false, liveState: 'closed' };
+  return { isLive: null, liveState: 'unknown' };
+}
+
 export function normaliseJob(raw = {}) {
-  const source = clean(raw.source || raw.ats || 'unknown').toLowerCase();
+  const sourceValue = raw.source?.ats ?? raw.ats ?? raw.source ?? 'unknown';
+  const source = normaliseAts(sourceValue);
   const externalId = clean(raw.externalId || raw.id || raw.job_id || raw.jobId || '');
   const title = clean(raw.title || raw.job_title || '');
   const companyId = clean(raw.companyId || raw.company_id || raw.slug || '');
@@ -11,7 +64,27 @@ export function normaliseJob(raw = {}) {
   const location = clean(raw.location || raw.job_location || '');
   const description = clean(raw.description || raw.job_description || '');
   const postedAt = raw.postedAt || raw.posted_date || raw.posting_date || raw.posted || null;
-  const closingAt = raw.closingAt || raw.closing_date || raw.closing_date_time || null;
+  const closingAt = raw.closingAt || raw.closing_date || raw.closing_date_time || raw.closing || null;
+  const applicationUrl = firstHttpUrl(
+    raw.applicationUrl,
+    raw.application_url,
+    raw.applyUrl,
+    raw.apply_url,
+    raw.atsUrl,
+    raw.ats_url,
+    raw.jobUrl,
+    raw.job_url,
+    raw.url,
+    raw.source?.url,
+    raw.source?.applicationUrl,
+    raw.source?.application_url,
+    raw.source?.application,
+    raw.source?.apply,
+    raw.source?.job,
+    raw.raw
+  );
+  const live = normaliseLiveState(raw);
+
   return {
     schemaVersion: JOB_SCHEMA_VERSION,
     id: clean(raw.id || externalId),
@@ -23,9 +96,9 @@ export function normaliseJob(raw = {}) {
     location,
     employmentType: clean(raw.employmentType || raw.employment_type || ''),
     department: clean(raw.department || ''),
-    source: { ats: source, url: clean(raw.url || raw.job_url || '') },
+    source: { ats: source, url: applicationUrl },
     dates: { postedAt, closingAt, lastSeenAt: raw.lastSeenAt || new Date().toISOString() },
-    status: { isLive: raw.isLive !== false && raw.status !== 'closed' },
+    status: { ...live, verification: raw.verification || raw.status?.verification || {} },
     raw
   };
 }

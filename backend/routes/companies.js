@@ -7,8 +7,11 @@ const router = express.Router();
 router.get('/count', async (req, res) => {
   try {
     await connectMongo();
-    const total = await Company.countDocuments({});
-    res.json({ total });
+    const [total, sponsorTotal] = await Promise.all([
+      Company.countDocuments({}),
+      Company.countDocuments({ sponsorship: 'verified' })
+    ]);
+    res.json({ total, sponsorTotal });
   } catch (error) {
     res.status(503).json({ error: 'Unable to count companies', message: error.message });
   }

@@ -25,7 +25,14 @@ const JobSchema = new mongoose.Schema({
     lastSeenAt: { type: Date, default: Date.now }
   },
   status: {
-    isLive: { type: Boolean, default: true, index: true }
+    isLive: { type: Boolean, default: null, index: true },
+    liveState: { type: String, enum: ['live', 'closed', 'unknown'], default: 'unknown', index: true },
+    verification: {
+      checkedAt: { type: Date, default: null },
+      reason: { type: String, default: '' },
+      httpStatus: { type: Number, default: null },
+      url: { type: String, default: '' }
+    }
   },
   raw: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true, versionKey: false });
@@ -34,6 +41,7 @@ JobSchema.index({ companyId: 1, 'status.isLive': 1 });
 JobSchema.index({ companyName: 1, title: 1 });
 JobSchema.index({ 'source.ats': 1, externalId: 1 });
 JobSchema.index({ nation: 1, employerType: 1, 'status.isLive': 1 });
+JobSchema.index({ 'status.liveState': 1, 'status.verification.checkedAt': 1 });
 JobSchema.index({ nation: 1, 'dates.lastSeenAt': -1 });
 
 export const Job = mongoose.models.Job || mongoose.model('Job', JobSchema);
