@@ -1,4 +1,5 @@
 import { rankJob } from './jobRanking.js';
+import { roleFamilyCompatibility } from '../utils/roleFamily.js';
 
 const normalise = (value = '') => String(value).toLowerCase().replace(/[^a-z0-9+#.]+/g, ' ').trim();
 function textFor(job = {}) { return normalise([job.title, job.description, job.location, job.companyName, job.employerType].filter(Boolean).join(' ')); }
@@ -40,14 +41,20 @@ export function matchJobToCandidate(job, profile = {}) {
   const base = rankJob(job, profile);
   const sponsorship = sponsorshipFit(job, profile);
   const experience = experienceFit(job, profile);
+  const roleCompatibility = roleFamilyCompatibility(job, profile);
   const excluded = exclusions(job, profile);
 
-  let matchScore = Math.round(base.matchScore * 0.75 + sponsorship.score * 10 + experience.score * 10);
+  let matchScore = Math.round(
+    base.matchScore * 0.65 +
+    roleCompatibility.score * 10 +
+    sponsorship.score * 10 +
+    experience.score * 10
+  );
 
-  const strongCoreMatch = base.components.title >= 75 && base.components.skills >= 75;
+  const strongCoreMatch = base.components.title >= 75 && base.components.skills >= 75 && roleCompatibility.score >= 0.7;
   const trustedFreshJob = base.components.verification >= 100 && base.components.freshness >= 80;
   const sponsorshipBlocked = sponsorship.status === 'explicitly_unavailable';
-  const matchStrength = strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65 ? 'strong' : (matchScore >= 65 && !sponsorshipBlocked ? 'possible' : 'weak');
+  const matchStrength = strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65 ? 'strong' : (matchScore >= 65 && !sponsorshipBlocked && roleCompatibility.score >= 0.7 ? 'possible' : 'weak');
   const strongApplicationCandidate = matchStrength === 'strong' && sponsorship.status === 'confirmed';
 
   if (strongApplicationCandidate) matchScore = Math.max(matchScore, 85);
@@ -56,6 +63,9 @@ export function matchJobToCandidate(job, profile = {}) {
   const reasons = [...base.reasons];
   if (sponsorship.reason) reasons.push(sponsorship.reason);
   if (experience.reason) reasons.push(experience.reason);
+  if (roleCompatibility.status === 'match') reasons.push('role_family_match');
+  if (roleCompatibility.status === 'adjacent') reasons.push('role_family_adjacent');
+  if (roleCompatibility.status === 'mismatch') reasons.push('role_family_mismatch');
   if (strongCoreMatch) reasons.push('strong_core_match');
   if (matchStrength === 'strong') reasons.push('strong_match');
   if (strongApplicationCandidate) reasons.push('strong_application_candidate');
@@ -73,6 +83,10 @@ export function matchJobToCandidate(job, profile = {}) {
     reasons: [...new Set(reasons)],
     components: {
       ...base.components,
+      roleCompatibility: Math.round(roleCompatibility.score * 100),
+      roleCompatibilityStatus: roleCompatibility.status,
+      roleFamilies: roleCompatibility.jobFamilies,
+      candidateRoleFamilies: roleCompatibility.candidateFamilies,
       sponsorship: Math.round(sponsorship.score * 100),
       sponsorshipStatus: sponsorship.status,
       experience: Math.round(experience.score * 100)
