@@ -46,8 +46,7 @@ export function apifyCareerUrl(company = {}) {
 
 export function buildApifyInput(company, {
   maxItems = Number(process.env.APIFY_MAX_ITEMS || 50),
-  includeDescription = true,
-  includeSkills = true
+  includeDescription = true
 } = {}) {
   const careerUrl = apifyCareerUrl(company);
   if (!careerUrl) throw new Error(`No careers URL or website available for ${company.companyName || company.companyId}`);
