@@ -9,6 +9,11 @@ const UK_REMOTE_PATTERN = /\b(?:remote|hybrid)\b.{0,40}\b(?:uk|u\.k\.|united kin
 // allow-list cannot be bypassed by a coincidental city-name match.
 const NON_UK_COUNTRY_PATTERN = /\b(?:afghanistan|albania|algeria|andorra|angola|argentina|armenia|australia|austria|azerbaijan|bahamas|bahrain|bangladesh|barbados|belarus|belgium|belize|benin|bhutan|bolivia|bosnia(?: and herzegovina)?|botswana|brazil|brunei|bulgaria|burkina faso|cambodia|cameroon|canada|chile|china|colombia|costa rica|croatia|cuba|cyprus|czech(?: republic)?|denmark|dominican republic|ecuador|egypt|estonia|ethiopia|finland|france|georgia|germany|ghana|greece|guatemala|honduras|hong kong|hungary|iceland|india|indonesia|iran|iraq|ireland|israel|italy|jamaica|japan|jordan|kazakhstan|kenya|kuwait|latvia|lebanon|liechtenstein|lithuania|luxembourg|malaysia|maldives|malta|mauritius|mexico|moldova|monaco|mongolia|montenegro|morocco|myanmar|namibia|nepal|netherlands|new zealand|nicaragua|nigeria|north macedonia|norway|oman|pakistan|panama|paraguay|peru|philippines|poland|portugal|qatar|romania|russia|rwanda|saudi arabia|serbia|singapore|slovakia|slovenia|south africa|south korea|spain|sri lanka|sweden|switzerland|taiwan|thailand|tunisia|turkey|ukraine|united arab emirates|uruguay|usa|u\.s\.a\.|united states|uzbekistan|vatican|venezuela|vietnam|zambia|zimbabwe)\b/i;
 
+const UK_LOCATION_PATTERN = new RegExp(
+  `(?:${UK_COUNTRY_PATTERN.source}|${UK_CITY_PATTERN.source}|${UK_REMOTE_PATTERN.source})`,
+  'i'
+);
+
 export function isUkJobLocation(location) {
   if (location && typeof location === 'object') {
     const parts = [location.country, location.countryCode, location.city, location.name, location.description]
@@ -29,14 +34,13 @@ export function isUkJobLocation(location) {
 
 export function ukJobMongoFilter() {
   return {
+    $or: [
+      { location: { $regex: UK_COUNTRY_PATTERN } },
+      { location: { $regex: UK_CITY_PATTERN } },
+      { location: { $regex: UK_REMOTE_PATTERN } }
+    ],
     $and: [
-      {
-        $or: [
-          { location: { $regex: UK_COUNTRY_PATTERN } },
-          { location: { $regex: UK_CITY_PATTERN } },
-          { location: { $regex: UK_REMOTE_PATTERN } }
-        ]
-      },
+      { location: { $regex: UK_LOCATION_PATTERN } },
       { location: { $not: { $regex: NON_UK_COUNTRY_PATTERN } } }
     ]
   };
