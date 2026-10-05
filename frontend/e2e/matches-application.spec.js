@@ -37,14 +37,21 @@ function application(status = 'saved') {
 }
 
 test('runs the matched-job application smoke flow', async ({ page }) => {
-  let currentApplication = application('saved');
+  let currentApplication = null;
   let createCount = 0;
 
   await page.route('**/api/match/jobs', async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ matches: [match], page: 1, pages: 1, total: 1 })
+      body: JSON.stringify({
+        matches: [match],
+        page: 1,
+        pages: 1,
+        total: 1,
+        market: 'United Kingdom',
+        verifiedLiveOnly: true
+      })
     });
   });
 
@@ -60,23 +67,39 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
         return;
       }
       currentApplication = application('saved');
-      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ application: currentApplication }) });
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ application: currentApplication })
+      });
       return;
     }
 
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ applications: [currentApplication] }) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ applications: currentApplication ? [currentApplication] : [] })
+    });
   });
 
   await page.route('**/api/applications/*', async route => {
     const request = route.request();
     if (request.method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ application: currentApplication }) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ application: currentApplication })
+      });
       return;
     }
     if (request.method() === 'PATCH' && request.url().endsWith('/status')) {
       const body = JSON.parse(request.postData() || '{}');
       currentApplication = application(body.status);
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ application: currentApplication }) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ application: currentApplication })
+      });
       return;
     }
     await route.continue();
@@ -90,6 +113,8 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await expect(page.getByText('78%')).toBeVisible();
   await expect(page.getByText('unknown')).toBeVisible();
   await expect(page.getByText('✓ Verified live')).toBeVisible();
+  await expect(page.getByText('Application: Not tracked')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Prepare' })).toBeVisible();
 
   await page.getByRole('button', { name: 'View details' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
