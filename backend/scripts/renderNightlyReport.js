@@ -21,6 +21,7 @@ if (!data) {
 const c = data.classification || {};
 const eligible = data.eligibleCounts || {};
 const calibration = data.calibration || {};
+const qualityGate = data.qualityGate || {};
 const top = calibration.topMatches || [];
 const total = Number(data.inputJobs || 0);
 const eligibleJobs = Number(calibration.eligibleJobs || 0);
@@ -41,7 +42,27 @@ const topRows = top.length ? top.map((job, i) => {
   return `### ${i + 1}. ${job.title || 'Untitled'} — ${job.companyName || 'Unknown company'}\n- **Score:** ${job.matchScore ?? 'n/a'}\n- **Fit:** \`${job.applicationFit || 'unknown'}\`\n- **Role:** \`${comp.roleCompatibilityStatus || 'unknown'}\`\n- **Skills:** ${comp.skills ?? 'n/a'}\n- **Experience:** \`${comp.experienceStatus || 'unknown'}\`\n- **Seniority:** ${comp.seniority ?? 'n/a'}\n- **Sponsorship:** \`${comp.sponsorshipStatus || 'unknown'}\`\n- **Reasons:** ${(job.reasons || []).join(', ') || 'none'}\n- **Location:** ${job.location || 'unknown'}\n- **Apply:** ${job.applyUrl || 'not available'}`;
 }).join('\n\n') : '_No eligible matches were produced._';
 
+const criticalRows = (qualityGate.critical || []).slice(0, 10)
+  .map(issue => `- **${issue.issue}** — ${issue.title || issue.jobId || 'unknown'}${issue.skills != null ? ` (skills ${issue.skills})` : ''}${issue.roleStatus ? ` (role ${issue.roleStatus})` : ''}${issue.experienceStatus ? ` (experience ${issue.experienceStatus})` : ''}`).join('\n') || '- None';
+
 console.log(`# JobMatchPortal nightly quality report
+
+## Quality gate
+
+### ${qualityGate.status === 'PASS' ? '🟢 PASS' : '🔴 FAIL'}
+
+- Strong matches checked: **${fmt(qualityGate.strongCount)}**
+- Critical violations: **${fmt(qualityGate.criticalCount)}**
+- Warnings: **${fmt(qualityGate.warningCount)}**
+- Strong matches with low skill evidence: **${fmt(qualityGate.strongWithLowSkills)}**
+- Strong matches with role problems: **${fmt(qualityGate.strongWithRoleProblems)}**
+- Strong matches with experience problems: **${fmt(qualityGate.strongWithExperienceProblems)}**
+- Strong matches containing excluded technology: **${fmt(qualityGate.strongWithExcludedTechnology)}**
+- Strong specialist mismatches: **${fmt(qualityGate.strongSpecialistMismatches)}**
+
+### Critical violations
+
+${criticalRows}
 
 ## Run
 
