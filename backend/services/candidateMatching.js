@@ -73,14 +73,18 @@ export function matchJobToCandidate(job, profile = {}) {
     experience.score * 10
   );
 
-  const strongCoreMatch = base.components.title >= 75 && base.components.skills >= 75 && roleCompatibility.score >= 0.7;
+  // A high-quality direct role should be able to become Strong even when the title
+  // wording differs from the candidate's exact target title (e.g. Full Stack Software
+  // Engineer vs Software Engineer). Role-family fit + skills are more reliable here.
+  const strongCoreMatch = base.components.skills >= 75 && roleCompatibility.score >= 1 && base.components.title >= 60;
   const trustedFreshJob = base.components.verification >= 100 && base.components.freshness >= 80;
   const sponsorshipBlocked = sponsorship.status === 'explicitly_unavailable';
   const roleMismatch = ['mismatch', 'specialisation_mismatch'].includes(roleCompatibility.status);
   const hardSeniorityMismatch = experience.status === 'far_above_target';
   const earlyCareerMismatch = experience.reason === 'early_career_role_mismatch';
 
-  const matchStrength = !roleMismatch && !hardSeniorityMismatch && !earlyCareerMismatch && strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65
+  const strongEligible = !roleMismatch && !hardSeniorityMismatch && !earlyCareerMismatch && strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65;
+  const matchStrength = strongEligible
     ? 'strong'
     : (matchScore >= 65 && !sponsorshipBlocked && !roleMismatch && !hardSeniorityMismatch && !earlyCareerMismatch && roleCompatibility.score >= 0.7 ? 'possible' : 'weak');
   const strongApplicationCandidate = matchStrength === 'strong' && sponsorship.status === 'confirmed';
