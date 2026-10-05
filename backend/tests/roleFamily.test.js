@@ -27,6 +27,21 @@ test('marks data science and security roles as mismatches for a frontend candida
   assert.equal(roleFamilyCompatibility({ title: 'Security Engineer' }, profile).status, 'mismatch');
 });
 
+test('uses the job title as the authoritative role-family signal', () => {
+  const profile = {
+    targetTitles: ['Frontend Engineer', 'Software Engineer'],
+    skills: ['React', 'TypeScript', 'JavaScript']
+  };
+
+  const result = roleFamilyCompatibility({
+    title: 'Data Scientist',
+    description: 'Build data products with React and TypeScript alongside frontend engineers.'
+  }, profile);
+
+  assert.equal(result.status, 'mismatch');
+  assert.deepEqual(result.jobFamilies, ['data']);
+});
+
 test('keeps unknown role families neutral rather than rejecting them', () => {
   const result = roleFamilyCompatibility({ title: 'Technology Specialist' }, {
     targetTitles: ['Frontend Engineer'],
