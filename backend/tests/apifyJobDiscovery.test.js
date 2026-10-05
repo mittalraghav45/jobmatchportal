@@ -11,8 +11,10 @@ test('builds bounded Apify career-site input for technical roles', () => {
 
   assert.deepEqual(input.companies, ['https://example.gov.uk/careers']);
   assert.equal(input.maxJobsPerCompany, 10);
-  assert.equal(input.includeDescription, false);
-  assert.ok(input.titleIncludes.includes('software engineer'));
+  assert.equal(input.startUrls[0].url, 'https://example.gov.uk/careers');
+  assert.equal(input.startUrls[0].userData.companyId, 'example');
+  assert.equal(input.respectRobotsTxtFile, true);
+  assert.equal(typeof input.pageFunction, 'string');
 });
 
 test('normalizes Apify output into the canonical job shape and classifies UK metadata', () => {
