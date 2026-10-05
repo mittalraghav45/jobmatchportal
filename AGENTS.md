@@ -9,7 +9,7 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 - `backend/` — Express API, MongoDB models/repositories, discovery, verification, matching and application tooling.
 - `frontend/` — React/Vite application.
 - `docs/` — architecture, API, operations, data pipeline and handoff documentation.
-- `.github/workflows/` — CI and scheduled discovery/verification automation.
+- `.github/workflows/` — CI and scheduled discovery/verification/matching automation.
 - `.devcontainer/` — reproducible GitHub Codespaces development environment.
 
 ## Critical data invariants
@@ -20,6 +20,7 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 - `unknown` is a valid state. Never convert insufficient evidence into `closed` or `live` merely to improve coverage.
 - A Google fallback URL is a discovery aid, not evidence that a job exists.
 - Never fabricate jobs, closing dates, posting dates, sponsorship status or application URLs.
+- Historical jobs and match results must be retained unless destructive cleanup is explicitly authorised.
 
 ## Discovery rules
 
@@ -37,6 +38,14 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 12. jobs.ac.uk is a multi-employer job board, not an employer-specific ATS. Its search module is therefore a separate source-search path and must not invent or silently create canonical company records merely because a vacancy appears in the board search.
 13. jobs.ac.uk search results must retain their original source URL. If source HTML changes or automated access is blocked, fail explicitly or use the documented RSS path rather than fabricating results.
 14. jobs.ac.uk category searches should use the site's own `academicDisciplineFacet[]` and `subDisciplineFacet[]` parameters. Keyword and location are refinements, not substitutes for the source-side discipline taxonomy.
+
+## UK eligibility rules
+
+- The user-facing candidate pool is UK-only unless a feature explicitly says otherwise.
+- Prefer a normalised UK country/nation field when available; use location text as a fallback.
+- Non-UK locations such as Finland must never pass a UK-only filter because of title, company, remote wording or unrelated metadata.
+- UK eligibility is an explicit match-result property so the reason a job is excluded can be inspected later.
+- A job can remain in the historical corpus while being ineligible for the candidate-facing pool.
 
 ## Verification rules
 
@@ -63,9 +72,22 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 
 - Reuse the existing profile/job matching engine rather than creating parallel scoring implementations.
 - Matching must remain explainable: preserve matched skills, missing skills, role-fit/seniority evidence and sponsorship recommendation.
-- `/match/jobs` should apply the frontend-ready/verified-live contract before returning match results.
+- `/match/jobs` should apply the frontend-ready/verified-live/UK candidate contract before returning match results.
 - Match scoring must happen before pagination when ranking is requested, so page boundaries do not hide higher-scoring matches.
 - Do not invent candidate skills or job evidence.
+- Valid persisted application-fit states are `strong`, `strong_unconfirmed_sponsorship`, `possible`, and `weak`.
+- `strong_unconfirmed_sponsorship` means strong profile/role fit while sponsorship evidence remains unconfirmed; it must not be treated as confirmed sponsorship.
+- Do not lower thresholds merely to manufacture Strong matches. Calibrate against representative results and inspect component scores/reasons.
+- Preserve component scores, sponsorship status, eligibility and reasons so a human can understand each match.
+
+## Large matching runs
+
+- Full-corpus matching must use bounded batching/pagination and indexed queries.
+- Avoid unindexed MongoDB sorts that can exceed MongoDB's 32 MB in-memory sort limit.
+- Match persistence should be idempotent/upsert-based.
+- Large runs must not delete jobs or historical match data as a side effect.
+- The nightly matching workflow runs the backend test suite before the full-corpus matcher and publishes a human-readable GitHub Actions Summary plus a raw matcher-log artifact.
+- A failed test must prevent the matcher from running.
 
 ## Operational rules
 
@@ -101,6 +123,8 @@ Before changing code:
 6. Run `git diff --check`.
 7. Update relevant documentation in the same change.
 
+Do not use Playwright as a blocker for backend matching work. E2E/browser setup can be addressed separately.
+
 ## Documentation continuity
 
 Keep these documents current:
@@ -111,7 +135,7 @@ Keep these documents current:
 - `docs/DATA_PIPELINE.md` — company/job discovery, canonicalisation and verification pipeline.
 - `docs/OPERATIONS.md` — commands, parallel runs, monitoring and recovery procedures.
 - `docs/CODESPACES.md` — cloud development environment and MongoDB connectivity.
-- `docs/PROJECT_STATUS.md` — current milestone, metrics and known limitations.
+- `PROJECT_STATUS.md` — current milestone, metrics and known limitations.
 - `docs/PROJECT_HANDOFF.md` — concise context for a new agent/chat.
 - `docs/MIGRATION_HANDOFF.md` — current context and rules for moving development to a new chat/agent.
 - `AGENTS.md` — durable engineering rules for future agents.
