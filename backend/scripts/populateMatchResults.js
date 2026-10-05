@@ -11,9 +11,15 @@ const args = Object.fromEntries(process.argv.slice(2).map((arg) => {
   return [key, value ?? true];
 }));
 
-const limit = Math.max(1, Number(args.limit ?? 100));
+const requestedLimit = args.limit == null ? 100 : Number(args.limit);
 const batchSize = Math.max(1, Number(args['batch-size'] ?? 50));
 const profileId = args['profile-id'] || process.env.MATCH_PROFILE_ID || DEFAULT_PROFILE_ID;
+const reconcile = args.reconcile === true || args.reconcile === 'true';
+
+if (!Number.isFinite(requestedLimit) || requestedLimit < 1) {
+  console.error('--limit must be a positive number');
+  process.exit(1);
+}
 
 await mongoose.connect(process.env.MONGODB_URI);
 
@@ -26,7 +32,17 @@ if (!profile) {
 
 const filter = buildVerifiedLiveMatchFilter(null);
 const totalEligible = await Job.countDocuments(filter);
-const jobs = await Job.find(filter).sort({ 'quality.score': -1, 'dates.lastSeenAt': -1, _id: 1 }).limit(limit).lean();
+const effectiveLimit = reconcile ? totalEligible : Math.min(requestedLimit, totalEligible);
+const jobs = await Job.find(filter)
+  .sort({ 'quality.score': -1, 'dates.lastSeenAt': -1, _id: 1 })
+  .limit(effectiveLimit)
+  .lean();
+
+if (reconcile && jobs.length !== totalEligible) {
+  console.error(`Reconciliation aborted: expected ${totalEligible} eligible jobs but loaded ${jobs.length}`);
+  await mongoose.disconnect();
+  process.exit(1);
+}
 
 let processed = 0;
 const counts = { strong: 0, possible: 0, weak: 0, strong_unconfirmed_sponsorship: 0 };
@@ -49,11 +65,15 @@ for (let i = 0; i < jobs.length; i += batchSize) {
   console.log(`[match] processed=${processed}/${jobs.length}`);
 }
 
-const eligibleIds = jobs.map((job) => job._id);
-const staleFilter = eligibleIds.length
-  ? { profileId, jobId: { $nin: eligibleIds } }
-  : { profileId };
-const cleanup = await MatchResult.deleteMany(staleFilter);
+let staleResultsDeleted = 0;
+if (reconcile) {
+  const eligibleIds = jobs.map((job) => job._id);
+  const staleFilter = eligibleIds.length
+    ? { profileId, jobId: { $nin: eligibleIds } }
+    : { profileId };
+  const cleanup = await MatchResult.deleteMany(staleFilter);
+  staleResultsDeleted = cleanup.deletedCount || 0;
+}
 
 console.log(JSON.stringify({
   profileId,
@@ -61,7 +81,8 @@ console.log(JSON.stringify({
   selected: jobs.length,
   processed,
   counts,
-  staleResultsDeleted: cleanup.deletedCount || 0
+  reconcile,
+  staleResultsDeleted
 }, null, 2));
 
 await mongoose.disconnect();
