@@ -16,6 +16,8 @@
         |                  v
         |              bounded source-page crawl
         |
+        +--> source adapters (including public-sector sources)
+        |
         v
 Canonical job records in MongoDB
         |
@@ -27,11 +29,49 @@ Incremental source-backed verification
         +--> unknown
         |
         v
-/api/jobs
+UK + live + verified eligibility
         |
         v
-Frontend / matching / applications
+Candidate profile matching
+        |
+        v
+/api/jobs / frontend / applications
 ```
+
+## Source adapter contract
+
+New discovery sources use `backend/discovery/sourceAdapter.js`.
+
+A source adapter is responsible for discovery and normalisation only. It must not bypass canonical ingestion, deduplication or verification.
+
+Canonical discovered job fields include:
+
+- `title`
+- `companyName`
+- `location`
+- `description`
+- `applyUrl`
+- `source`
+- `sourceKind`
+- `sourceJobId`
+- `employmentType`
+- `workMode`
+- `postedAt`
+- `metadata`
+
+`source`, `sourceKind`, `sourceJobId` and `applyUrl` are retained for provenance and identity.
+
+### Public-sector abstraction
+
+`backend/discovery/publicSector.js` provides the public-sector source contract. Supported source categories are:
+
+- `council`
+- `university`
+- `nhs`
+- `civil_service`
+- `other_public_body`
+
+The adapter deliberately does not implement a site-specific scraper. Concrete official feeds/search paths should plug into this interface one source at a time. A discovered public-sector job still goes through the same canonical ingestion, URL identity, deduplication and source-backed verification stages as every other source.
 
 ## Company population
 
@@ -49,6 +89,7 @@ For large runs, company ranges may be processed in parallel. Ranges must not ove
 4. A generic search result must never become a fabricated job record.
 5. Source URLs and canonical identity must be retained.
 6. Discovery writes canonical records through the job repository's fingerprint/idempotency path.
+7. New source adapters must normalise into the common source contract before entering the existing pipeline.
 
 ## Serper discovery
 
