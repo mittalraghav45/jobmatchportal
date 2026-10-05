@@ -48,9 +48,17 @@ export function classifyRoleSpecialisations(text = '') {
 
 function candidateFamilies(profile = {}) {
   const explicit = Array.isArray(profile.roleFamilies) ? profile.roleFamilies.filter(Boolean) : [];
-  const text = [...(profile.targetTitles ?? []), ...(profile.skills ?? [])].join(' ');
+  // Target titles define the candidate's role identity. Technical skills alone must not
+  // turn a general full-stack/software profile into a security, AI, data, or mobile specialist.
+  const text = [...(profile.targetTitles ?? [])].join(' ');
   const families = [...new Set([...explicit, ...classifyRoleFamily(text)])];
   return families.length ? families : ['software'];
+}
+
+function candidateSpecialisations(profile = {}) {
+  const explicit = Array.isArray(profile.roleSpecialisations) ? profile.roleSpecialisations.filter(Boolean) : [];
+  const titleText = [...(profile.targetTitles ?? [])].join(' ');
+  return [...new Set([...explicit, ...classifyRoleSpecialisations(titleText)])];
 }
 
 function getJobFamilies(job = {}) {
@@ -64,16 +72,14 @@ export function roleFamilyCompatibility(job = {}, profile = {}) {
   const jobFamilies = getJobFamilies(job);
   const candidate = candidateFamilies(profile);
   const jobSpecialisations = classifyRoleSpecialisations(title);
-  const candidateText = [...(profile.targetTitles ?? []), ...(profile.skills ?? [])].join(' ');
-  const candidateSpecialisations = classifyRoleSpecialisations(candidateText);
+  const candidateSpecialisations = candidateSpecialisations(profile);
 
   if (!jobFamilies.length) {
     return { score: 0.5, status: 'unknown', jobFamilies: [], candidateFamilies: candidate, jobSpecialisations, candidateSpecialisations };
   }
 
-  // A generic "software" family must not override a specialist title. For example,
-  // Software Engineer (Machine Learning) is software-shaped but is still a specialist
-  // ML role and should not receive a full match for a general web/full-stack profile.
+  // A specialist title must not receive a generic software match. This is intentionally
+  // based on the title, because descriptions often contain incidental technologies.
   const specialistConflict = jobSpecialisations.some((specialisation) => !candidateSpecialisations.includes(specialisation));
   if (specialistConflict && jobSpecialisations.length) {
     return { score: 0.4, status: 'specialisation_mismatch', jobFamilies, candidateFamilies: candidate, jobSpecialisations, candidateSpecialisations };
