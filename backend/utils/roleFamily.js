@@ -48,14 +48,12 @@ export function classifyRoleSpecialisations(text = '') {
 
 function candidateFamilies(profile = {}) {
   const explicit = Array.isArray(profile.roleFamilies) ? profile.roleFamilies.filter(Boolean) : [];
-  // Target titles define the candidate's role identity. Technical skills alone must not
-  // turn a general full-stack/software profile into a security, AI, data, or mobile specialist.
   const text = [...(profile.targetTitles ?? [])].join(' ');
   const families = [...new Set([...explicit, ...classifyRoleFamily(text)])];
   return families.length ? families : ['software'];
 }
 
-function candidateSpecialisations(profile = {}) {
+function deriveCandidateSpecialisations(profile = {}) {
   const explicit = Array.isArray(profile.roleSpecialisations) ? profile.roleSpecialisations.filter(Boolean) : [];
   const titleText = [...(profile.targetTitles ?? [])].join(' ');
   return [...new Set([...explicit, ...classifyRoleSpecialisations(titleText)])];
@@ -72,14 +70,12 @@ export function roleFamilyCompatibility(job = {}, profile = {}) {
   const jobFamilies = getJobFamilies(job);
   const candidate = candidateFamilies(profile);
   const jobSpecialisations = classifyRoleSpecialisations(title);
-  const candidateSpecialisations = candidateSpecialisations(profile);
+  const candidateSpecialisations = deriveCandidateSpecialisations(profile);
 
   if (!jobFamilies.length) {
     return { score: 0.5, status: 'unknown', jobFamilies: [], candidateFamilies: candidate, jobSpecialisations, candidateSpecialisations };
   }
 
-  // A specialist title must not receive a generic software match. This is intentionally
-  // based on the title, because descriptions often contain incidental technologies.
   const specialistConflict = jobSpecialisations.some((specialisation) => !candidateSpecialisations.includes(specialisation));
   if (specialistConflict && jobSpecialisations.length) {
     return { score: 0.4, status: 'specialisation_mismatch', jobFamilies, candidateFamilies: candidate, jobSpecialisations, candidateSpecialisations };
