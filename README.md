@@ -113,6 +113,12 @@ The real Serper API smoke test has succeeded in Codespaces. The API key is suppl
 
 Serper-discovered records still pass through canonical ingestion/deduplication and the existing source-backed verification pipeline before they can become verified-live jobs.
 
+## Apify discovery fallback
+
+The portal can use Apify as a bounded fallback for unresolved company career sources. It reads public career/ATS pages through the configured Apify Actor, normalises returned jobs into the canonical ingestion pipeline, classifies UK nation/employer type, and preserves the source/apply URL. The repository uses the `APIFY_KEY` Actions secret; the Actor is configurable with `APIFY_ACTOR_ID`.
+
+The production discovery path remains source-first: configured ATS/public-sector adapters run first, and Apify is used only when they return no jobs for a company with a usable career URL. Apify does not write directly to MongoDB; all results pass through the existing ingestion and deduplication layer.
+
 ## Job identity and verification
 
 Jobs are persisted using `fingerprint` as the MongoDB idempotency key. Identity is resolved in this order:
