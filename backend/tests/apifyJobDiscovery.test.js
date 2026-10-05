@@ -13,6 +13,7 @@ test('builds bounded Apify career-site input for technical roles', () => {
   assert.equal(input.startUrls[0].userData.companyId, 'example');
   assert.equal(input.respectRobotsTxtFile, true);
   assert.equal(typeof input.pageFunction, 'string');
+  assert.match(input.pageFunction, /enqueueRequest/);
 });
 
 test('normalizes Apify output into the canonical job shape and classifies UK metadata', () => {
