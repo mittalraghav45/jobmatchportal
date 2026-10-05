@@ -11,7 +11,7 @@ test('match result schema persists one result per profile and job', () => {
 test('match result schema constrains application fit and score', () => {
   const fit = MatchResult.schema.path('applicationFit');
   const score = MatchResult.schema.path('matchScore');
-  assert.deepEqual(fit.enumValues, ['strong', 'possible', 'weak']);
+  assert.deepEqual(fit.enumValues, ['strong', 'possible', 'weak', 'strong_unconfirmed_sponsorship']);
   assert.equal(score.options.min, 0);
   assert.equal(score.options.max, 100);
 });
