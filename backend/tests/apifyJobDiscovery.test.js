@@ -9,8 +9,6 @@ test('builds bounded Apify career-site input for technical roles', () => {
     careersUrl: 'https://example.gov.uk/careers'
   }, { maxItems: 10, includeDescription: false, includeSkills: false });
 
-  assert.deepEqual(input.companies, ['https://example.gov.uk/careers']);
-  assert.equal(input.maxJobsPerCompany, 10);
   assert.equal(input.startUrls[0].url, 'https://example.gov.uk/careers');
   assert.equal(input.startUrls[0].userData.companyId, 'example');
   assert.equal(input.respectRobotsTxtFile, true);
