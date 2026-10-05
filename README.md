@@ -2,7 +2,7 @@
 
 A local UK job-discovery and application-support platform for sponsorship-aware job search, live ATS discovery, CV/job matching and evidence-led application optimisation.
 
-> **Project wiki:** see [`docs/PROJECT_WIKI.md`](docs/PROJECT_WIKI.md) for the current architecture, matching model, automation, security rules and development workflow.
+> **Project wiki:** see [`docs/PROJECT_WIKI.md`](docs/PROJECT_WIKI.md) for the current architecture, matching model, automation, discovery adapters, security rules and development workflow.
 
 ## Current architecture
 
@@ -13,7 +13,7 @@ Frontend (React/Vite)
 Express API
   |     |      |
   |     |      +--> Application optimiser (OpenAI)
-  |     +---------> ATS discovery / live jobs
+  |     +---------> Source adapters / ATS discovery / live jobs
   +---------------> Sponsorship + job intelligence
         |
         v
@@ -23,6 +23,8 @@ MongoDB repositories (optional/local integration)
 ### Main capabilities
 
 - Live job discovery across supported ATS platforms.
+- Canonical source adapters for adding new discovery families without changing matching logic.
+- Public-sector discovery abstraction for councils, universities, NHS, Civil Service and other public bodies.
 - Candidate-to-job matching using skills, CV text and experience.
 - Explicit UK eligibility for the candidate-facing match pool.
 - Sponsorship evidence represented as `verified`, `not-sponsor` or `unknown`.
@@ -59,14 +61,33 @@ The workflow:
 1. installs Node 20 dependencies;
 2. runs the complete backend test suite;
 3. runs `npm run nightly:matching` over the complete jobs collection;
-4. writes MatchResult upserts without deleting jobs;
-5. renders a structured, human-readable Markdown quality report;
-6. publishes that report directly into the GitHub Actions Summary;
-7. uploads the raw matcher log and rendered report as 14-day artifacts.
+4. enforces the nightly quality gate;
+5. writes MatchResult upserts without deleting jobs;
+6. renders a structured, human-readable Markdown quality report;
+7. publishes that report directly into the GitHub Actions Summary;
+8. uploads the raw matcher log and rendered report as 14-day artifacts.
 
-The report contains corpus health, Strong/Possible/Weak distribution, score buckets, top matches with evidence and calibration flags. This is the primary artifact for deciding whether the matcher needs systematic changes.
+The report contains corpus health, Strong/Possible/Weak distribution, score buckets, top matches with evidence and calibration flags. The quality gate rejects unsafe Strong results such as low skills, specialist mismatches, incompatible role families/experience, excluded technologies or hard seniority problems. Unconfirmed sponsorship is intentionally a warning rather than a failure.
 
 A failing test prevents the matcher from running. The workflow is deliberately bounded/reproducible diagnostic automation, not an autonomous source-code rewriting loop.
+
+## Discovery adapters
+
+New source families should implement the canonical contract in:
+
+```text
+backend/discovery/sourceAdapter.js
+```
+
+Adapters normalise records into a common shape and preserve `source`, `sourceKind`, `sourceJobId` and `applyUrl` for provenance and identity. They are discovery-only; source-backed verification remains a separate stage.
+
+The first source-group abstraction is:
+
+```text
+backend/discovery/publicSector.js
+```
+
+It supports the categories `council`, `university`, `nhs`, `civil_service` and `other_public_body`. Concrete official feeds/search paths can be plugged into this interface without creating a second matcher.
 
 ## Serper discovery
 
@@ -143,6 +164,8 @@ backend/
   sponsorRegistry.js              sponsorship evidence rules
   applicationEngine.js            structured application prompts
   applicationValidator.js         output validation
+  discovery/sourceAdapter.js      normalized source adapter contract
+  discovery/publicSector.js       public-sector source-group adapter
   scripts/renderNightlyReport.js  full-corpus human-readable report
   prompts/                         commercial + public-sector prompts
   config/companies.csv             editable company discovery seed list
@@ -153,7 +176,9 @@ backend/
 docs/
   ARCHITECTURE.md                 architecture notes
   IMPLEMENTATION_PLAN.md          implementation history/plan
+  DATA_PIPELINE.md                discovery/verification pipeline
   PROJECT_WIKI.md                 living project wiki
+AGENTS.md                          durable agent/development rules
 ```
 
 ## Quick start
@@ -258,4 +283,4 @@ GitHub Actions runs backend tests and frontend builds automatically when relevan
 5. Commit with a clear message.
 6. Push only after tests/build pass.
 
-See `docs/ARCHITECTURE.md` and [`docs/PROJECT_WIKI.md`](docs/PROJECT_WIKI.md) for the detailed design and current operating model.
+See `docs/ARCHITECTURE.md`, [`docs/DATA_PIPELINE.md`](docs/DATA_PIPELINE.md) and [`docs/PROJECT_WIKI.md`](docs/PROJECT_WIKI.md) for the detailed design and current operating model.
