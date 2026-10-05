@@ -2,6 +2,12 @@ name: Matching Quality
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to test (branch, tag, or commit SHA)'
+        required: true
+        default: 'feat/source-backed-job-verification'
+        type: string
   schedule:
     # 02:15 UK during British Summer Time (01:15 UTC).
     # GitHub cron is UTC and does not follow UK daylight-saving changes.
@@ -10,17 +16,32 @@ on:
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: '20'
+  MATCH_PROFILE_ID: default
+  MATCH_BATCH_SIZE: '100'
+
 jobs:
   matching-quality:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    env:
-      NODE_VERSION: '20'
-      MATCH_PROFILE_ID: default
-      MATCH_BATCH_SIZE: '100'
     steps:
-      - name: Checkout
+      - name: Resolve checkout ref
+        id: ref
+        env:
+          INPUT_REF: ${{ github.event.inputs.ref }}
+        run: |
+          if [ -n "$INPUT_REF" ]; then
+            echo "ref=$INPUT_REF" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout requested ref
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 1
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -53,8 +74,9 @@ jobs:
             echo '# JobMatchPortal nightly quality report'
             echo
             echo "- Run: #${{ github.run_number }}"
-            echo "- Commit: ${{ github.sha }}"
-            echo "- Branch: ${{ github.ref_name }}"
+            echo "- Requested ref: ${{ steps.ref.outputs.ref }}"
+            echo "- Checked-out commit: $(git rev-parse HEAD)"
+            echo "- Trigger: ${{ github.event_name }}"
             echo "- Scheduled target: 02:15 UK / 01:15 UTC"
             echo
             echo '## Pipeline'
