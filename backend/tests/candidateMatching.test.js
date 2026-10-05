@@ -15,11 +15,7 @@ const profile = {
 };
 
 test('strongly matches a fresh verified sponsored frontend job', () => {
-  const result = matchJobToCandidate({
-    title: 'Frontend Software Engineer',
-    description: 'React TypeScript JavaScript Node.js. Skilled Worker sponsorship available.',
-    location: 'UK', employmentType: 'full-time', quality: { freshness: 'fresh' }, verification: { status: 'live' }
-  }, profile);
+  const result = matchJobToCandidate({ title: 'Frontend Software Engineer', description: 'React TypeScript JavaScript Node.js. Skilled Worker sponsorship available.', location: 'UK', employmentType: 'full-time', quality: { freshness: 'fresh' }, verification: { status: 'live' } }, profile);
   assert.equal(result.applicationFit, 'strong');
   assert.ok(result.matchScore >= 80);
   assert.ok(result.reasons.includes('strong_skill_match'));
@@ -27,49 +23,44 @@ test('strongly matches a fresh verified sponsored frontend job', () => {
   assert.ok(result.reasons.includes('verified_live'));
 });
 
+test('allows an excellent software match to be strong when sponsorship is unconfirmed', () => {
+  const result = matchJobToCandidate({ title: 'Software Engineer', description: 'React TypeScript JavaScript Node.js.', location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' } }, profile);
+  assert.equal(result.applicationFit, 'strong_unconfirmed_sponsorship');
+  assert.equal(result.matchStrength, 'strong');
+  assert.equal(result.components.sponsorshipStatus, 'unconfirmed');
+  assert.ok(result.reasons.includes('sponsorship_not_confirmed'));
+  assert.ok(result.reasons.includes('strong_match'));
+});
+
+test('strongly matches an excellent full-stack role for a software/frontend candidate', () => {
+  const result = matchJobToCandidate({ title: 'Full Stack Software Engineer', description: 'React TypeScript JavaScript Node.js PostgreSQL.', location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' } }, profile);
+  assert.equal(result.matchStrength, 'strong');
+  assert.equal(result.applicationFit, 'strong_unconfirmed_sponsorship');
+  assert.equal(result.components.roleCompatibilityStatus, 'adjacent');
+  assert.ok(result.reasons.includes('strong_core_match'));
+});
+
 test('penalises a job that explicitly does not sponsor', () => {
-  const result = matchJobToCandidate({
-    title: 'Software Engineer', description: 'React TypeScript. Unfortunately we are unable to sponsor applicants.',
-    location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' }
-  }, profile);
+  const result = matchJobToCandidate({ title: 'Software Engineer', description: 'React TypeScript. Unfortunately we are unable to sponsor applicants.', location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' } }, profile);
   assert.equal(result.applicationFit, 'weak');
   assert.ok(result.reasons.includes('sponsorship_not_supported'));
 });
 
 test('hard-caps excluded technology matches', () => {
-  const result = matchJobToCandidate({
-    title: 'React Native Engineer', description: 'React Native JavaScript TypeScript. Sponsorship available.',
-    location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' }
-  }, profile);
+  const result = matchJobToCandidate({ title: 'React Native Engineer', description: 'React Native JavaScript TypeScript. Sponsorship available.', location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' } }, profile);
   assert.equal(result.matchScore, 20);
   assert.equal(result.applicationFit, 'weak');
   assert.ok(result.reasons.some((reason) => reason.startsWith('excluded_keyword:')));
 });
 
-test('does not claim sponsorship when the job provides no sponsorship evidence', () => {
-  const result = matchJobToCandidate({
-    title: 'Software Engineer', description: 'React TypeScript JavaScript.', location: 'UK',
-    quality: { freshness: 'recent' }, verification: { status: 'live' }
-  }, profile);
-  assert.equal(result.components.sponsorship, 25);
-  assert.ok(result.reasons.includes('sponsorship_not_confirmed'));
-  assert.notEqual(result.applicationFit, 'strong');
-});
-
 test('recognises the persisted Skilled Worker sponsorship profile field', () => {
-  const result = matchJobToCandidate({
-    title: 'Software Engineer', description: 'React TypeScript JavaScript.', location: 'UK',
-    quality: { freshness: 'fresh' }, verification: { status: 'live' }
-  }, { ...profile, workAuthorisation: { country: 'United Kingdom', requiresSkilledWorkerSponsorship: true }, preferences: { requiresSponsorship: true } });
+  const result = matchJobToCandidate({ title: 'Software Engineer', description: 'React TypeScript JavaScript.', location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' } }, { ...profile, workAuthorisation: { country: 'United Kingdom', requiresSkilledWorkerSponsorship: true }, preferences: { requiresSponsorship: true } });
   assert.equal(result.components.sponsorship, 25);
   assert.equal(result.components.sponsorshipStatus, 'unconfirmed');
 });
 
 test('does not let description keywords turn a data science title into a frontend match', () => {
-  const result = matchJobToCandidate({
-    title: 'Data Scientist', description: 'Work with React, TypeScript and frontend engineers on the platform.', location: 'UK',
-    quality: { freshness: 'fresh' }, verification: { status: 'live' }
-  }, profile);
+  const result = matchJobToCandidate({ title: 'Data Scientist', description: 'Work with React, TypeScript and frontend engineers on the platform.', location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' } }, profile);
   assert.equal(result.components.roleCompatibilityStatus, 'specialisation_mismatch');
   assert.equal(result.applicationFit, 'weak');
 });
@@ -83,10 +74,7 @@ test('rejects intern and new-grad roles for a 2.5-year candidate', () => {
 });
 
 test('applies profile excludeTechnologies as hard exclusions', () => {
-  const result = matchJobToCandidate({
-    title: 'Python Software Engineer', description: 'Python, React and TypeScript. Skilled Worker sponsorship available.', location: 'UK',
-    quality: { freshness: 'fresh' }, verification: { status: 'live' }
-  }, { ...profile, preferences: { excludeTechnologies: ['Python'] } });
+  const result = matchJobToCandidate({ title: 'Python Software Engineer', description: 'Python, React and TypeScript. Skilled Worker sponsorship available.', location: 'UK', quality: { freshness: 'fresh' }, verification: { status: 'live' } }, { ...profile, preferences: { excludeTechnologies: ['Python'] } });
   assert.equal(result.matchScore, 20);
   assert.equal(result.applicationFit, 'weak');
 });
