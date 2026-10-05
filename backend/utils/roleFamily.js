@@ -23,19 +23,24 @@ const SPECIALISATIONS = Object.freeze({
   qa: [/\bqa\b/i, /\bquality assurance\b/i, /\btest automation\b/i]
 });
 
+// These are the core application families for the user's software/web profile.
+// Compatibility is deliberately symmetric: either side may be the candidate or job family.
+const CORE_WEB_FAMILIES = new Set(['frontend', 'fullstack', 'software', 'backend']);
+
 const ADJACENT = new Set([
-  'frontend|fullstack', 'frontend|software', 'frontend|backend',
-  'fullstack|software', 'fullstack|backend', 'software|backend',
   'software|cloud_platform', 'software|devops', 'backend|cloud_platform',
   'backend|devops', 'cloud_platform|devops'
 ]);
 
-const CORE_COMPATIBLE = new Set([
-  'frontend|fullstack', 'frontend|software', 'frontend|backend',
-  'fullstack|software', 'fullstack|backend', 'software|backend'
-]);
+const normalisePair = (a, b) => [String(a), String(b)].sort().join('|');
 
-const normalisePair = (a, b) => [a, b].sort().join('|');
+function isCoreCompatible(jobFamily, candidateFamily) {
+  return CORE_WEB_FAMILIES.has(jobFamily) && CORE_WEB_FAMILIES.has(candidateFamily);
+}
+
+function isAdjacent(jobFamily, candidateFamily) {
+  return ADJACENT.has(normalisePair(jobFamily, candidateFamily));
+}
 
 export function classifyRoleFamily(text = '') {
   const value = String(text);
@@ -65,6 +70,8 @@ function deriveCandidateSpecialisations(profile = {}) {
 }
 
 function getJobFamilies(job = {}) {
+  // The title is authoritative. Description keywords must never turn a specialist
+  // title into a different core application family.
   const titleFamilies = classifyRoleFamily(job.title ?? '');
   if (titleFamilies.length) return titleFamilies;
   return classifyRoleFamily(job.description ?? '');
@@ -90,14 +97,13 @@ export function roleFamilyCompatibility(job = {}, profile = {}) {
     return { score: 1, status: 'match', jobFamilies, candidateFamilies: candidate, jobSpecialisations, candidateSpecialisations };
   }
 
-  // Core web/software families are interchangeable for this profile. They are
-  // not merely adjacent: software, frontend, backend and full-stack represent
-  // the same practical application family for matching purposes.
-  if (jobFamilies.some((jobFamily) => candidate.some((candidateFamily) => CORE_COMPATIBLE.has(normalisePair(jobFamily, candidateFamily))))) {
+  // Frontend, full-stack, backend and general software engineering are one
+  // application family for this candidate. Any pairing within that set is a match.
+  if (jobFamilies.some((jobFamily) => candidate.some((candidateFamily) => isCoreCompatible(jobFamily, candidateFamily)))) {
     return { score: 1, status: 'match', jobFamilies, candidateFamilies: candidate, jobSpecialisations, candidateSpecialisations };
   }
 
-  if (jobFamilies.some((jobFamily) => candidate.some((candidateFamily) => ADJACENT.has(normalisePair(jobFamily, candidateFamily))))) {
+  if (jobFamilies.some((jobFamily) => candidate.some((candidateFamily) => isAdjacent(jobFamily, candidateFamily)))) {
     return { score: 0.7, status: 'adjacent', jobFamilies, candidateFamilies: candidate, jobSpecialisations, candidateSpecialisations };
   }
 
