@@ -7,6 +7,7 @@ import { matchJobToCandidate } from '../services/candidateMatching.js';
 import { classifyNightlyJob, incrementReasonCounts } from '../utils/nightlyDiagnostics.js';
 
 const batchSize = Math.max(1, Number(process.env.MATCH_BATCH_SIZE || 100));
+const calibrationLimit = Math.max(1, Number(process.env.MATCH_CALIBRATION_LIMIT || 25));
 const profileId = process.env.MATCH_PROFILE_ID || DEFAULT_PROFILE_ID;
 
 await mongoose.connect(process.env.MONGODB_URI);
@@ -35,6 +36,7 @@ try {
     ineligibleUk: 0
   };
   const exclusionReasons = {};
+  const calibrationCandidates = [];
   let processed = 0;
   let ops = [];
 
@@ -56,6 +58,21 @@ try {
     if (eligibility.eligible) {
       classification.eligibleUk += 1;
       eligibleCounts[result.applicationFit] = (eligibleCounts[result.applicationFit] ?? 0) + 1;
+
+      // Only retain the small eligible set for calibration. This deliberately
+      // avoids a MongoDB sort across the full corpus and gives us the highest
+      // quality matches plus their scoring evidence in the nightly report.
+      calibrationCandidates.push({
+        jobId: String(job._id),
+        title: job.title || '',
+        companyName: job.companyName || '',
+        location: job.location || '',
+        applyUrl: job.applyUrl || job.source?.url || '',
+        matchScore: result.matchScore,
+        applicationFit: result.applicationFit,
+        components: result.components,
+        reasons: result.reasons
+      });
     } else {
       classification.ineligibleUk += 1;
       incrementReasonCounts(exclusionReasons, eligibility.reasons);
@@ -96,6 +113,20 @@ try {
     console.log(`[nightly-match] processed=${processed}/${total}`);
   }
 
+  calibrationCandidates.sort((a, b) => {
+    if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+    if ((b.components.skills ?? 0) !== (a.components.skills ?? 0)) return (b.components.skills ?? 0) - (a.components.skills ?? 0);
+    return (b.components.title ?? 0) - (a.components.title ?? 0);
+  });
+
+  const topMatches = calibrationCandidates.slice(0, calibrationLimit);
+  const scoreDistribution = calibrationCandidates.reduce((distribution, candidate) => {
+    const bucket = Math.floor(candidate.matchScore / 10) * 10;
+    const key = `${bucket}-${Math.min(bucket + 9, 100)}`;
+    distribution[key] = (distribution[key] ?? 0) + 1;
+    return distribution;
+  }, {});
+
   console.log(JSON.stringify({
     profileId,
     inputJobs: total,
@@ -104,6 +135,11 @@ try {
     exclusionReasons,
     counts,
     eligibleCounts,
+    calibration: {
+      eligibleJobs: calibrationCandidates.length,
+      scoreDistribution,
+      topMatches
+    },
     matcherVersion: 'v1',
     mode: 'nightly_full_corpus'
   }, null, 2));
