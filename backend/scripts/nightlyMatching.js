@@ -15,10 +15,6 @@ try {
   const profile = await CandidateProfile.findOne({ profileId }).lean();
   if (!profile) throw new Error(`Candidate profile '${profileId}' not found`);
 
-  // Scan the complete corpus without an unindexed sort. MongoDB's default
-  // 32 MB in-memory sort limit can otherwise abort a full-corpus run.
-  // We deliberately keep every MatchResult: eligibility is a selection
-  // concern, not a deletion concern.
   const filter = {};
   const total = await Job.countDocuments(filter);
   const counts = { strong: 0, possible: 0, weak: 0, strong_unconfirmed_sponsorship: 0 };
@@ -26,6 +22,10 @@ try {
   const classification = {
     uk: 0,
     nonUk: 0,
+    ukConfirmed: 0,
+    ukAmbiguous: 0,
+    nonUkConfirmed: 0,
+    ukEvidence: {},
     live: 0,
     notLive: 0,
     verified: 0,
@@ -46,8 +46,17 @@ try {
     counts[result.applicationFit] = (counts[result.applicationFit] ?? 0) + 1;
 
     const eligibility = classifyNightlyJob(job);
-    if (eligibility.uk) classification.uk += 1;
-    else classification.nonUk += 1;
+    if (eligibility.uk) {
+      classification.uk += 1;
+      classification.ukConfirmed += 1;
+      classification.ukEvidence[eligibility.ukEvidenceSource] = (classification.ukEvidence[eligibility.ukEvidenceSource] || 0) + 1;
+    } else if (eligibility.ukStatus === 'non_uk') {
+      classification.nonUk += 1;
+      classification.nonUkConfirmed += 1;
+    } else {
+      classification.nonUk += 1;
+      classification.ukAmbiguous += 1;
+    }
     if (eligibility.live) classification.live += 1;
     else classification.notLive += 1;
     if (eligibility.verified) classification.verified += 1;
@@ -58,10 +67,6 @@ try {
     if (eligibility.eligible) {
       classification.eligibleUk += 1;
       eligibleCounts[result.applicationFit] = (eligibleCounts[result.applicationFit] ?? 0) + 1;
-
-      // Only retain the small eligible set for calibration. This deliberately
-      // avoids a MongoDB sort across the full corpus and gives us the highest
-      // quality matches plus their scoring evidence in the nightly report.
       calibrationCandidates.push({
         jobId: String(job._id),
         title: job.title || '',
@@ -71,7 +76,8 @@ try {
         matchScore: result.matchScore,
         applicationFit: result.applicationFit,
         components: result.components,
-        reasons: result.reasons
+        reasons: result.reasons,
+        ukEvidenceSource: eligibility.ukEvidenceSource
       });
     } else {
       classification.ineligibleUk += 1;
