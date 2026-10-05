@@ -40,6 +40,33 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   let currentApplication = null;
   let createCount = 0;
 
+  // The application flow is mocked at the API boundary; the E2E job must not
+  // depend on a live Mongo/Express backend or external job data.
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/jobs') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ jobs: [], total: 0, page: 1, pages: 1 }) });
+      return;
+    }
+    if (url.pathname === '/api/intelligence/dashboard') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
+      return;
+    }
+    if (url.pathname === '/api/match-results') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [], matches: [], total: 0 }) });
+      return;
+    }
+    if (url.pathname === '/api/profile' || url.pathname === '/api/candidate-profile') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ profile: null }) });
+      return;
+    }
+    if (url.pathname === '/api/companies') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ companies: [], total: 0 }) });
+      return;
+    }
+    await route.continue();
+  });
+
   await page.route('**/api/match/jobs', async route => {
     await route.fulfill({
       status: 200,
@@ -106,7 +133,7 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'My Matches' }).click();
+  await page.getByRole('button', { name: 'My Matches', exact: true }).click();
 
   await expect(page.getByRole('heading', { name: 'My Matches' })).toBeVisible();
   await expect(page.getByText('Software Engineer – Query Engines')).toBeVisible();
@@ -135,7 +162,7 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await expect(statusSelect).toHaveValue('interview');
 
   await page.reload();
-  await page.getByRole('button', { name: 'Applications' }).click();
+  await page.getByRole('button', { name: 'Applications', exact: true }).click();
   await expect(page.getByText('Software Engineer – Query Engines')).toBeVisible();
   await expect(page.getByText('Interview')).toBeVisible();
 
