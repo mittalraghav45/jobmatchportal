@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { classifyJob } from '../utils/jobClassification.js';
 
-export const DEFAULT_APIFY_ACTOR_ID = 'parseforge/career-site-jobs-scraper';
+export const DEFAULT_APIFY_ACTOR_ID = 'conserving_celerytop/live-career-page-jobs-api';
 
 const TECH_TITLE_FILTER = Object.freeze([
   'software engineer',
@@ -53,21 +53,22 @@ export function buildApifyInput(company, {
   if (!careerUrl) throw new Error(`No careers URL or website available for ${company.companyName || company.companyId}`);
 
   return {
-    careerSiteUrls: [careerUrl],
+    companies: [careerUrl],
+    outputMode: 'jobs',
     titleIncludes: [...TECH_TITLE_FILTER],
-    titleExcludes: ['intern', 'graduate', 'principal', 'staff'],
+    titleExcludes: ['intern', 'graduate'],
     includeDescription,
-    includeSkills,
-    maxItems: Math.max(1, Number(maxItems) || 50)
+    maxJobsPerCompany: Math.max(1, Number(maxItems) || 50)
   };
 }
 
 export function normalizeApifyJob(item, company) {
+  if (item.rowType === 'company' || item.rowType === 'status' || item.companyStatus || item.status) return null;
   const applyUrl = firstUrl(item.applyUrl, item.apply_url, item.jobUrl, item.job_url, item.url);
   const title = String(item.title || item.jobTitle || '').trim();
   if (!title || !applyUrl) return null;
 
-  const location = String(item.location || item.city || item.region || item.country || '').trim();
+  const location = String(item.location || item.locations?.join(', ') || item.city || item.region || item.country || '').trim();
   const raw = { ...item, apifyActor: process.env.APIFY_ACTOR_ID || DEFAULT_APIFY_ACTOR_ID };
   const baseJob = {
     id: item.jobId || item.job_id || applyUrl,
