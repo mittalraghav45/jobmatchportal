@@ -10,6 +10,14 @@ function arg(name, fallback) {
   return value ? value.slice(prefix.length) : fallback;
 }
 
+function parseCompanySelection(value) {
+  if (!value) return [];
+  return [...new Set(String(value)
+    .split(',')
+    .map(item => item.trim().toLowerCase())
+    .filter(Boolean))];
+}
+
 function applyDiscoveryConfig(company, configuredById) {
   const configured = configuredById.get(String(company.companyId || '').trim().toLowerCase());
   if (!configured) return company;
@@ -29,6 +37,7 @@ function applyDiscoveryConfig(company, configuredById) {
   };
 }
 
+const selectedCompanies = parseCompanySelection(arg('companies', process.env.DISCOVERY_COMPANIES || ''));
 const limit = Math.max(1, Number(arg('limit', process.env.DISCOVERY_LIMIT || 500)) || 500);
 const start = Math.max(0, Number(arg('skip', process.env.DISCOVERY_SKIP || 0)) || 0);
 const delayMs = Math.max(0, Number(process.env.DISCOVERY_DELAY_MS || 100));
@@ -42,16 +51,39 @@ const configuredById = new Map(
   configuredCompanies.map(company => [String(company.company_id || '').trim().toLowerCase(), company])
 );
 
-const companies = (await Company.find({ enabled: true })
+const companyQuery = { enabled: true };
+if (selectedCompanies.length) {
+  companyQuery.$or = [
+    { companyId: { $in: selectedCompanies } },
+    { companyName: { $in: selectedCompanies } },
+    { companyId: { $in: selectedCompanies.map(value => value) } }
+  ];
+}
+
+let companies = await Company.find(companyQuery)
   .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
   .sort({ companyId: 1 })
-  .skip(start)
-  .limit(limit)
-  .lean())
-  .map(company => applyDiscoveryConfig(company, configuredById));
+  .skip(selectedCompanies.length ? 0 : start)
+  .limit(selectedCompanies.length ? selectedCompanies.length : limit)
+  .lean();
+
+if (selectedCompanies.length) {
+  const byName = new Map(companies.map(company => [String(company.companyName || '').trim().toLowerCase(), company]));
+  const byId = new Map(companies.map(company => [String(company.companyId || '').trim().toLowerCase(), company]));
+  companies = selectedCompanies
+    .map(selection => byId.get(selection) || byName.get(selection))
+    .filter(Boolean);
+}
+
+companies = companies.map(company => applyDiscoveryConfig(company, configuredById));
 
 const summary = {
-  requested: companies.length,
+  requested: selectedCompanies.length || companies.length,
+  selected: companies.length,
+  missing: selectedCompanies.filter(selection => !companies.some(company =>
+    String(company.companyId || '').trim().toLowerCase() === selection ||
+    String(company.companyName || '').trim().toLowerCase() === selection
+  )),
   successful: 0,
   failed: 0,
   unconfigured: 0,
