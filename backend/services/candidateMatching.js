@@ -59,6 +59,18 @@ function experienceFit(job, profile) {
   return { score: 1, status: senior ? 'above_target' : 'match', reason: 'experience_match' };
 }
 
+function strongRoleFamilyFit(roleCompatibility) {
+  if (roleCompatibility.score >= 1) return true;
+  const jobFamilies = new Set(roleCompatibility.jobFamilies ?? []);
+  const candidateFamilies = new Set(roleCompatibility.candidateFamilies ?? []);
+  // Treat the user's core web/software families as strong-compatible rather than
+  // requiring the exact title family. This covers Full Stack/Frontend ↔ Software.
+  return (
+    (candidateFamilies.has('software') && (jobFamilies.has('fullstack') || jobFamilies.has('frontend'))) ||
+    (candidateFamilies.has('frontend') && jobFamilies.has('fullstack'))
+  );
+}
+
 export function matchJobToCandidate(job, profile = {}) {
   const base = rankJob(job, profile);
   const sponsorship = sponsorshipFit(job, profile);
@@ -73,10 +85,11 @@ export function matchJobToCandidate(job, profile = {}) {
     experience.score * 10
   );
 
-  // A high-quality direct role should be able to become Strong even when the title
-  // wording differs from the candidate's exact target title (e.g. Full Stack Software
-  // Engineer vs Software Engineer). Role-family fit + skills are more reliable here.
-  const strongCoreMatch = base.components.skills >= 75 && roleCompatibility.score >= 1 && base.components.title >= 60;
+  // Core fit is deliberately separated from application readiness. An excellent
+  // role remains Strong when sponsorship is merely unconfirmed; that becomes a
+  // warning/readiness flag instead of suppressing the match itself.
+  const strongRoleFit = strongRoleFamilyFit(roleCompatibility);
+  const strongCoreMatch = base.components.skills >= 75 && strongRoleFit && base.components.title >= 50;
   const trustedFreshJob = base.components.verification >= 100 && base.components.freshness >= 80;
   const sponsorshipBlocked = sponsorship.status === 'explicitly_unavailable';
   const roleMismatch = ['mismatch', 'specialisation_mismatch'].includes(roleCompatibility.status);
