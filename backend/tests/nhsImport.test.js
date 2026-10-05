@@ -12,7 +12,7 @@ test('bounds NHS discovery before persistence', async () => {
   const jobs = await discoverNhsJobs({
     feedUrl: 'https://example.test/nhs.xml',
     limit: 2,
-    fetchImpl: async () => ({ ok: true, text: async () => feed })
+    fetchImpl: async () => ({ ok: true, status: 200, text: async () => feed })
   });
 
   assert.equal(jobs.length, 2);
