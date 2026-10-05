@@ -55,6 +55,7 @@ function applyDiscoveryConfig(company, configuredByKey) {
 const selectedCompanies = parseCompanySelection(arg('companies', process.env.DISCOVERY_COMPANIES || ''));
 const limit = Math.max(1, Number(arg('limit', process.env.DISCOVERY_LIMIT || 500)) || 500);
 const start = Math.max(0, Number(arg('skip', process.env.DISCOVERY_SKIP || 0)) || 0);
+const configuredOnly = String(arg('configured-only', process.env.DISCOVERY_CONFIGURED_ONLY || 'false')).toLowerCase() === 'true';
 const delayMs = Math.max(0, Number(process.env.DISCOVERY_DELAY_MS || 100));
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -111,12 +112,35 @@ if (selectedCompanies.length) {
     else missing.push(selection);
   }
 } else {
-  companies = (await Company.find({ enabled: true })
+  let query = Company.find({ enabled: true })
     .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
+    .lean();
+
+  if (configuredOnly) {
+    const configuredNames = configuredCompanies
+      .filter(company => String(company.enabled).toLowerCase() !== 'false')
+      .map(company => company.company_name)
+      .filter(Boolean);
+    const configuredIds = configuredCompanies
+      .filter(company => String(company.enabled).toLowerCase() !== 'false')
+      .map(company => String(company.company_id || '').trim())
+      .filter(Boolean);
+
+    const clauses = [];
+    if (configuredIds.length) clauses.push({ companyId: { $in: configuredIds } });
+    if (configuredNames.length) clauses.push({ companyName: { $in: configuredNames } });
+
+    query = clauses.length
+      ? Company.find({ enabled: true, $or: clauses })
+          .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
+          .lean()
+      : Company.find({ _id: { $exists: false } });
+  }
+
+  companies = (await query
     .sort({ companyId: 1 })
     .skip(start)
-    .limit(limit)
-    .lean())
+    .limit(limit))
     .map(company => applyDiscoveryConfig(company, configuredByKey));
 }
 
