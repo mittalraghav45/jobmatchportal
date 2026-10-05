@@ -10,6 +10,19 @@ function arg(name, fallback) {
   return value ? value.slice(prefix.length) : fallback;
 }
 
+function normalizeName(value = '') {
+  return String(value)
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function parseCompanySelection(value) {
   if (!value) return [];
   return [...new Set(String(value)
@@ -18,8 +31,10 @@ function parseCompanySelection(value) {
     .filter(Boolean))];
 }
 
-function applyDiscoveryConfig(company, configuredById) {
-  const configured = configuredById.get(String(company.companyId || '').trim().toLowerCase());
+function applyDiscoveryConfig(company, configuredByKey) {
+  const companyId = String(company.companyId || '').trim().toLowerCase();
+  const companyName = normalizeName(company.companyName);
+  const configured = configuredByKey.get(companyId) || configuredByKey.get(companyName);
   if (!configured) return company;
 
   return {
@@ -41,49 +56,74 @@ const selectedCompanies = parseCompanySelection(arg('companies', process.env.DIS
 const limit = Math.max(1, Number(arg('limit', process.env.DISCOVERY_LIMIT || 500)) || 500);
 const start = Math.max(0, Number(arg('skip', process.env.DISCOVERY_SKIP || 0)) || 0);
 const delayMs = Math.max(0, Number(process.env.DISCOVERY_DELAY_MS || 100));
-
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 await connectMongo();
 
 const configuredCompanies = loadCompanies();
-const configuredById = new Map(
-  configuredCompanies.map(company => [String(company.company_id || '').trim().toLowerCase(), company])
-);
-
-const companyQuery = { enabled: true };
-if (selectedCompanies.length) {
-  companyQuery.$or = [
-    { companyId: { $in: selectedCompanies } },
-    { companyName: { $in: selectedCompanies } },
-    { companyId: { $in: selectedCompanies.map(value => value) } }
-  ];
+const configuredByKey = new Map();
+for (const company of configuredCompanies) {
+  configuredByKey.set(String(company.company_id || '').trim().toLowerCase(), company);
+  configuredByKey.set(normalizeName(company.company_name), company);
 }
 
-let companies = await Company.find(companyQuery)
-  .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
-  .sort({ companyId: 1 })
-  .skip(selectedCompanies.length ? 0 : start)
-  .limit(selectedCompanies.length ? selectedCompanies.length : limit)
-  .lean();
+let companies;
+let missing = [];
 
 if (selectedCompanies.length) {
-  const byName = new Map(companies.map(company => [String(company.companyName || '').trim().toLowerCase(), company]));
-  const byId = new Map(companies.map(company => [String(company.companyId || '').trim().toLowerCase(), company]));
-  companies = selectedCompanies
-    .map(selection => byId.get(selection) || byName.get(selection))
-    .filter(Boolean);
-}
+  const configuredSelections = selectedCompanies.map(selection => ({
+    selection,
+    configured: configuredByKey.get(selection)
+  }));
 
-companies = companies.map(company => applyDiscoveryConfig(company, configuredById));
+  const queryClauses = configuredSelections
+    .filter(item => item.configured)
+    .map(({ configured }) => ({
+      companyName: new RegExp(`^${escapeRegex(configured.company_name)}(?:\\s|$)`, 'i')
+    }));
+
+  for (const selection of selectedCompanies) {
+    if (!configuredByKey.has(selection)) {
+      queryClauses.push({ companyId: selection });
+      queryClauses.push({ companyName: new RegExp(`^${escapeRegex(selection)}(?:\\s|$)`, 'i') });
+    }
+  }
+
+  const candidates = queryClauses.length
+    ? await Company.find({ enabled: true, $or: queryClauses })
+        .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
+        .sort({ companyId: 1 })
+        .lean()
+    : [];
+
+  const byId = new Map(candidates.map(company => [String(company.companyId || '').trim().toLowerCase(), company]));
+  const byName = new Map(candidates.map(company => [normalizeName(company.companyName), company]));
+
+  companies = [];
+  for (const selection of selectedCompanies) {
+    const configured = configuredByKey.get(selection);
+    const exact = byId.get(selection) || byName.get(selection);
+    const prefix = configured
+      ? candidates.find(company => normalizeName(company.companyName).startsWith(normalizeName(configured.company_name)))
+      : candidates.find(company => normalizeName(company.companyName).startsWith(normalizeName(selection)));
+    const company = exact || prefix;
+    if (company) companies.push(applyDiscoveryConfig(company, configuredByKey));
+    else missing.push(selection);
+  }
+} else {
+  companies = (await Company.find({ enabled: true })
+    .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
+    .sort({ companyId: 1 })
+    .skip(start)
+    .limit(limit)
+    .lean())
+    .map(company => applyDiscoveryConfig(company, configuredByKey));
+}
 
 const summary = {
   requested: selectedCompanies.length || companies.length,
   selected: companies.length,
-  missing: selectedCompanies.filter(selection => !companies.some(company =>
-    String(company.companyId || '').trim().toLowerCase() === selection ||
-    String(company.companyName || '').trim().toLowerCase() === selection
-  )),
+  missing,
   successful: 0,
   failed: 0,
   unconfigured: 0,
