@@ -3,6 +3,17 @@ import { MatchResult } from '../models/MatchResult.js';
 import { CandidateProfile, DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
 import { matchJobToCandidate } from './candidateMatching.js';
 import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
+import { isUkJobLocation } from '../utils/ukJobLocation.js';
+
+function eligibilityFor(job) {
+  return {
+    uk: isUkJobLocation(job?.location),
+    live: Boolean(job?.status?.isLive),
+    verified: job?.verification?.status === 'live',
+    technology: true,
+    calculatedAt: new Date()
+  };
+}
 
 export async function persistJobMatch({ profileId = DEFAULT_PROFILE_ID, jobId }) {
   const id = String(profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
@@ -22,6 +33,7 @@ export async function persistJobMatch({ profileId = DEFAULT_PROFILE_ID, jobId })
         applicationFit: result.applicationFit,
         reasons: result.reasons,
         components: result.components,
+        eligibility: eligibilityFor(job),
         calculatedAt: new Date(),
         profileVersion: String(profile.metadata?.version || 'v1'),
         matcherVersion: 'v1'
@@ -49,6 +61,7 @@ export async function persistJobMatches({ profileId = DEFAULT_PROFILE_ID, jobs }
           applicationFit: result.applicationFit,
           reasons: result.reasons,
           components: result.components,
+          eligibility: eligibilityFor(job),
           calculatedAt: new Date(),
           profileVersion: String(profile.metadata?.version || 'v1'),
           matcherVersion: 'v1'
