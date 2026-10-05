@@ -188,8 +188,7 @@ export function buildApifyInput(company, {
     pageFunctionTimeoutSecs: 30,
     waitUntil: 'networkidle',
     closeCookieModals: true,
-    maxScrollHeightPixels: 8000,
-    includeDescription
+    maxScrollHeightPixels: 8000
   };
 }
 
