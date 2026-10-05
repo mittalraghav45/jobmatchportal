@@ -21,10 +21,10 @@ function unresolvedFilter() {
       },
       {
         $or: [
-          { careersUrl: { $regex: /^https?:\\/\\//i } },
-          { website: { $regex: /^https?:\\/\\//i } },
-          { 'metadata.careersUrl': { $regex: /^https?:\\/\\//i } },
-          { 'metadata.website': { $regex: /^https?:\\/\\//i } }
+          { careersUrl: { $regex: /^https?:\/\//i } },
+          { website: { $regex: /^https?:\/\//i } },
+          { 'metadata.careersUrl': { $regex: /^https?:\/\//i } },
+          { 'metadata.website': { $regex: /^https?:\/\//i } }
         ]
       }
     ]
