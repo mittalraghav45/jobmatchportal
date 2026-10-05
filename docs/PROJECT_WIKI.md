@@ -7,7 +7,7 @@ JobMatchPortal is a UK-focused job discovery and application-support platform. I
 ## 2. System flow
 
 ```text
-Discovery
+Discovery adapters
   -> ingestion / canonical URL identity
   -> source-backed verification
   -> UK + live eligibility
@@ -15,7 +15,7 @@ Discovery
   -> role-family / skills / experience / seniority analysis
   -> sponsorship readiness
   -> MatchResult persistence
-  -> human-readable quality report
+  -> human-readable quality report / quality gate
   -> application workflow
 ```
 
@@ -76,6 +76,8 @@ MATCH_BATCH_SIZE=100
 MATCH_CALIBRATION_LIMIT=25
 ```
 
+The nightly quality gate rejects unsafe Strong results such as low skill evidence, specialist mismatches, incompatible role families, incompatible experience, excluded technologies or unresolved hard seniority problems. Unconfirmed sponsorship is intentionally a warning rather than a failure.
+
 ## 6. GitHub Actions
 
 `.github/workflows/matching-quality.yml` is the reproducible corpus-quality job.
@@ -86,28 +88,34 @@ It:
 2. installs Node 20 dependencies;
 3. runs the complete backend test suite;
 4. runs the full-corpus matcher;
-5. renders a human-readable Markdown report;
-6. publishes the report to the GitHub Actions Summary;
-7. uploads the raw matcher log and Markdown report as artifacts.
+5. enforces the nightly quality gate;
+6. renders a human-readable Markdown report;
+7. publishes the report to the GitHub Actions Summary;
+8. uploads the raw matcher log and Markdown report as artifacts.
 
 The workflow is scheduled at `01:15 UTC`, corresponding to 02:15 UK during British Summer Time. GitHub cron uses UTC, so seasonal UK scheduling must be considered when changing this.
 
 ## 7. Quality evaluation
 
-The nightly report is intentionally diagnostic. It reports:
-
-- corpus health;
-- UK/live/verified populations;
-- Strong / Strong-unconfirmed / Possible / Weak distribution;
-- score distribution;
-- top eligible matches and their evidence;
-- calibration flags.
+The latest complete-corpus quality run produced 13 `strong_unconfirmed_sponsorship` results and passed the quality gate. No Strong result violated the configured skill, role-family, experience, excluded-technology, specialist-mismatch or hard-seniority safeguards.
 
 Do not change matcher thresholds because of a single job. First compare the full-corpus distribution and inspect representative examples from each classification.
 
-## 8. Discovery strategy
+## 8. Discovery architecture
 
-Discovery can use supported ATS sources and bounded search-provider discovery. Discovery evidence is not automatically equivalent to live-job verification. All discovered records should pass through canonical ingestion, deduplication and source-backed verification before becoming verified-live matches.
+Discovery is now source-agnostic at the contract layer.
+
+`backend/discovery/sourceAdapter.js` defines the canonical `JobSourceAdapter` and normalises discovered jobs into the shared shape. Each record preserves `source`, `sourceKind`, `sourceJobId` and `applyUrl` for provenance and identity.
+
+`backend/discovery/publicSector.js` provides the first source-group abstraction for:
+
+- councils
+- universities
+- NHS
+- Civil Service
+- other public bodies
+
+This is an adapter contract, not a site-specific scraper. Concrete official feeds/search paths should be added behind it one source at a time. All discovered jobs continue through canonical ingestion, deduplication and source-backed verification before becoming verified-live matches.
 
 Target source groups include:
 
@@ -159,7 +167,7 @@ Also run:
 git diff --check
 ```
 
-Prefer small, explainable changes. Add regression tests for matcher behaviour before changing a matching rule.
+Prefer small, explainable changes. Add regression tests for matcher or discovery behaviour before changing a policy.
 
 ## 11. Security
 
@@ -176,4 +184,6 @@ Never print secret values into Actions logs.
 
 ## 12. Current project checkpoint
 
-The current engineering priority is to validate the final matcher model against the complete corpus before further tuning. Once the corpus distribution is judged useful, freeze the matcher version and shift engineering effort toward broader source coverage and application intelligence rather than repeatedly recalibrating individual examples.
+Matcher v2 has reached the corpus-evaluation checkpoint. The quality gate is passing and the next engineering milestone is broader source coverage through the normalized discovery adapter layer. The immediate target is the first concrete public-sector source-backed connector, followed by university, NHS and Civil Service connectors using the same interface.
+
+The project should not return to repeated individual-job matcher tuning unless a systematic regression is demonstrated by tests or corpus-quality evidence.
