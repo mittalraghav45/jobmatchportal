@@ -1,0 +1,108 @@
+name: Nightly JobMatch Quality
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 02:15 UK during British Summer Time (01:15 UTC).
+    # GitHub cron is UTC and does not follow UK daylight-saving changes.
+    - cron: '15 1 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-jobmatch-quality
+  cancel-in-progress: false
+
+jobs:
+  nightly-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NODE_VERSION: '20'
+      MATCH_PROFILE_ID: default
+      MATCH_BATCH_SIZE: '100'
+      TARGET_REF: feat/source-backed-job-verification
+    steps:
+      - name: Checkout target development branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_REF }}
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test
+
+      - name: Run full-corpus matcher
+        working-directory: backend
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          set -o pipefail
+          npm run nightly:matching 2>&1 | tee nightly-matching.log
+
+      - name: Publish human-readable summary
+        if: always()
+        working-directory: backend
+        run: |
+          {
+            echo '# JobMatchPortal nightly quality report'
+            echo
+            echo "- Run: #${{ github.run_number }}"
+            echo "- Code ref: ${{ env.TARGET_REF }}"
+            echo "- Commit: $(git rev-parse HEAD)"
+            echo "- Scheduled target: 02:15 UK / 01:15 UTC"
+            echo
+            echo '## Pipeline'
+            echo '- Backend tests: a failure stops the matcher.'
+            echo '- Full-corpus matcher: scans the complete jobs collection.'
+            echo '- Database policy: MatchResult upserts only; this workflow does not delete jobs or stale source data.'
+            echo
+            echo '## Matcher output'
+            echo '```json'
+            python - <<'PY'
+import json
+from pathlib import Path
+text = Path('nightly-matching.log').read_text(errors='replace') if Path('nightly-matching.log').exists() else ''
+marker = text.rfind('{')
+if marker >= 0:
+    candidate = text[marker:]
+    try:
+        print(json.dumps(json.loads(candidate), indent=2))
+    except Exception:
+        print(text[-12000:])
+else:
+    print(text[-12000:])
+PY
+            echo '```'
+            echo
+            echo '## Interpretation'
+            if grep -q '"strong": 0' nightly-matching.log 2>/dev/null; then
+              echo '⚠️ No Strong matches were produced. Treat this as a matcher-calibration signal, not a discovery failure.'
+            elif grep -q '"strong"' nightly-matching.log 2>/dev/null; then
+              echo '✅ Strong matches were produced; inspect the counts and classification above.'
+            else
+              echo '⚠️ No final matcher JSON was captured; inspect the job logs.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload matcher log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-matching-${{ github.run_number }}
+          path: backend/nightly-matching.log
+          if-no-files-found: ignore
+          retention-days: 14
