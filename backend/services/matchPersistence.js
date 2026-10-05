@@ -79,7 +79,7 @@ export async function persistJobMatches({ profileId = DEFAULT_PROFILE_ID, jobs }
   return { processed: operations.length, upserted: write.upsertedCount || 0, updated: write.modifiedCount || 0 };
 }
 
-export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, profileVersion, page = 1, limit = 20, minimumScore = 0, applicationFit }) {
+export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, profileVersion, page = 1, limit = 20, minimumScore = 0, applicationFit, employerType, nation }) {
   const id = String(profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
   const profile = await CandidateProfile.findOne({ profileId: id }).select('activeVersion metadata.version').lean();
   const selectedProfileVersion = String(profileVersion || profile?.activeVersion || profile?.metadata?.version || 'v1');
@@ -94,7 +94,10 @@ export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, pro
     matchFilter.applicationFit = applicationFit;
   }
 
-  const eligibleJobs = await Job.find(buildVerifiedLiveMatchFilter(null)).select('_id').lean();
+  const eligibleJobFilter = buildVerifiedLiveMatchFilter(null);
+  if (employerType) eligibleJobFilter.employerType = employerType;
+  if (nation) eligibleJobFilter.nation = nation;
+  const eligibleJobs = await Job.find(eligibleJobFilter).select('_id').lean();
   const eligibleJobIds = eligibleJobs.map(job => job._id);
   if (!eligibleJobIds.length) {
     return { page: safePage, limit: safeLimit, total: 0, pages: 0, profileVersion: selectedProfileVersion, matches: [] };
@@ -113,7 +116,7 @@ export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, pro
 
   const jobIds = rows.map(row => row.jobId);
   const jobs = await Job.find({ _id: { $in: jobIds } })
-    .select('title companyName companyId location employmentType source dates status verification quality applyUrl')
+    .select('title companyName companyId location nation employerType employmentType source dates status verification quality applyUrl')
     .lean();
   const jobMap = new Map(jobs.map(job => [String(job._id), job]));
 

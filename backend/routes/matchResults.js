@@ -36,6 +36,16 @@ router.get('/', async (req, res) => {
   try {
     const applicationFit = req.query.applicationFit ? String(req.query.applicationFit).toLowerCase() : undefined;
     const validFits = ['strong', 'possible', 'weak', 'strong_unconfirmed_sponsorship'];
+    const employerType = req.query.employerType ? String(req.query.employerType).toLowerCase() : undefined;
+    const validEmployerTypes = ['private', 'councils', 'universities', 'nhs', 'dwp'];
+    if (employerType && !validEmployerTypes.includes(employerType)) {
+      return res.status(400).json({ error: `employerType must be one of: ${validEmployerTypes.join(', ')}` });
+    }
+    const nation = req.query.nation ? String(req.query.nation) : undefined;
+    const validNations = ['England', 'Scotland', 'Wales', 'Northern Ireland', 'UK-wide'];
+    if (nation && !validNations.includes(nation)) {
+      return res.status(400).json({ error: `nation must be one of: ${validNations.join(', ')}` });
+    }
     if (applicationFit && !validFits.includes(applicationFit)) {
       return res.status(400).json({ error: `applicationFit must be one of: ${validFits.join(', ')}` });
     }
@@ -45,7 +55,9 @@ router.get('/', async (req, res) => {
       page: req.query.page,
       limit: req.query.limit,
       minimumScore: req.query.minimumScore,
-      applicationFit
+      applicationFit,
+      employerType,
+      nation
     });
     res.json({ profileId: req.query.profileId || DEFAULT_PROFILE_ID, ...result });
   } catch (error) {
