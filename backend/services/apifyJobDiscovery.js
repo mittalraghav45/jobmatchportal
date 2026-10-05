@@ -27,7 +27,15 @@ function actorPath(actorId) {
 }
 
 function firstUrl(...values) {
-  return values.map(value => String(value || '').trim()).find(value => value.startsWith('http://') || value.startsWith('https://')) || '';
+  return values.map(value => String(value || '').trim()).find(value => {
+    if (!(value.startsWith('http://') || value.startsWith('https://'))) return false;
+    try {
+      const host = new URL(value).hostname.toLowerCase();
+      return !/^(?:www\\.)?(?:google|bing|search)\\./i.test(host);
+    } catch {
+      return false;
+    }
+  }) || '';
 }
 
 export function isApifyConfigured() {
