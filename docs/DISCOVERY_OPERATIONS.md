@@ -33,7 +33,7 @@ When `--companies` is supplied, the runner must process only the requested compa
 
 It must never silently fall back to the normal corpus when an explicit selection cannot be resolved.
 
-A successful curated smoke run has been demonstrated with:
+A successful curated smoke run has been demonstrated in GitHub Actions against `main` with:
 
 ```text
 requested:          5
@@ -43,14 +43,49 @@ successful:         5
 failed:              0
 unconfigured:        0
 invalid:             0
-discovered:        268
-added:             199
-updated:             69
+discovered:        267
+added:               8
+updated:           259
 duplicatesRemoved:    0
 rejected:             0
 ```
 
-A repeat run updated existing records rather than creating duplicates, confirming idempotent ingestion for this source set.
+The run used the merged production code and passed the smoke quality gate. A previous local repeat also demonstrated idempotent ingestion by updating existing records rather than creating duplicates.
+
+## Batched full discovery
+
+Full discovery is implemented by:
+
+```text
+backend/scripts/nightlyDiscoveryFull.js
+```
+
+and exposed as:
+
+```bash
+npm run nightly:discovery:full
+```
+
+The full runner invokes the canonical `nightlyDiscovery.js` runner in deterministic batches. Defaults are:
+
+```text
+batch size: 100 companies
+maximum batches: 20
+```
+
+Each batch uses the existing `--skip`/`--limit` pagination, prints its normal summary, and the wrapper aggregates the totals into:
+
+```text
+=== FULL NIGHTLY DISCOVERY SUMMARY ===
+```
+
+The full-run health gate fails when:
+
+- no companies are selected across the run;
+- more than 10% of selected companies fail discovery;
+- any company is classified as invalid.
+
+`unconfigured` companies remain observable in the aggregate rather than being treated as a fatal condition because the corpus can contain companies without a configured discovery provider.
 
 ## GitHub Actions
 
@@ -60,7 +95,7 @@ The workflow is:
 .github/workflows/job-discovery.yml
 ```
 
-It first synchronises configured discovery companies, then supports two modes:
+It first synchronises configured discovery companies, then supports two modes.
 
 ### Smoke
 
@@ -74,28 +109,25 @@ deliveroo
 revolut
 ```
 
-The workflow has a quality gate and fails when:
-
-- requested companies are not all selected;
-- a requested company is missing;
-- discovery fails;
-- a company is unconfigured or invalid;
-- records are rejected;
-- zero jobs are discovered.
+The smoke quality gate fails when requested companies are missing, discovery fails, a company is unconfigured or invalid, records are rejected, or zero jobs are discovered.
 
 ### Full
 
-Manual `workflow_dispatch` with `mode=full`, and the scheduled workflow, run bounded unified discovery followed by the Google career fallback crawler.
+Manual `workflow_dispatch` with `mode=full`, and the scheduled workflow, run the batched full discovery runner followed by the Google career fallback crawler.
 
-The full path should remain bounded and observable. Do not increase concurrency or corpus size solely because a run completes; inspect throughput, rejection, duplicate and database-health metrics first.
+The scheduled workflow runs daily at 03:00 UTC. Full discovery is capped at 20 batches of 100 companies by default, giving a maximum of 2,000 companies per run while keeping execution bounded and observable.
+
+The workflow has a 240-minute job timeout. Batch size and maximum batch count can be overridden for a manual full run.
+
+Do not increase concurrency or corpus size solely because a run completes; inspect throughput, failure rate, rejection, duplicate and database-health metrics first.
 
 ## Safe execution order
 
-1. Run `npm test` after code changes.
+1. Run `npm run ci:validate` after code changes.
 2. Run the curated smoke test locally when changing discovery orchestration.
 3. Run the same smoke mode in GitHub Actions.
 4. Only after the smoke gate passes, run/enable bounded full discovery.
-5. Inspect the complete summary before scaling.
+5. Inspect the complete full-run health summary before increasing limits.
 6. Run source-backed verification incrementally over newly discovered jobs.
 7. Audit duplicate URL/fingerprint behaviour after material ingestion milestones.
 
