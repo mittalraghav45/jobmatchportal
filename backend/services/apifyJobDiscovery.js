@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { classifyJob } from '../utils/jobClassification.js';
 
-export const DEFAULT_APIFY_ACTOR_ID = 'conserving_celerytop/live-career-page-jobs-api';
+export const DEFAULT_APIFY_ACTOR_ID = 'apify/playwright-scraper';
 
 const TECH_TITLE_FILTER = Object.freeze([
   'software engineer',
@@ -18,6 +18,109 @@ const TECH_TITLE_FILTER = Object.freeze([
   'developer'
 ]);
 
+const APIFY_PAGE_FUNCTION = String.raw`async function pageFunction(context) {
+  const { page, request } = context;
+  const userData = request.userData || {};
+  const terms = ['software engineer', 'software developer', 'frontend', 'front end', 'full stack', 'fullstack', 'web developer', 'javascript', 'typescript', 'node', 'react', 'developer'];
+
+  if (userData.type !== 'job') {
+    const links = await page.evaluate((keywords) => {
+      const baseHost = window.location.hostname;
+      const out = [];
+      for (const anchor of document.querySelectorAll('a[href]')) {
+        const text = (anchor.innerText || anchor.textContent || '').replace(/\\s+/g, ' ').trim();
+        const href = anchor.href;
+        if (!href || !/^https?:/i.test(href) || text.length < 4) continue;
+        try {
+          if (new URL(href).hostname !== baseHost) continue;
+        } catch {
+          continue;
+        }
+        const signal = (text + ' ' + href).toLowerCase();
+        const looksLikeJob = keywords.some(keyword => signal.includes(keyword))
+          || /\\b(job|jobs|vacanc|career|careers|position|opportunit|recruitment|role)\\b/i.test(signal);
+        if (looksLikeJob) out.push({ url: href, text });
+      }
+      return [...new Map(out.map(item => [item.url, item])).values()].slice(0, 12);
+    }, terms);
+
+    for (const link of links) {
+      await context.enqueueRequest({
+        url: link.url,
+        userData: { ...userData, type: 'job' }
+      });
+    }
+
+    return { rowType: 'source', url: request.url, jobCandidates: links.length };
+  }
+
+  const payload = await page.evaluate(() => {
+    const scripts = [...document.querySelectorAll('script[type="application/ld+json"]')];
+    const candidates = [];
+    for (const script of scripts) {
+      try {
+        const parsed = JSON.parse(script.textContent || '');
+        const values = Array.isArray(parsed) ? parsed : [parsed];
+        for (const value of values) {
+          if (value && typeof value === 'object') {
+            if (value['@type'] === 'JobPosting') candidates.push(value);
+            if (Array.isArray(value['@graph'])) {
+              for (const graphValue of value['@graph']) {
+                if (graphValue && graphValue['@type'] === 'JobPosting') candidates.push(graphValue);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    const jobPosting = candidates[0] || {};
+    const locationValue = Array.isArray(jobPosting.jobLocation)
+      ? jobPosting.jobLocation.map(item => item?.address?.addressLocality || item?.address?.addressRegion || item?.address?.addressCountry || '').filter(Boolean).join(', ')
+      : jobPosting.jobLocation?.address?.addressLocality
+        || jobPosting.jobLocation?.address?.addressRegion
+        || jobPosting.jobLocation?.address?.addressCountry
+        || '';
+
+    const descriptionNode = document.querySelector('[class*="job-description" i], [id*="job-description" i], article, main');
+    const description = (jobPosting.description || descriptionNode?.innerText || '').replace(/\\s+/g, ' ').trim();
+
+    return {
+      title: jobPosting.title || document.querySelector('h1')?.innerText || document.title || '',
+      description,
+      location: jobPosting.jobLocationType === 'TELECOMMUTE' ? 'Remote' : locationValue || document.querySelector('[class*="location" i], [data-location]')?.innerText || '',
+      employmentType: jobPosting.employmentType || '',
+      postedAt: jobPosting.datePosted || null,
+      closingAt: jobPosting.validThrough || null,
+      externalId: typeof jobPosting.identifier === 'object' ? jobPosting.identifier.value : jobPosting.identifier || '',
+      companyName: jobPosting.hiringOrganization?.name || '',
+      applyUrl: document.querySelector('a[href*="apply" i], a[href*="application" i]')?.href || window.location.href
+    };
+  });
+
+  const title = String(payload.title || '').trim();
+  if (!title) return { rowType: 'ignored', url: request.url };
+
+  const lowerTitle = title.toLowerCase();
+  if (!terms.some(term => lowerTitle.includes(term))) {
+    return { rowType: 'ignored', url: request.url, title };
+  }
+
+  return {
+    rowType: 'job',
+    url: request.url,
+    applyUrl: payload.applyUrl || request.url,
+    externalId: payload.externalId || request.url,
+    title,
+    description: payload.description || '',
+    location: payload.location || '',
+    employmentType: payload.employmentType || '',
+    postedAt: payload.postedAt || null,
+    closingAt: payload.closingAt || null,
+    sourceCompanyName: payload.companyName || ''
+  };
+}`;
+
 function apifyToken() {
   return String(process.env.APIFY_KEY || process.env.APIFY_TOKEN || '').trim();
 }
@@ -31,7 +134,10 @@ function firstUrl(...values) {
     if (!(value.startsWith('http://') || value.startsWith('https://'))) return false;
     try {
       const host = new URL(value).hostname.toLowerCase();
-      return !['google.com', 'bing.com', 'search.com'].includes(host) && !host.endsWith('.google.com') && !host.endsWith('.bing.com') && !host.endsWith('.search.com');
+      return !['google.com', 'bing.com', 'search.com'].includes(host)
+        && !host.endsWith('.google.com')
+        && !host.endsWith('.bing.com')
+        && !host.endsWith('.search.com');
     } catch {
       return false;
     }
@@ -58,14 +164,32 @@ export function buildApifyInput(company, {
 } = {}) {
   const careerUrl = apifyCareerUrl(company);
   if (!careerUrl) throw new Error(`No careers URL or website available for ${company.companyName || company.companyId}`);
+  const cap = Math.max(1, Number(maxItems) || 50);
 
   return {
-    companies: [careerUrl],
-    outputMode: 'jobs',
-    titleIncludes: [...TECH_TITLE_FILTER],
-    titleExcludes: ['intern', 'graduate'],
-    includeDescription,
-    maxJobsPerCompany: Math.max(1, Number(maxItems) || 50)
+    startUrls: [{
+      url: careerUrl,
+      userData: {
+        companyId: company.companyId,
+        companyName: company.companyName,
+        type: 'source'
+      }
+    }],
+    linkSelector: '',
+    respectRobotsTxtFile: true,
+    pageFunction: APIFY_PAGE_FUNCTION,
+    proxyConfiguration: { useApifyProxy: true },
+    maxPagesPerCrawl: cap + 1,
+    maxResultsPerCrawl: cap + 1,
+    maxCrawlingDepth: 1,
+    maxConcurrency: 1,
+    maxRequestRetries: 2,
+    pageLoadTimeoutSecs: 45,
+    pageFunctionTimeoutSecs: 30,
+    waitUntil: 'networkidle',
+    closeCookieModals: true,
+    maxScrollHeightPixels: 8000,
+    includeDescription
   };
 }
 
