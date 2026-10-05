@@ -1,4 +1,4 @@
-import { createPublicSectorAdapter } from './publicSector.js';
+import { JobSourceAdapter } from './sourceAdapter.js';
 
 function decodeXml(value = '') {
   return value
@@ -40,9 +40,7 @@ export function parseNhsJobsFeed(xml) {
     sourceJobId: tagValue(item, 'guid') || tagValue(item, 'id') || null,
     postedAt: tagValue(item, 'pubDate') || tagValue(item, 'published') || tagValue(item, 'updated') || null,
     employmentType: tagValue(item, 'contracttype') || tagValue(item, 'employmentType') || null,
-    metadata: {
-      publicSectorType: 'nhs'
-    }
+    metadata: { publicSectorType: 'nhs' }
   })).filter(job => job.title && job.applyUrl);
 }
 
@@ -50,12 +48,16 @@ export function createNhsJobsAdapter({ feedUrl, fetchImpl = globalThis.fetch } =
   if (!feedUrl) throw new TypeError('NHS Jobs adapter requires feedUrl.');
   if (typeof fetchImpl !== 'function') throw new TypeError('NHS Jobs adapter requires a fetch implementation.');
 
-  return createPublicSectorAdapter(async context => {
-    const url = typeof feedUrl === 'function' ? feedUrl(context) : feedUrl;
-    const response = await fetchImpl(url, {
-      headers: { accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml' }
-    });
-    if (!response.ok) throw new Error(`NHS Jobs feed request failed: ${response.status}`);
-    return parseNhsJobsFeed(await response.text());
-  }, { name: 'nhs' });
+  return new JobSourceAdapter(
+    'nhs',
+    async context => {
+      const url = typeof feedUrl === 'function' ? feedUrl(context) : feedUrl;
+      const response = await fetchImpl(url, {
+        headers: { accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml' }
+      });
+      if (!response.ok) throw new Error(`NHS Jobs feed request failed: ${response.status}`);
+      return parseNhsJobsFeed(await response.text());
+    },
+    { kind: 'public_sector' }
+  );
 }
