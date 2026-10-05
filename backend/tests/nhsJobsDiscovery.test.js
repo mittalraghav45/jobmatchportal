@@ -31,7 +31,7 @@ test('NHS adapter fetches and normalizes an official-feed-shaped response', asyn
 
   const jobs = await adapter.discover();
   assert.equal(jobs.length, 1);
-  assert.equal(jobs[0].source, 'public_sector');
+  assert.equal(jobs[0].source, 'nhs');
   assert.equal(jobs[0].sourceKind, 'public_sector');
   assert.equal(jobs[0].title, 'Frontend Developer');
 });
