@@ -5,6 +5,10 @@ import { matchJobToCandidate } from './candidateMatching.js';
 import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
 import { isUkJobLocation } from '../utils/ukJobLocation.js';
 
+function activeProfileVersion(profile) {
+  return String(profile?.activeVersion || profile?.metadata?.version || 'v1');
+}
+
 function eligibilityFor(job) {
   return {
     uk: isUkJobLocation(job?.location),
@@ -24,9 +28,10 @@ export async function persistJobMatch({ profileId = DEFAULT_PROFILE_ID, jobId })
   if (!profile) { const error = new Error(`Candidate profile '${id}' not found`); error.code = 'PROFILE_NOT_FOUND'; throw error; }
   if (!job) { const error = new Error('Job not found'); error.code = 'JOB_NOT_FOUND'; throw error; }
 
+  const profileVersion = activeProfileVersion(profile);
   const result = matchJobToCandidate(job, profile);
   return MatchResult.findOneAndUpdate(
-    { profileId: id, jobId: job._id },
+    { profileId: id, profileVersion, jobId: job._id },
     {
       $set: {
         matchScore: result.matchScore,
@@ -35,7 +40,6 @@ export async function persistJobMatch({ profileId = DEFAULT_PROFILE_ID, jobId })
         components: result.components,
         eligibility: eligibilityFor(job),
         calculatedAt: new Date(),
-        profileVersion: String(profile.metadata?.version || 'v1'),
         matcherVersion: 'v1'
       }
     },
@@ -49,13 +53,14 @@ export async function persistJobMatches({ profileId = DEFAULT_PROFILE_ID, jobs }
   if (!profile) { const error = new Error(`Candidate profile '${id}' not found`); error.code = 'PROFILE_NOT_FOUND'; throw error; }
   if (!Array.isArray(jobs) || jobs.length === 0) return { processed: 0, upserted: 0, updated: 0 };
 
+  const profileVersion = activeProfileVersion(profile);
   const operations = [];
   for (const job of jobs) {
     if (!job?._id) continue;
     const result = matchJobToCandidate(job, profile);
     operations.push({
       updateOne: {
-        filter: { profileId: id, jobId: job._id },
+        filter: { profileId: id, profileVersion, jobId: job._id },
         update: { $set: {
           matchScore: result.matchScore,
           applicationFit: result.applicationFit,
@@ -63,7 +68,6 @@ export async function persistJobMatches({ profileId = DEFAULT_PROFILE_ID, jobs }
           components: result.components,
           eligibility: eligibilityFor(job),
           calculatedAt: new Date(),
-          profileVersion: String(profile.metadata?.version || 'v1'),
           matcherVersion: 'v1'
         } },
         upsert: true
@@ -75,31 +79,25 @@ export async function persistJobMatches({ profileId = DEFAULT_PROFILE_ID, jobs }
   return { processed: operations.length, upserted: write.upsertedCount || 0, updated: write.modifiedCount || 0 };
 }
 
-export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, page = 1, limit = 20, minimumScore = 0, applicationFit }) {
+export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, profileVersion, page = 1, limit = 20, minimumScore = 0, applicationFit }) {
   const id = String(profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+  const profile = await CandidateProfile.findOne({ profileId: id }).select('activeVersion metadata.version').lean();
+  const selectedProfileVersion = String(profileVersion || profile?.activeVersion || profile?.metadata?.version || 'v1');
   const safePage = Math.max(1, Number(page) || 1);
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
   const matchFilter = {
     profileId: id,
+    profileVersion: selectedProfileVersion,
     matchScore: { $gte: Math.max(0, Number(minimumScore) || 0) }
   };
   if (applicationFit && ['strong', 'possible', 'weak', 'strong_unconfirmed_sponsorship'].includes(applicationFit)) {
     matchFilter.applicationFit = applicationFit;
   }
 
-  // MatchResults can outlive a job's current eligibility. Always derive the
-  // result set from the same live/verified/UK/technology filter used by the
-  // discovery pipeline so stale non-UK or dead jobs cannot leak into My Matches.
   const eligibleJobs = await Job.find(buildVerifiedLiveMatchFilter(null)).select('_id').lean();
   const eligibleJobIds = eligibleJobs.map(job => job._id);
   if (!eligibleJobIds.length) {
-    return {
-      page: safePage,
-      limit: safeLimit,
-      total: 0,
-      pages: 0,
-      matches: []
-    };
+    return { page: safePage, limit: safeLimit, total: 0, pages: 0, profileVersion: selectedProfileVersion, matches: [] };
   }
 
   matchFilter.jobId = { $in: eligibleJobIds };
@@ -124,6 +122,7 @@ export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, pag
     limit: safeLimit,
     total,
     pages: Math.ceil(total / safeLimit),
+    profileVersion: selectedProfileVersion,
     matches: rows
       .map(row => ({ ...row, job: jobMap.get(String(row.jobId)) || null }))
       .filter(row => row.job)
