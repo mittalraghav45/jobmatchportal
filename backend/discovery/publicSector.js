@@ -2,9 +2,7 @@ import { JobSourceAdapter } from './sourceAdapter.js';
 
 /**
  * Public-sector discovery adapter factory.
- *
- * `name` identifies the concrete source (for example `nhs`) while
- * `kind` remains `public_sector` for pipeline-level classification.
+ * `name` is the concrete provider; `kind` is the pipeline classification.
  */
 export function createPublicSectorAdapter(fetchJobs, { name = 'public_sector', metadata = {} } = {}) {
   if (typeof fetchJobs !== 'function') {
@@ -12,11 +10,14 @@ export function createPublicSectorAdapter(fetchJobs, { name = 'public_sector', m
   }
   if (!name) throw new TypeError('Public-sector adapter requires a source name.');
 
-  return new JobSourceAdapter(
+  const adapter = new JobSourceAdapter(
     name,
     async context => fetchJobs({ ...context, sourceKind: 'public_sector' }),
-    { kind: 'public_sector', metadata }
+    { kind: 'public_sector' }
   );
+
+  adapter.metadata = { ...metadata };
+  return adapter;
 }
 
 export const PUBLIC_SECTOR_SOURCE_TYPES = Object.freeze([
