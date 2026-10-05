@@ -1,12 +1,32 @@
 import 'dotenv/config';
 import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
+import { loadCompanies } from '../config/companies.js';
 import { discoverCompanyJobs } from '../services/companyDiscovery.js';
 
 function arg(name, fallback) {
   const prefix = `--${name}=`;
   const value = process.argv.find(item => item.startsWith(prefix));
   return value ? value.slice(prefix.length) : fallback;
+}
+
+function applyDiscoveryConfig(company, configuredById) {
+  const configured = configuredById.get(String(company.companyId || '').trim().toLowerCase());
+  if (!configured) return company;
+
+  return {
+    ...company,
+    careersUrl: configured.careers_url || company.careersUrl || '',
+    ats: configured.ats || company.ats || 'unknown',
+    metadata: {
+      ...(company.metadata || {}),
+      discoveryConfig: {
+        priority: configured.priority || null,
+        atsSlug: configured.ats_slug || null,
+        source: 'config/companies.csv'
+      }
+    }
+  };
 }
 
 const limit = Math.max(1, Number(arg('limit', process.env.DISCOVERY_LIMIT || 500)) || 500);
@@ -17,12 +37,18 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 await connectMongo();
 
-const companies = await Company.find({ enabled: true })
+const configuredCompanies = loadCompanies();
+const configuredById = new Map(
+  configuredCompanies.map(company => [String(company.company_id || '').trim().toLowerCase(), company])
+);
+
+const companies = (await Company.find({ enabled: true })
   .select('companyId companyName companyNumber website careersUrl ats enabled metadata')
   .sort({ companyId: 1 })
   .skip(start)
   .limit(limit)
-  .lean();
+  .lean())
+  .map(company => applyDiscoveryConfig(company, configuredById));
 
 const summary = {
   requested: companies.length,
@@ -58,6 +84,7 @@ for (const company of companies) {
     companyId: company.companyId,
     companyName: company.companyName,
     ats: result.company?.ats || null,
+    atsSource: result.company?.atsSource || null,
     status: result.status,
     discovered: result.jobs?.length || 0,
     added: result.added || 0,
