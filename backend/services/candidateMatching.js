@@ -5,8 +5,17 @@ const normalise = (value = '') => String(value).toLowerCase().replace(/[^a-z0-9+
 function textFor(job = {}) { return normalise([job.title, job.description, job.location, job.companyName, job.employerType].filter(Boolean).join(' ')); }
 function hasAny(text, values = []) { return values.some((value) => value && text.includes(normalise(value))); }
 
+function sponsorshipRequired(profile = {}) {
+  return Boolean(
+    profile?.workAuthorisation?.requiresSkilledWorkerSponsorship ||
+    profile?.workAuthorisation?.sponsorshipRequired ||
+    profile?.preferences?.requiresSponsorship ||
+    profile?.preferences?.sponsorshipRequired
+  );
+}
+
 function sponsorshipFit(job, profile) {
-  if (!profile?.workAuthorisation?.sponsorshipRequired && !profile?.preferences?.sponsorshipRequired) return { score: 0.5, status: 'not_required', reason: null };
+  if (!sponsorshipRequired(profile)) return { score: 0.5, status: 'not_required', reason: null };
   const text = textFor(job);
   const positive = ['visa sponsorship', 'skilled worker sponsorship', 'sponsor licence', 'certificate of sponsorship', 'sponsorship available', 'will sponsor'];
   const negative = ['unable to sponsor', 'cannot sponsor', 'no sponsorship', 'not able to sponsor', 'does not sponsor', 'without sponsorship'];
@@ -24,14 +33,23 @@ function containsExcludedTerm(text, value) {
 
 function exclusions(job, profile) {
   const text = textFor(job);
-  const excluded = [...(profile?.excludedSkills ?? []), ...(profile?.preferences?.excludedSkills ?? []), ...(profile?.excludedKeywords ?? []), ...(profile?.preferences?.excludedKeywords ?? [])].filter(Boolean);
+  const excluded = [
+    ...(profile?.excludedSkills ?? []),
+    ...(profile?.preferences?.excludedSkills ?? []),
+    ...(profile?.excludedKeywords ?? []),
+    ...(profile?.preferences?.excludedKeywords ?? []),
+    ...(profile?.preferences?.excludeTechnologies ?? [])
+  ].filter(Boolean);
   return excluded.find((value) => containsExcludedTerm(text, value)) ?? null;
 }
 
 function experienceFit(job, profile) {
   const years = Number(profile?.yearsExperience ?? 0);
+  const title = textFor(job);
+  const senior = /\b(senior|staff|principal|lead|head of|director)\b/.test(title);
+  const earlyCareer = /\b(intern|internship|new grad|graduate|graduate programme|graduate program)\b/.test(title);
+  if (earlyCareer) return { score: 0.15, reason: 'early_career_role_mismatch' };
   if (!years) return { score: 0.5, reason: null };
-  const senior = /\b(senior|staff|principal|lead|head of|director)\b/.test(textFor(job));
   if (years < 2 && senior) return { score: 0.2, reason: 'experience_gap_for_seniority' };
   if (years < 4 && senior) return { score: 0.65, reason: 'seniority_caution' };
   return { score: 1, reason: 'experience_match' };
@@ -54,10 +72,17 @@ export function matchJobToCandidate(job, profile = {}) {
   const strongCoreMatch = base.components.title >= 75 && base.components.skills >= 75 && roleCompatibility.score >= 0.7;
   const trustedFreshJob = base.components.verification >= 100 && base.components.freshness >= 80;
   const sponsorshipBlocked = sponsorship.status === 'explicitly_unavailable';
-  const matchStrength = strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65 ? 'strong' : (matchScore >= 65 && !sponsorshipBlocked && roleCompatibility.score >= 0.7 ? 'possible' : 'weak');
+  const roleMismatch = roleCompatibility.status === 'mismatch';
+  const earlyCareerMismatch = experience.reason === 'early_career_role_mismatch';
+
+  const matchStrength = !roleMismatch && !earlyCareerMismatch && strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65
+    ? 'strong'
+    : (matchScore >= 65 && !sponsorshipBlocked && !roleMismatch && !earlyCareerMismatch && roleCompatibility.score >= 0.7 ? 'possible' : 'weak');
   const strongApplicationCandidate = matchStrength === 'strong' && sponsorship.status === 'confirmed';
 
   if (strongApplicationCandidate) matchScore = Math.max(matchScore, 85);
+  if (roleMismatch) matchScore = Math.min(matchScore, 45);
+  if (earlyCareerMismatch) matchScore = Math.min(matchScore, 45);
   if (excluded) matchScore = Math.min(matchScore, 20);
 
   const reasons = [...base.reasons];
