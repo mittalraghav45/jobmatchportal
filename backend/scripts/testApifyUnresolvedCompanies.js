@@ -105,19 +105,6 @@ async function main() {
   }
 
   console.log(JSON.stringify({
-      companyId: company.companyId,
-      companyName: company.companyName,
-      careersUrl: result.careersUrl || null,
-      status: result.status,
-      discovered: result.jobs.length,
-      ukJobs: uk.length,
-      added: write.added || 0,
-      updated: write.updated || 0,
-      error: result.error || null
-    }));
-  }
-
-  console.log(JSON.stringify({
     requested: limit,
     selected: companies.length,
     successful,
