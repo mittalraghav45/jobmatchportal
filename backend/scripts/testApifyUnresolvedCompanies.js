@@ -2,7 +2,7 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
-import { discoverWithApify } from '../services/apifyJobDiscovery.js';
+import { apifyCareerUrl, discoverWithApify } from '../services/apifyJobDiscovery.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 
 const limit = Math.max(1, Number(process.argv.find(arg => arg.startsWith('--limit='))?.split('=')[1] || 10));
@@ -41,8 +41,9 @@ async function main() {
     .limit(Math.max(limit * 10, 50))
     .lean();
 
+  const usableCandidates = candidates.filter(company => Boolean(apifyCareerUrl(company)));
   const seenNames = new Set();
-  const companies = candidates
+  const companies = usableCandidates
     .sort((a, b) => {
       const aPrivate = a.employerType === 'private' ? 0 : 1;
       const bPrivate = b.employerType === 'private' ? 0 : 1;
