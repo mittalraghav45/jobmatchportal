@@ -2,7 +2,6 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
-import { Job } from '../models/Job.js';
 import { discoverWithApify } from '../services/apifyJobDiscovery.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 
@@ -12,16 +11,22 @@ const persist = !process.argv.includes('--no-persist');
 function unresolvedFilter() {
   return {
     enabled: true,
-    $or: [
-      { ats: { $in: ['', 'unknown', null] } },
-      { 'metadata.resolutionStatus': { $in: ['pending', 'unresolved'] } },
-      { 'metadata.sourceResolutionStatus': { $in: ['pending', 'unresolved'] } }
-    ],
-    $or: [
-      { careersUrl: { $regex: /^https?:\\/\\//i } },
-      { website: { $regex: /^https?:\\/\\//i } },
-      { 'metadata.careersUrl': { $regex: /^https?:\\/\\//i } },
-      { 'metadata.website': { $regex: /^https?:\\/\\//i } }
+    $and: [
+      {
+        $or: [
+          { ats: { $in: ['', 'unknown', null] } },
+          { 'metadata.resolutionStatus': { $in: ['pending', 'unresolved'] } },
+          { 'metadata.sourceResolutionStatus': { $in: ['pending', 'unresolved'] } }
+        ]
+      },
+      {
+        $or: [
+          { careersUrl: { $regex: /^https?:\\/\\//i } },
+          { website: { $regex: /^https?:\\/\\//i } },
+          { 'metadata.careersUrl': { $regex: /^https?:\\/\\//i } },
+          { 'metadata.website': { $regex: /^https?:\\/\\//i } }
+        ]
+      }
     ]
   };
 }
