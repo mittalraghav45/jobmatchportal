@@ -22,6 +22,7 @@ MongoDB repositories (optional/local integration)
 
 - Live job discovery across supported ATS platforms.
 - Candidate-to-job matching using skills, CV text and experience.
+- Explicit UK eligibility for the candidate-facing match pool.
 - Sponsorship evidence represented as `verified`, `not-sponsor` or `unknown`.
 - Unknown sponsorship is never converted into a negative sponsorship claim.
 - CV, cover-letter and application-pack optimisation.
@@ -29,6 +30,38 @@ MongoDB repositories (optional/local integration)
 - Local application tracker with status progression.
 - MongoDB models and repositories for persistent company/job data.
 - Source-backed job verification with canonical URL identity and duplicate auditing.
+
+## Matching and full-corpus automation
+
+The matcher supports explainable fit states:
+
+```text
+strong
+strong_unconfirmed_sponsorship
+possible
+weak
+```
+
+`strong_unconfirmed_sponsorship` means the role is a strong profile match while sponsorship evidence is still unconfirmed. It is not a claim that the employer sponsors Skilled Worker visas.
+
+The candidate-facing pool is UK-only. Non-UK jobs remain stored for historical/audit purposes but must not be surfaced as UK matches. Eligibility metadata is persisted so exclusions can be explained.
+
+The full corpus can be matched in bounded batches. Match results are persisted with upserts; the matching workflow does not delete jobs or historical match results.
+
+### GitHub Actions nightly matcher
+
+`.github/workflows/matching-quality.yml` can be manually dispatched and is scheduled for a 02:15 UK target during BST (`01:15 UTC`). GitHub cron is UTC and does not automatically follow UK daylight-saving changes.
+
+The workflow:
+
+1. installs Node 20 dependencies;
+2. runs the complete backend test suite;
+3. runs `npm run nightly:matching` over the complete jobs collection;
+4. writes MatchResult upserts without deleting jobs;
+5. publishes a human-readable GitHub Actions Summary;
+6. uploads the raw matcher log as a 14-day artifact.
+
+A failing test prevents the matcher from running. The workflow is deliberately bounded/reproducible diagnostic automation, not an autonomous source-code rewriting loop.
 
 ## Serper discovery
 
@@ -105,11 +138,11 @@ backend/
   sponsorRegistry.js              sponsorship evidence rules
   applicationEngine.js            structured application prompts
   applicationValidator.js         output validation
-  prompts/                        commercial + public-sector prompts
+  prompts/                         commercial + public-sector prompts
   config/companies.csv             editable company discovery seed list
-  models/                         MongoDB models
-  repositories/                  MongoDB persistence
-  tests/                          Node test suite
+  models/                          MongoDB models
+  repositories/                    MongoDB persistence
+  tests/                           Node test suite
 
 docs/
   ARCHITECTURE.md                architecture notes
@@ -199,7 +232,7 @@ npm install
 npm run build
 ```
 
-GitHub Actions now runs both automatically when backend/frontend code changes.
+GitHub Actions runs backend tests and frontend builds automatically when relevant code changes.
 
 ## Security rules
 
