@@ -41,6 +41,7 @@ router.get('/', async (req, res) => {
     }
     const result = await listPersistedMatches({
       profileId: req.query.profileId || DEFAULT_PROFILE_ID,
+      profileVersion: req.query.profileVersion,
       page: req.query.page,
       limit: req.query.limit,
       minimumScore: req.query.minimumScore,
