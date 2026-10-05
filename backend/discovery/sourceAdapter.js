@@ -26,13 +26,14 @@ export function normalizeDiscoveredJob(job, source, sourceKind = 'generic') {
 
   return {
     title,
+    companyId: job.companyId ?? job.company_id ?? null,
     companyName: String(job.companyName ?? job.organisation ?? '').trim(),
     location: String(job.location ?? '').trim(),
     description: String(job.description ?? '').trim(),
     applyUrl,
     source,
     sourceKind,
-    sourceJobId: job.sourceJobId ?? job.id ?? null,
+    sourceJobId: job.sourceJobId ?? job.externalId ?? job.id ?? null,
     employmentType: job.employmentType ?? null,
     workMode: job.workMode ?? null,
     postedAt: job.postedAt ?? null,
