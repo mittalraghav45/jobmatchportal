@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import './my-matches.css';
 
-const API = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const browserHost = typeof window !== 'undefined' ? window.location.hostname : '';
+const isLocalBrowser = browserHost === 'localhost' || browserHost === '127.0.0.1' || browserHost === '::1';
+const API = configuredApiBaseUrl && (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredApiBaseUrl) || isLocalBrowser)
+  ? configuredApiBaseUrl
+  : '';
 
 async function api(path, options = {}) {
   const response = await fetch(`${API}${path}`, {
