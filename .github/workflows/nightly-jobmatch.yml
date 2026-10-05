@@ -71,21 +71,12 @@ jobs:
             echo '- Database policy: MatchResult upserts only; this workflow does not delete jobs or stale source data.'
             echo
             echo '## Matcher output'
-            echo '```json'
-            python - <<'PY'
-import json
-from pathlib import Path
-text = Path('nightly-matching.log').read_text(errors='replace') if Path('nightly-matching.log').exists() else ''
-marker = text.rfind('{')
-if marker >= 0:
-    candidate = text[marker:]
-    try:
-        print(json.dumps(json.loads(candidate), indent=2))
-    except Exception:
-        print(text[-12000:])
-else:
-    print(text[-12000:])
-PY
+            echo '```text'
+            if [ -f nightly-matching.log ]; then
+              tail -n 160 nightly-matching.log
+            else
+              echo 'No matcher log was produced.'
+            fi
             echo '```'
             echo
             echo '## Interpretation'
