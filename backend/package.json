@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "nodemon -r dotenv/config routes/registerJobs.js",
+    "dev": "nodemon --watch . --ext js,json --ignore node_modules --exec \"node -r dotenv/config routes/registerJobs.js\"",
     "dev:node20": "node --env-file=.env routes/registerJobs.js",
     "start": "node -r dotenv/config routes/registerJobs.js",
     "test": "node --check server.js && node --check routes/intelligenceRoutes.js && node --check routes/discoveryStatus.js && node --check routes/sourceHealth.js && node --check services/companyDiscovery.js && node --check services/companySourceDiscovery.js && node --check services/jobSourceVerification.js && node --check services/jobQuality.js && node --check services/googleCareersCrawler.js && node --check services/jobsAcUkSearch.js && node --check routes/jobsAcUkRoutes.js && node --check scripts/jobDiscoveryGoldenFull.js && node --check scripts/enrichExistingJobs.js && node --check scripts/resolvePublicEmployers.js && node --check scripts/resolveMissingJobCompanies.js && node --check scripts/verifyJobSources.js && node --check scripts/discoverCompanySources.js && node --check scripts/crawlGoogleCareerFallbacks.js && node --check scripts/sendJobDigest.js && node --check scripts/backfillJobAts.js && node --check scripts/auditJobAts.js && node --check scripts/scoreJobQuality.js && node --test tests/*.test.js",
