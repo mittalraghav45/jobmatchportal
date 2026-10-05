@@ -6,6 +6,7 @@ import { Company } from '../models/Company.js';
 import { ingestJobs } from '../services/jobIngestion.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 import { discoverCompanyJobsWithSerper } from '../services/serperJobDiscovery.js';
+import { verifyJobSource } from '../services/jobSourceVerification.js';
 import { extractJobPostingJsonLd, extractLinks, normaliseUrl, classifyDiscoveredUrl } from '../services/googleCareersCrawler.js';
 import { shouldProcessSource, buildSourceIngestionState } from '../services/jobSourceIngestionState.js';
 import { readFile } from 'node:fs/promises';
@@ -82,6 +83,10 @@ const summary = {
   sourcePagesFetched: 0,
   jobsFromSourcePages: 0,
   sourcePageFailures: 0,
+  verifiedLive: 0,
+  verifiedClosed: 0,
+  verifiedUnknown: 0,
+  verificationFailures: 0,
   maxQueriesPerCompany: MAX_QUERIES_PER_COMPANY,
   maxQueriesPerRun: MAX_QUERIES_PER_RUN,
   retryAfterHours: RETRY_AFTER_HOURS,
@@ -171,7 +176,27 @@ for (const { source, company } of orderedCompanies) {
     }
 
     summary.jobsFromSourcePages += sourceJobs.length;
-    const ingested = ingestJobs([...discovery.results, ...sourceJobs], { now: startedAt.toISOString() });
+    const candidates = [...discovery.results, ...sourceJobs];
+    const verifiedCandidates = [];
+
+    for (const candidate of candidates) {
+      const verification = await verifyJobSource(candidate, {
+        timeoutMs: SOURCE_PAGE_TIMEOUT_MS,
+        maxRetries: 1,
+        retryDelayMs: 250
+      });
+      candidate.verification = verification;
+      candidate.isLive = verification.status !== 'closed';
+
+      if (verification.status === 'live') summary.verifiedLive += 1;
+      else if (verification.status === 'closed') summary.verifiedClosed += 1;
+      else summary.verifiedUnknown += 1;
+
+      if (verification.evidenceType === 'request_error') summary.verificationFailures += 1;
+      verifiedCandidates.push(candidate);
+    }
+
+    const ingested = ingestJobs(verifiedCandidates, { now: startedAt.toISOString() });
     const persisted = await upsertJobs(ingested.jobs, { now: startedAt });
 
     summary.discovered += ingested.jobs.length;
@@ -206,6 +231,9 @@ for (const { source, company } of orderedCompanies) {
       serperDirectResults: discovery.results?.length || 0,
       sourcePages: discovery.sourcePages?.length || 0,
       discovered: ingested.jobs.length,
+      verifiedLive: verifiedCandidates.filter(job => job.verification?.status === 'live').length,
+      verifiedClosed: verifiedCandidates.filter(job => job.verification?.status === 'closed').length,
+      verifiedUnknown: verifiedCandidates.filter(job => job.verification?.status === 'unknown').length,
       added: persisted.added,
       updated: persisted.updated,
       duplicatesRemoved: ingested.duplicatesRemoved,
