@@ -10,7 +10,8 @@ test('classifies frontend and software engineering roles', () => {
 test('matches a frontend candidate to frontend and full-stack roles', () => {
   const profile = { targetTitles: ['Frontend Engineer', 'Software Engineer'], skills: ['React', 'TypeScript', 'JavaScript'] };
   assert.equal(roleFamilyCompatibility({ title: 'Frontend Engineer' }, profile).status, 'match');
-  assert.equal(roleFamilyCompatibility({ title: 'Full-stack Engineer' }, profile).status, 'adjacent');
+  assert.equal(roleFamilyCompatibility({ title: 'Full-stack Engineer' }, profile).status, 'match');
+  assert.equal(roleFamilyCompatibility({ title: 'Backend Engineer' }, profile).status, 'match');
 });
 
 test('marks data science and security roles as specialist mismatches for a frontend candidate', () => {
