@@ -1,4 +1,4 @@
-name: Google Career Discovery
+name: Job Discovery
 
 on:
   workflow_dispatch:
@@ -24,6 +24,11 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      - name: Run unified ATS discovery
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          DISCOVERY_LIMIT: ${{ inputs.limit || '100' }}
+        run: npm run nightly:discovery -- --limit="$DISCOVERY_LIMIT"
       - name: Crawl Google career fallbacks
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
