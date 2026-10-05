@@ -35,15 +35,31 @@ async function main() {
   if (!process.env.APIFY_KEY && !process.env.APIFY_TOKEN) throw new Error('APIFY_KEY is not configured');
 
   await connectMongo();
-  const companies = await Company.find(unresolvedFilter())
+  const candidates = await Company.find(unresolvedFilter())
     .select('companyId companyName website careersUrl ats employerType metadata')
-    .sort({ priority: -1, updatedAt: 1, companyId: 1 })
-    .limit(limit)
+    .sort({ updatedAt: 1, companyId: 1 })
+    .limit(Math.max(limit * 10, 50))
     .lean();
+
+  const seenNames = new Set();
+  const companies = candidates
+    .sort((a, b) => {
+      const aPrivate = a.employerType === 'private' ? 0 : 1;
+      const bPrivate = b.employerType === 'private' ? 0 : 1;
+      return aPrivate - bPrivate || String(a.companyName).localeCompare(String(b.companyName));
+    })
+    .filter(company => {
+      const key = String(company.companyName || company.companyId).trim().toLowerCase();
+      if (!key || seenNames.has(key)) return false;
+      seenNames.add(key);
+      return true;
+    })
+    .slice(0, limit);
 
   console.log(`=== APIFY UNRESOLVED-COMPANY TEST ===`);
   console.log(`Requested: ${limit}`);
-  console.log(`Selected: ${companies.length}`);
+  console.log(`Candidate pool: ${candidates.length}`);
+  console.log(`Selected distinct companies: ${companies.length}`);
 
   if (!companies.length) {
     throw new Error('No unresolved companies with a usable website/careers URL were found');
