@@ -13,8 +13,8 @@ try {
   const profile = await CandidateProfile.findOne({ profileId }).lean();
   if (!profile) throw new Error(`Candidate profile '${profileId}' not found`);
 
-  // Deliberately scan the complete corpus. Eligibility for My Matches is a
-  // downstream concern; this run is diagnostic and must not discard data.
+  // Scan the complete corpus without an unindexed sort. MongoDB's default
+  // 32 MB in-memory sort limit can otherwise abort a full-corpus run.
   const filter = {};
   const total = await Job.countDocuments(filter);
   const counts = { strong: 0, possible: 0, weak: 0, strong_unconfirmed_sponsorship: 0 };
@@ -22,7 +22,7 @@ try {
   let processed = 0;
   let ops = [];
 
-  const cursor = Job.find(filter).sort({ 'quality.score': -1, 'dates.lastSeenAt': -1, _id: 1 }).lean().cursor();
+  const cursor = Job.find(filter).lean().cursor();
   for await (const job of cursor) {
     const result = matchJobToCandidate(job, profile);
     counts[result.applicationFit] = (counts[result.applicationFit] ?? 0) + 1;
