@@ -2,6 +2,8 @@
 
 A local UK job-discovery and application-support platform for sponsorship-aware job search, live ATS discovery, CV/job matching and evidence-led application optimisation.
 
+> **Project wiki:** see [`docs/PROJECT_WIKI.md`](docs/PROJECT_WIKI.md) for the current architecture, matching model, automation, security rules and development workflow.
+
 ## Current architecture
 
 ```text
@@ -58,8 +60,11 @@ The workflow:
 2. runs the complete backend test suite;
 3. runs `npm run nightly:matching` over the complete jobs collection;
 4. writes MatchResult upserts without deleting jobs;
-5. publishes a human-readable GitHub Actions Summary;
-6. uploads the raw matcher log as a 14-day artifact.
+5. renders a structured, human-readable Markdown quality report;
+6. publishes that report directly into the GitHub Actions Summary;
+7. uploads the raw matcher log and rendered report as 14-day artifacts.
+
+The report contains corpus health, Strong/Possible/Weak distribution, score buckets, top matches with evidence and calibration flags. This is the primary artifact for deciding whether the matcher needs systematic changes.
 
 A failing test prevents the matcher from running. The workflow is deliberately bounded/reproducible diagnostic automation, not an autonomous source-code rewriting loop.
 
@@ -138,6 +143,7 @@ backend/
   sponsorRegistry.js              sponsorship evidence rules
   applicationEngine.js            structured application prompts
   applicationValidator.js         output validation
+  scripts/renderNightlyReport.js  full-corpus human-readable report
   prompts/                         commercial + public-sector prompts
   config/companies.csv             editable company discovery seed list
   models/                          MongoDB models
@@ -145,8 +151,9 @@ backend/
   tests/                           Node test suite
 
 docs/
-  ARCHITECTURE.md                architecture notes
-  IMPLEMENTATION_PLAN.md         implementation history/plan
+  ARCHITECTURE.md                 architecture notes
+  IMPLEMENTATION_PLAN.md          implementation history/plan
+  PROJECT_WIKI.md                 living project wiki
 ```
 
 ## Quick start
@@ -251,4 +258,4 @@ GitHub Actions runs backend tests and frontend builds automatically when relevan
 5. Commit with a clear message.
 6. Push only after tests/build pass.
 
-See `docs/ARCHITECTURE.md` for the detailed design and data model.
+See `docs/ARCHITECTURE.md` and [`docs/PROJECT_WIKI.md`](docs/PROJECT_WIKI.md) for the detailed design and current operating model.
