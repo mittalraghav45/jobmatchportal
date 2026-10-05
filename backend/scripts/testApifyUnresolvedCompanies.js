@@ -2,7 +2,7 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
-import { apifyCareerUrl, discoverWithApify } from '../services/apifyJobDiscovery.js';
+import { apifyCareerUrl, runApifyForCompanies } from '../services/apifyJobDiscovery.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 
 const limit = Math.max(1, Number(process.argv.find(arg => arg.startsWith('--limit='))?.split('=')[1] || 10));
@@ -72,23 +72,39 @@ async function main() {
   let ukJobs = 0;
   let persisted = 0;
 
-  for (const company of companies) {
-    const result = await discoverWithApify(company, {
-      maxItems: Math.min(10, Number(process.env.APIFY_TEST_MAX_ITEMS || 10)),
-      includeDescription: false,
-      includeSkills: false
+  let batch;
+  try {
+    batch = await runApifyForCompanies(companies, {
+      maxItems: Math.min(10, Number(process.env.APIFY_TEST_MAX_ITEMS || 10))
     });
+  } catch (error) {
+    throw new Error(`Apify batch failed: ${error.response?.data?.error?.message || error.message}`);
+  }
 
-    const uk = result.jobs.filter(job => ['England', 'Scotland', 'Wales', 'Northern Ireland', 'UK-wide'].includes(job.nation));
+  for (const company of companies) {
+    const companyJobs = batch.jobs.filter(job => job.companyId === company.companyId);
+    const uk = companyJobs.filter(job => ['England', 'Scotland', 'Wales', 'Northern Ireland', 'UK-wide'].includes(job.nation));
     const write = persist && uk.length ? await upsertJobs(uk) : { added: 0, updated: 0, rejected: [] };
 
-    if (result.status === 'ok') successful += 1;
+    if (companyJobs.length) successful += 1;
     else failed += 1;
-    discovered += result.jobs.length;
+    discovered += companyJobs.length;
     ukJobs += uk.length;
     persisted += (write.added || 0) + (write.updated || 0);
 
     console.log(JSON.stringify({
+      companyId: company.companyId,
+      companyName: company.companyName,
+      careersUrl: apifyCareerUrl(company),
+      status: companyJobs.length ? 'jobs_found' : 'no_matching_jobs',
+      discovered: companyJobs.length,
+      ukJobs: uk.length,
+      added: write.added || 0,
+      updated: write.updated || 0
+    }));
+  }
+
+  console.log(JSON.stringify({
       companyId: company.companyId,
       companyName: company.companyName,
       careersUrl: result.careersUrl || null,
