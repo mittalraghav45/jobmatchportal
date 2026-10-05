@@ -6,7 +6,7 @@ on:
       mode:
         description: 'Run mode'
         required: false
-        default: 'full'
+        default: 'smoke'
         type: choice
         options:
           - smoke
@@ -40,7 +40,30 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke'
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
-        run: npm run nightly:discovery -- --companies=vercel,monzo,wise,deliveroo,revolut
+        run: |
+          npm run nightly:discovery -- --companies=vercel,monzo,wise,deliveroo,revolut | tee /tmp/discovery-summary.log
+          node - /tmp/discovery-summary.log <<'NODE'
+          const fs = require('node:fs');
+          const text = fs.readFileSync(process.argv[2], 'utf8');
+          const marker = '=== UNIFIED NIGHTLY DISCOVERY SUMMARY ===';
+          const index = text.lastIndexOf(marker);
+          if (index < 0) throw new Error('Discovery summary not found');
+          const summary = JSON.parse(text.slice(index + marker.length).trim());
+          const failures = [];
+          if (summary.requested !== 5) failures.push(`requested=${summary.requested}`);
+          if (summary.selected !== 5) failures.push(`selected=${summary.selected}`);
+          if ((summary.missing || []).length) failures.push(`missing=${summary.missing.join(',')}`);
+          if (summary.failed !== 0) failures.push(`failed=${summary.failed}`);
+          if (summary.unconfigured !== 0) failures.push(`unconfigured=${summary.unconfigured}`);
+          if (summary.invalid !== 0) failures.push(`invalid=${summary.invalid}`);
+          if (summary.rejected !== 0) failures.push(`rejected=${summary.rejected}`);
+          if (summary.discovered <= 0) failures.push(`discovered=${summary.discovered}`);
+          if (failures.length) {
+            console.error(`Discovery smoke gate failed: ${failures.join('; ')}`);
+            process.exit(1);
+          }
+          console.log(`Discovery smoke gate passed: ${summary.discovered} jobs discovered.`);
+          NODE
       - name: Run unified ATS discovery
         if: github.event_name != 'workflow_dispatch' || inputs.mode == 'full'
         env:
