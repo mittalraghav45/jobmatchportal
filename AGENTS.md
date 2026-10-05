@@ -43,6 +43,9 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 16. Public-sector sources use `sourceKind: public_sector`. The current abstraction supports council, university, NHS, Civil Service and other public-body sources without coupling them to matching logic.
 17. Source adapters must preserve `source`, `sourceKind`, `sourceJobId` and `applyUrl` for provenance and deduplication.
 18. A source adapter is responsible for discovery only. It must not classify a job as live or bypass the existing verification pipeline.
+19. The curated discovery seed is `backend/config/companies.csv`. Use `backend/scripts/syncDiscoveryCompanies.js` to synchronise configured companies into MongoDB; do not manually mutate production company records to make a smoke test pass.
+20. `backend/scripts/nightlyDiscovery.js` supports `--companies=a,b,c`. An explicit selection must be deterministic and must never fall back to the default corpus when requested companies are missing.
+21. The discovery GitHub Actions smoke mode is a quality gate. It must fail on missing/unselected requested companies, failed/unconfigured/invalid sources, rejected records or zero discovered jobs.
 
 ## UK eligibility rules
 
@@ -102,6 +105,7 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 - Checkpoint collections must be used for resumability; do not restart a completed range unnecessarily.
 - Before scaling a crawl, inspect a smaller pilot and confirm throughput, error rate, duplicate rate and database health.
 - If a process fails, inspect its run summary/checkpoint before retrying.
+- The curated five-company discovery smoke path has been proven idempotent: a first run discovered 268 jobs, adding 199 and updating 69; a repeat updated existing records without creating duplicates.
 
 ## Codespaces auto-sync
 
@@ -113,8 +117,6 @@ The `.devcontainer/auto-sync.sh` helper keeps the development branch `feat/sourc
 - It never overwrites uncommitted changes.
 - It does not auto-merge divergent histories.
 - Its log is written to `/tmp/jobmatchportal-auto-sync.log`.
-
-This removes the need to manually run `git pull` after agent-side commits during the normal development workflow. If local work is uncommitted, the sync waits until the worktree is clean.
 
 ## Development workflow
 
@@ -139,6 +141,7 @@ Keep these documents current:
 - `docs/API.md` — API endpoints and contracts.
 - `docs/DATA_PIPELINE.md` — company/job discovery, canonicalisation and verification pipeline.
 - `docs/OPERATIONS.md` — commands, parallel runs, monitoring and recovery procedures.
+- `docs/DISCOVERY_OPERATIONS.md` — discovery configuration sync, deterministic smoke testing and CI discovery gates.
 - `docs/CODESPACES.md` — cloud development environment and MongoDB connectivity.
 - `PROJECT_STATUS.md` — current milestone, metrics and known limitations.
 - `docs/PROJECT_HANDOFF.md` — concise context for a new agent/chat.
