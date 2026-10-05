@@ -1,0 +1,46 @@
+name: Discovery PR Validation
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/discovery-pr.yml'
+      - '.github/workflows/job-discovery.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  discovery-validation:
+    name: Discovery validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run full backend test suite
+        run: npm test
+
+      - name: Run deterministic discovery-selection tests
+        run: node --test tests/nightlyDiscoverySelection.test.js
+
+      - name: Syntax-check discovery implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find discovery services scripts tests -name '*.js' -print0)
