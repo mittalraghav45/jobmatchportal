@@ -117,7 +117,9 @@ const APIFY_PAGE_FUNCTION = String.raw`async function pageFunction(context) {
     employmentType: payload.employmentType || '',
     postedAt: payload.postedAt || null,
     closingAt: payload.closingAt || null,
-    sourceCompanyName: payload.companyName || ''
+    sourceCompanyName: payload.companyName || '',
+    companyId: userData.companyId || '',
+    companyName: userData.companyName || payload.companyName || ''
   };
 }`;
 
@@ -189,6 +191,80 @@ export function buildApifyInput(company, {
     waitUntil: 'networkidle',
     closeCookieModals: true,
     maxScrollHeightPixels: 8000
+  };
+}
+
+export function buildApifyBatchInput(companies = [], {
+  maxItems = Number(process.env.APIFY_MAX_ITEMS || 50)
+} = {}) {
+  const cap = Math.max(1, Number(maxItems) || 50);
+  const startUrls = companies.map(company => {
+    const url = apifyCareerUrl(company);
+    if (!url) return null;
+    return {
+      url,
+      userData: {
+        companyId: company.companyId,
+        companyName: company.companyName,
+        type: 'source'
+      }
+    };
+  }).filter(Boolean);
+
+  return {
+    startUrls,
+    linkSelector: '',
+    respectRobotsTxtFile: true,
+    pageFunction: APIFY_PAGE_FUNCTION,
+    proxyConfiguration: { useApifyProxy: true },
+    maxPagesPerCrawl: Math.max(startUrls.length, startUrls.length * (cap + 1)),
+    maxResultsPerCrawl: Math.max(startUrls.length, startUrls.length * (cap + 1)),
+    maxCrawlingDepth: 1,
+    maxConcurrency: Math.min(3, Math.max(1, startUrls.length)),
+    maxRequestRetries: 2,
+    pageLoadTimeoutSecs: 45,
+    pageFunctionTimeoutSecs: 30,
+    waitUntil: 'networkidle',
+    closeCookieModals: true,
+    maxScrollHeightPixels: 8000
+  };
+}
+
+export async function runApifyForCompanies(companies = [], options = {}) {
+  const token = apifyToken();
+  if (!token) throw new Error('APIFY_KEY (or APIFY_TOKEN) is not configured');
+  const actorId = options.actorId || process.env.APIFY_ACTOR_ID || DEFAULT_APIFY_ACTOR_ID;
+  const input = options.input || buildApifyBatchInput(companies, options);
+  if (!input.startUrls?.length) throw new Error('No usable career URLs were supplied to Apify');
+
+  const timeoutMs = Math.max(30000, Number(options.timeoutMs || process.env.APIFY_TIMEOUT_MS || 300000));
+  const url = `https://api.apify.com/v2/actors/${actorPath(actorId)}/run-sync-get-dataset-items`;
+  const response = await axios.post(url, input, {
+    timeout: timeoutMs,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json'
+    },
+    params: {
+      format: 'json',
+      clean: 1,
+      maxTotalChargeUsd: Number(process.env.APIFY_MAX_TOTAL_CHARGE_USD || 2)
+    }
+  });
+
+  const items = Array.isArray(response.data) ? response.data : response.data?.items;
+  if (!Array.isArray(items)) throw new Error('Apify returned no dataset array');
+
+  return {
+    actorId,
+    rawCount: items.length,
+    jobs: items.map(item => {
+      const company = companies.find(candidate => candidate.companyId === item.companyId)
+        || companies.find(candidate => candidate.companyName === item.companyName)
+        || companies[0];
+      return normalizeApifyJob(item, company);
+    }).filter(Boolean)
   };
 }
 
