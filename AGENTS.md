@@ -7,6 +7,7 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 ## Repository map
 
 - `backend/` — Express API, MongoDB models/repositories, discovery, verification, matching and application tooling.
+- `backend/discovery/` — source-agnostic discovery contracts and source adapters.
 - `frontend/` — React/Vite application.
 - `docs/` — architecture, API, operations, data pipeline and handoff documentation.
 - `.github/workflows/` — CI and scheduled discovery/verification/matching automation.
@@ -38,6 +39,10 @@ UK Job Match Portal is a sponsorship-aware UK job discovery, verification and ca
 12. jobs.ac.uk is a multi-employer job board, not an employer-specific ATS. Its search module is therefore a separate source-search path and must not invent or silently create canonical company records merely because a vacancy appears in the board search.
 13. jobs.ac.uk search results must retain their original source URL. If source HTML changes or automated access is blocked, fail explicitly or use the documented RSS path rather than fabricating results.
 14. jobs.ac.uk category searches should use the site's own `academicDisciplineFacet[]` and `subDisciplineFacet[]` parameters. Keyword and location are refinements, not substitutes for the source-side discipline taxonomy.
+15. New discovery integrations must implement the canonical `JobSourceAdapter` contract in `backend/discovery/sourceAdapter.js` and return the normalised job shape.
+16. Public-sector sources use `sourceKind: public_sector`. The current abstraction supports council, university, NHS, Civil Service and other public-body sources without coupling them to matching logic.
+17. Source adapters must preserve `source`, `sourceKind`, `sourceJobId` and `applyUrl` for provenance and deduplication.
+18. A source adapter is responsible for discovery only. It must not classify a job as live or bypass the existing verification pipeline.
 
 ## UK eligibility rules
 
@@ -138,6 +143,7 @@ Keep these documents current:
 - `PROJECT_STATUS.md` — current milestone, metrics and known limitations.
 - `docs/PROJECT_HANDOFF.md` — concise context for a new agent/chat.
 - `docs/MIGRATION_HANDOFF.md` — current context and rules for moving development to a new chat/agent.
+- `docs/PROJECT_WIKI.md` — durable project architecture, matching, discovery and application roadmap.
 - `AGENTS.md` — durable engineering rules for future agents.
 
 When a meaningful architectural or operational decision is made, update the appropriate document rather than relying only on chat history.
