@@ -1,0 +1,78 @@
+name: Job Discovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: false
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - full
+      limit:
+        description: 'Maximum companies to process in full mode'
+        required: false
+        default: '100'
+  schedule:
+    - cron: '0 3 * * 1'
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Sync configured discovery companies
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: node scripts/syncDiscoveryCompanies.js
+      - name: Run discovery smoke test
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke'
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          npm run nightly:discovery -- --companies=vercel,monzo,wise,deliveroo,revolut | tee /tmp/discovery-summary.log
+          node - /tmp/discovery-summary.log <<'NODE'
+          const fs = require('node:fs');
+          const text = fs.readFileSync(process.argv[2], 'utf8');
+          const marker = '=== UNIFIED NIGHTLY DISCOVERY SUMMARY ===';
+          const index = text.lastIndexOf(marker);
+          if (index < 0) throw new Error('Discovery summary not found');
+          const summary = JSON.parse(text.slice(index + marker.length).trim());
+          const failures = [];
+          if (summary.requested !== 5) failures.push(`requested=${summary.requested}`);
+          if (summary.selected !== 5) failures.push(`selected=${summary.selected}`);
+          if ((summary.missing || []).length) failures.push(`missing=${summary.missing.join(',')}`);
+          if (summary.failed !== 0) failures.push(`failed=${summary.failed}`);
+          if (summary.unconfigured !== 0) failures.push(`unconfigured=${summary.unconfigured}`);
+          if (summary.invalid !== 0) failures.push(`invalid=${summary.invalid}`);
+          if (summary.rejected !== 0) failures.push(`rejected=${summary.rejected}`);
+          if (summary.discovered <= 0) failures.push(`discovered=${summary.discovered}`);
+          if (failures.length) {
+            console.error(`Discovery smoke gate failed: ${failures.join('; ')}`);
+            process.exit(1);
+          }
+          console.log(`Discovery smoke gate passed: ${summary.discovered} jobs discovered.`);
+          NODE
+      - name: Run unified ATS discovery
+        if: github.event_name != 'workflow_dispatch' || inputs.mode == 'full'
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          DISCOVERY_LIMIT: ${{ inputs.limit || '100' }}
+        run: npm run nightly:discovery -- --limit="$DISCOVERY_LIMIT"
+      - name: Crawl Google career fallbacks
+        if: github.event_name != 'workflow_dispatch' || inputs.mode == 'full'
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          CRAWL_LIMIT: ${{ inputs.limit || '100' }}
+        run: npm run jobs:crawl-google-fallback -- --limit="$CRAWL_LIMIT"

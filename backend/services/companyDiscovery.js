@@ -1,6 +1,7 @@
 import { getEnabledCompanies } from '../config/companies.js';
 import { discoverWithATS } from '../ats/registry.js';
 import { isSupportedATS, resolveATSConfig } from '../ats/detector.js';
+import { discoverAtsJobs, DEFAULT_ATS_DISCOVERY_SOURCES } from '../discovery/atsSourceRegistry.js';
 import { connectMongo } from '../db/mongoose.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 import { ingestJobs } from './jobIngestion.js';
@@ -36,6 +37,29 @@ export function normaliseCompanyConfig(company = {}) {
   };
 }
 
+async function discoverConfiguredJobs(config) {
+  if (DEFAULT_ATS_DISCOVERY_SOURCES.includes(config.ats)) {
+    return discoverAtsJobs({
+      sources: [config.ats],
+      context: {
+        slug: config.slug,
+        careersUrl: config.careersUrl,
+        companyName: config.companyName,
+        companyId: config.companyId,
+        site: config.atsSite
+      }
+    });
+  }
+
+  return discoverWithATS(config.ats, {
+    slug: config.slug,
+    careersUrl: config.careersUrl,
+    companyName: config.companyName,
+    companyId: config.companyId,
+    site: config.atsSite
+  });
+}
+
 export async function discoverCompanyJobs(company, { existing = new Map(), now, persist = false } = {}) {
   const config = normaliseCompanyConfig(company);
   if (!config.companyId || !config.companyName) return { company: config, status: 'invalid', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'missing_company_id_or_name' }] };
@@ -44,7 +68,7 @@ export async function discoverCompanyJobs(company, { existing = new Map(), now, 
   if (!config.slug && config.ats !== 'nhs' && config.ats !== 'custom') return { company: config, status: 'unconfigured', jobs: [], added: 0, updated: 0, duplicatesRemoved: 0, rejected: [{ reason: 'ats_slug_not_configured' }] };
 
   try {
-    const rawJobs = await discoverWithATS(config.ats, { slug: config.slug, careersUrl: config.careersUrl, companyName: config.companyName, companyId: config.companyId, site: config.atsSite });
+    const rawJobs = await discoverConfiguredJobs(config);
     const tagged = rawJobs.map(job => ({ ...job, companyId: config.companyId, companyName: config.companyName, ats: config.ats }));
     const classified = tagged.map(job => ({ ...job, ...classifyJob({ job, company: config, raw: job }) }));
     const result = ingestJobs(classified, { existing, now });

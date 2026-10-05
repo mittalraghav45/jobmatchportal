@@ -1,6 +1,15 @@
 import React, { useEffect, useState } from 'react';
 
-const API = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+const configuredApiBase = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const browserHost = typeof window !== 'undefined' ? window.location.hostname : '';
+const isLocalBrowser = browserHost === 'localhost' || browserHost === '127.0.0.1' || browserHost === '::1';
+const API = configuredApiBase && (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredApiBase) || isLocalBrowser) ? configuredApiBase : '';
+
+async function readJson(response) {
+  const text = await response.text();
+  if (!text.trim()) throw new Error(`HTTP ${response.status} with empty response`);
+  try { return JSON.parse(text); } catch { throw new Error(`HTTP ${response.status}: invalid JSON response`); }
+}
 
 export default function DiscoveryStatusBar() {
   const [data, setData] = useState(null);
@@ -11,12 +20,12 @@ export default function DiscoveryStatusBar() {
   const refresh = async () => {
     try {
       const response = await fetch(`${API}/api/intelligence/dashboard?runId=${encodeURIComponent(runId)}`);
-      const json = await response.json();
-      if (!response.ok) throw new Error(json.error || `HTTP ${response.status}`);
+      const json = await readJson(response);
+      if (!response.ok) throw new Error(json.error || json.message || `HTTP ${response.status}`);
       setData(json);
       setError('');
     } catch (e) {
-      setError(e.message);
+      setError(e.message || 'Failed to fetch');
     }
   };
 
@@ -34,22 +43,14 @@ export default function DiscoveryStatusBar() {
   return (
     <div className={`discovery-bar discovery-${isRunning ? 'running' : isStale ? 'stale' : d?.status || 'idle'}`}>
       <div className="discovery-inner">
-        <div className="discovery-title">
-          <span className="pulse" /> Discovery pipeline
-        </div>
+        <div className="discovery-title"><span className="pulse" /> Discovery pipeline</div>
         {d ? (
           <>
             <div className="discovery-status-badge">{statusLabel}</div>
-            <div className="discovery-progress" aria-label={`Discovery progress ${d.progressPercent}%`}>
-              <div className="discovery-progress-fill" style={{ width: `${Math.min(100, d.progressPercent || 0)}%` }} />
-            </div>
+            <div className="discovery-progress" aria-label={`Discovery progress ${d.progressPercent}%`}><div className="discovery-progress-fill" style={{ width: `${Math.min(100, d.progressPercent || 0)}%` }} /></div>
             <div className="discovery-metric"><strong>{d.processed.toLocaleString()}</strong> / {d.companyTotal.toLocaleString()} processed</div>
             <div className="discovery-metric"><strong>{d.progressPercent}%</strong></div>
-            {isRunning && d.processing > 0 && (
-              <div className="discovery-live-metric">
-                <strong>{d.processingRemaining.toLocaleString()}</strong> in current batch
-              </div>
-            )}
+            {isRunning && d.processing > 0 && <div className="discovery-live-metric"><strong>{d.processingRemaining.toLocaleString()}</strong> in current batch</div>}
             <div className="discovery-metric">{d.resolved.toLocaleString()} resolved</div>
             <div className="discovery-metric">{d.unresolved.toLocaleString()} unresolved</div>
             <button onClick={() => setOpen(v => !v)} className="discovery-details">{open ? 'Hide' : 'Details'}</button>

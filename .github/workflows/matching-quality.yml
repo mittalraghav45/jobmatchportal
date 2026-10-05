@@ -1,0 +1,100 @@
+name: Matching Quality
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to test (branch, tag, or commit SHA)'
+        required: true
+        default: 'feat/source-backed-job-verification'
+        type: string
+  schedule:
+    - cron: '15 1 * * *'
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  MATCH_PROFILE_ID: default
+  MATCH_BATCH_SIZE: '100'
+
+jobs:
+  matching-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Resolve checkout ref
+        id: ref
+        env:
+          INPUT_REF: ${{ github.event.inputs.ref }}
+        run: |
+          if [ -n "$INPUT_REF" ]; then
+            echo "ref=$INPUT_REF" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout requested ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test
+
+      - name: Run full-corpus matcher
+        working-directory: backend
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          set -o pipefail
+          npm run nightly:matching 2>&1 | tee nightly-matching.log
+
+      - name: Render human-readable quality report
+        if: always()
+        working-directory: backend
+        run: node scripts/renderNightlyReport.js nightly-matching.log > nightly-quality-report.md
+
+      - name: Enforce matcher quality gate
+        if: always()
+        working-directory: backend
+        run: node scripts/enforceNightlyQualityGate.js nightly-matching.log
+
+      - name: Publish quality report to GitHub Summary
+        if: always()
+        working-directory: backend
+        run: |
+          {
+            cat nightly-quality-report.md
+            echo
+            echo '## Automation notes'
+            echo '- Backend tests must pass before the full-corpus matcher runs.'
+            echo '- MatchResult records are upserted; jobs are never deleted by this workflow.'
+            echo '- Sponsorship-unconfirmed is a separate application-readiness state, not a sponsorship claim.'
+            echo '- A FAIL quality gate means the matcher produced at least one Strong result that violates a hard quality invariant.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload matcher evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-matching-${{ github.run_number }}
+          path: |
+            backend/nightly-matching.log
+            backend/nightly-quality-report.md
+          if-no-files-found: ignore
+          retention-days: 14

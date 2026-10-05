@@ -1,5 +1,19 @@
 import mongoose from 'mongoose';
 
+const CandidateProfileVersionSchema = new mongoose.Schema({
+  version: { type: String, required: true },
+  sourceResume: { type: String, default: '' },
+  sourceResumeHash: { type: String, default: '' },
+  importedAt: { type: Date, default: Date.now },
+  summary: { type: String, default: '' },
+  skills: { type: [String], default: [] },
+  education: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  experience: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  certifications: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  targetRoles: { type: [String], default: [] },
+  metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
+}, { _id: false });
+
 const CandidateProfileSchema = new mongoose.Schema({
   profileId: { type: String, required: true, unique: true, index: true },
   name: { type: String, default: '' },
@@ -13,6 +27,8 @@ const CandidateProfileSchema = new mongoose.Schema({
   workAuthorisation: { type: mongoose.Schema.Types.Mixed, default: {} },
   preferences: { type: mongoose.Schema.Types.Mixed, default: {} },
   cvText: { type: String, default: '' },
+  activeVersion: { type: String, default: 'v1', index: true },
+  versions: { type: [CandidateProfileVersionSchema], default: [] },
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true, versionKey: false });
 
@@ -24,7 +40,7 @@ export function sanitiseCandidateProfile(input = {}) {
   const allowed = [
     'name', 'location', 'yearsExperience', 'summary', 'skills',
     'education', 'experience', 'certifications', 'workAuthorisation',
-    'preferences', 'cvText', 'metadata'
+    'preferences', 'cvText', 'activeVersion', 'versions', 'metadata'
   ];
   const output = {};
   for (const key of allowed) {
@@ -39,6 +55,10 @@ export function sanitiseCandidateProfile(input = {}) {
   if (output.skills !== undefined) {
     if (!Array.isArray(output.skills)) throw new Error('skills must be an array');
     output.skills = [...new Set(output.skills.map(String).map(x => x.trim()).filter(Boolean))];
+  }
+  if (output.activeVersion !== undefined) {
+    output.activeVersion = String(output.activeVersion).trim();
+    if (!output.activeVersion) throw new Error('activeVersion must not be empty');
   }
   return output;
 }

@@ -38,3 +38,36 @@ test('produces explainable candidate score and missing skills', () => {
   assert.deepEqual(result.missingSkills, []);
   assert.ok(Object.hasOwn(result.components, 'skillScore'));
 });
+
+test('relevance score rewards direct frontend role fit and exposes explainable components', () => {
+  const frontend = analyseJob({ title:'Frontend Software Engineer', description:'React TypeScript' });
+  const generic = analyseJob({ title:'Software Engineer', description:'React TypeScript' });
+  const frontendScore = scoreCandidateAgainstJob({ cvSkills:['react','typescript'], yearsExperience:2, job:frontend });
+  const genericScore = scoreCandidateAgainstJob({ cvSkills:['react','typescript'], yearsExperience:2, job:generic });
+
+  assert.ok(frontendScore.score > genericScore.score);
+  assert.equal(frontendScore.components.roleScore, 15);
+  assert.equal(frontendScore.components.sponsorshipScore, 5);
+});
+
+test('relevance score penalises senior roles when candidate experience is below target', () => {
+  const mid = analyseJob({ title:'Mid-level Software Engineer', description:'React TypeScript' });
+  const senior = analyseJob({ title:'Senior Software Engineer', description:'React TypeScript' });
+  const midScore = scoreCandidateAgainstJob({ cvSkills:['react','typescript'], yearsExperience:2, job:mid });
+  const seniorScore = scoreCandidateAgainstJob({ cvSkills:['react','typescript'], yearsExperience:2, job:senior });
+
+  assert.ok(midScore.score > seniorScore.score);
+  assert.ok(midScore.components.experienceScore > seniorScore.components.experienceScore);
+});
+
+test('verified sponsorship receives a relevance bonus', () => {
+  const job = analyseJob({ title:'Software Engineer', description:'React TypeScript' });
+  const verified = scoreCandidateAgainstJob({ cvSkills:['react','typescript'], yearsExperience:2, job, sponsorshipStatus:'verified' });
+  const unknown = scoreCandidateAgainstJob({ cvSkills:['react','typescript'], yearsExperience:2, job, sponsorshipStatus:'unknown' });
+  const notSponsor = scoreCandidateAgainstJob({ cvSkills:['react','typescript'], yearsExperience:2, job, sponsorshipStatus:'not-sponsor' });
+
+  assert.ok(verified.score > unknown.score);
+  assert.ok(unknown.score > notSponsor.score);
+  assert.equal(verified.components.sponsorshipScore, 10);
+  assert.equal(notSponsor.components.sponsorshipScore, 0);
+});

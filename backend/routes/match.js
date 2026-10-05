@@ -2,13 +2,17 @@ import express from 'express';
 import { connectMongo } from '../db/mongoose.js';
 import { Job } from '../models/Job.js';
 import { CandidateProfile } from '../models/CandidateProfile.js';
+import { JobMatchCache } from '../models/JobMatchCache.js';
 import { analyseJob, scoreCandidateAgainstJob } from '../jobIntelligence.js';
 import { evaluateSponsorship } from '../sponsorRegistry.js';
 import { getRecommendation } from '../cvJobMatcher.js';
+import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
+import { calculateApplicationPriority } from '../utils/applicationPriority.js';
+import { calculateApplicationReadiness } from '../utils/applicationReadiness.js';
 
 const router = express.Router();
 
-function buildMatch(profile, job, sponsorshipOverride = null) {
+export function buildMatch(profile, job, sponsorshipOverride = null) {
   const analysis = analyseJob({
     title: job.title,
     description: job.description || '',
@@ -20,20 +24,43 @@ function buildMatch(profile, job, sponsorshipOverride = null) {
     closingAt: job.dates?.closingAt || job.closingAt
   });
 
+  const sponsorship = evaluateSponsorship(sponsorshipOverride || job.sponsorship || {});
   const candidateScore = scoreCandidateAgainstJob({
     cvSkills: profile.skills || [],
     yearsExperience: profile.yearsExperience || 0,
     cvText: profile.cvText || '',
-    job: analysis
+    job: analysis,
+    sponsorshipStatus: sponsorship.decision
   });
 
-  const sponsorship = evaluateSponsorship(sponsorshipOverride || job.sponsorship || {});
   const recommendation = getRecommendation(
     candidateScore.score,
     job.status?.isLive !== false,
     analysis.closingAt,
     sponsorship.decision === 'not-sponsor' ? false : null
   );
+
+  const applicationPriority = calculateApplicationPriority({
+    matchScore: candidateScore.score,
+    sponsorship: sponsorship.decision,
+    seniorityLevel: analysis.seniority?.level,
+    isLive: job.status?.isLive !== false,
+    postedAt: analysis.postedAt,
+    closingAt: analysis.closingAt,
+    employerType: job.employerType || 'private'
+  });
+
+  const applicationReadiness = calculateApplicationReadiness({
+    matchScore: candidateScore.score,
+    applicationPriority,
+    isLive: job.status?.isLive !== false,
+    applyUrl: job.applyUrl || job.raw?.applyUrl || '',
+    verificationStatus: job.verification?.status || '',
+    sponsorship: sponsorship.decision,
+    missingSkills: candidateScore.missingSkills,
+    seniorityLevel: analysis.seniority?.level,
+    closingAt: analysis.closingAt
+  });
 
   return {
     score: candidateScore.score,
@@ -43,6 +70,8 @@ function buildMatch(profile, job, sponsorshipOverride = null) {
     seniority: analysis.seniority,
     sponsorship,
     recommendation,
+    applicationPriority,
+    applicationReadiness,
     analysedJob: analysis
   };
 }
@@ -84,8 +113,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Score a candidate against a page of real MongoDB jobs in one request.
-// This is intentionally bounded to keep the endpoint responsive.
 router.post('/jobs', async (req, res) => {
   try {
     await connectMongo();
@@ -94,37 +121,78 @@ router.post('/jobs', async (req, res) => {
     const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 50, 1), 100);
     const requestedPage = Number(req.body?.page ?? 1);
     const page = Math.max(Number.isFinite(requestedPage) ? requestedPage : 1, 1);
-    const skip = (page - 1) * limit;
 
+    const filter = buildVerifiedLiveMatchFilter();
     const [jobs, total] = await Promise.all([
-      Job.find({}).sort({ 'dates.postedAt': -1, postedAt: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
-      Job.countDocuments({})
+      Job.find(filter).sort({ 'dates.lastSeenAt': -1, 'dates.postedAt': -1, createdAt: -1 }).limit(1000).lean(),
+      Job.countDocuments(filter)
     ]);
 
     const companyIds = [...new Set(jobs.map(job => String(job.companyId || '')).filter(Boolean))];
     const { Company } = await import('../models/Company.js');
-    const companies = await Company.find({ companyId: { $in: companyIds } }).select('companyId companyName sponsorship').lean();
+    const companies = await Company.find({ companyId: { $in: companyIds } }).select('companyId companyName sponsorship employerType').lean();
     const companyMap = new Map(companies.map(company => [String(company.companyId), company]));
+
+    const profileId = profile.profileId ? String(profile.profileId) : null;
+    const profileUpdatedAt = profile.updatedAt ? new Date(profile.updatedAt).getTime() : null;
+    const jobFingerprints = jobs.map(job => String(job.fingerprint || '')).filter(Boolean);
+    const cachedMatches = profileId && jobFingerprints.length
+      ? await JobMatchCache.find({ profileId, jobFingerprint: { $in: jobFingerprints } }).lean()
+      : [];
+    const cacheMap = new Map(cachedMatches.map(item => [item.jobFingerprint, item]));
+    const cacheWrites = [];
+    let cacheHits = 0;
+    let cacheMisses = 0;
 
     const matches = jobs.map(job => {
       const company = companyMap.get(String(job.companyId || ''));
-      const match = buildMatch(profile, job, company?.sponsorship || null);
-      return {
-        job,
-        companyName: company?.companyName || job.companyName || 'Unknown company',
-        match
-      };
-    }).sort((a, b) => b.match.score - a.match.score);
+      const enrichedJob = company?.employerType && !job.employerType ? { ...job, employerType: company.employerType } : job;
+      const jobUpdatedAt = job.updatedAt ? new Date(job.updatedAt).getTime() : null;
+      const cached = cacheMap.get(String(job.fingerprint || ''));
+      const cacheValid = profileId && cached
+        && (cached.jobUpdatedAt ? new Date(cached.jobUpdatedAt).getTime() === jobUpdatedAt : jobUpdatedAt === null)
+        && (cached.profileUpdatedAt ? new Date(cached.profileUpdatedAt).getTime() === profileUpdatedAt : profileUpdatedAt === null);
 
+      let match;
+      if (cacheValid) {
+        cacheHits += 1;
+        match = cached.match;
+      } else {
+        cacheMisses += 1;
+        match = buildMatch(profile, enrichedJob, company?.sponsorship || null);
+        if (profileId && job.fingerprint) {
+          cacheWrites.push({
+            updateOne: {
+              filter: { profileId, jobFingerprint: String(job.fingerprint) },
+              update: {
+                $set: {
+                  jobUpdatedAt: job.updatedAt || null,
+                  profileUpdatedAt: profile.updatedAt || null,
+                  score: match.score,
+                  match,
+                  calculatedAt: new Date()
+                }
+              },
+              upsert: true
+            }
+          });
+        }
+      }
+
+      return { job: enrichedJob, companyName: company?.companyName || job.companyName || 'Unknown company', match };
+    }).sort((a, b) => {
+      const priorityDelta = b.match.applicationPriority.score - a.match.applicationPriority.score;
+      return priorityDelta || b.match.score - a.match.score;
+    });
+
+    if (cacheWrites.length) await JobMatchCache.bulkWrite(cacheWrites, { ordered: false });
+
+    const start = (page - 1) * limit;
     return res.json({
       profile: { profileId: profile.profileId || null, name: profile.name || '' },
-      matches,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
-      }
+      matches: matches.slice(start, start + limit),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      performance: { cacheHits, cacheMisses, cacheEnabled: Boolean(profileId) }
     });
   } catch (error) {
     console.error('Bulk match error:', error.message);

@@ -101,18 +101,56 @@ export function analyseJob({title='', description='', location='', employmentTyp
   };
 }
 
-export function scoreCandidateAgainstJob({cvSkills=[], yearsExperience=0, cvText='', job} = {}) {
+function roleFitScore(title = '') {
+  const value = String(title).toLowerCase();
+  if (/frontend|front-end|front end/.test(value)) return 15;
+  if (/full[- ]stack/.test(value)) return 14;
+  if (/software engineer|software developer/.test(value)) return 13;
+  if (/web engineer|web developer/.test(value)) return 12;
+  if (/backend|back-end/.test(value)) return 9;
+  if (/devops|site reliability|sre|cloud|platform|infrastructure/.test(value)) return 8;
+  if (/engineer|developer/.test(value)) return 6;
+  return 2;
+}
+
+function experienceFitScore(seniorityLevel, yearsExperience) {
+  const years = Number.isFinite(Number(yearsExperience)) ? Number(yearsExperience) : 0;
+  if (seniorityLevel === null || seniorityLevel === undefined) return 15;
+  if (seniorityLevel <= 1) return years <= 3 ? 15 : 12;
+  if (seniorityLevel === 2) return years >= 1 ? 15 : 9;
+  if (seniorityLevel === 3) return years >= 4 ? 15 : years >= 2 ? 10 : 5;
+  if (seniorityLevel === 4) return years >= 6 ? 15 : years >= 4 ? 8 : 3;
+  return years >= 8 ? 15 : years >= 5 ? 6 : 1;
+}
+
+function sponsorshipFitScore(status) {
+  if (status === 'verified' || status === 'sponsor') return 10;
+  if (status === 'not-sponsor') return 0;
+  return 5;
+}
+
+export function scoreCandidateAgainstJob({cvSkills=[], yearsExperience=0, cvText='', job, sponsorshipStatus=null} = {}) {
   const skills = unique(cvSkills);
   const required = unique(job?.technicalSkills || []);
   const matchedSkills = required.filter(skill => skills.includes(skill) || has(String(cvText || ''), skill));
   const missingSkills = required.filter(skill => !matchedSkills.includes(skill));
   const skillScore = required.length ? (matchedSkills.length / required.length) * 45 : 45;
-  const title = String(job?.title || '').toLowerCase();
-  const roleScore = /engineer|developer|software|frontend|front-end|backend|back-end|full-stack|full stack|web/.test(title) ? 20 : 5;
-  const seniority = job?.seniority?.level;
-  const experienceScore = seniority === null || seniority === undefined ? 15 : seniority <= 2 && yearsExperience >= 1 ? 15 : seniority <= 3 && yearsExperience >= 2 ? 15 : 7;
+  const roleScore = roleFitScore(job?.title);
+  const experienceScore = experienceFitScore(job?.seniority?.level, yearsExperience);
   const criteriaText = [...(job?.criteria?.essential || []), ...(job?.criteria?.desirable || [])].join(' ');
-  const evidenceScore = criteriaText && cvText ? Math.min(20, Math.round((criteriaText.split(/\s+/).filter(w => w.length > 5 && has(cvText.toLowerCase(), w.toLowerCase())).length / Math.max(1, criteriaText.split(/\s+/).filter(w => w.length > 5).length)) * 20)) : 0;
-  const score = Math.min(100, Math.round(skillScore + roleScore + experienceScore + evidenceScore));
-  return {score, matchedSkills, missingSkills, components:{skillScore:Math.round(skillScore), roleScore, experienceScore, evidenceScore}};
+  const evidenceScore = criteriaText && cvText ? Math.min(15, Math.round((criteriaText.split(/\s+/).filter(w => w.length > 5 && has(cvText.toLowerCase(), w.toLowerCase())).length / Math.max(1, criteriaText.split(/\s+/).filter(w => w.length > 5).length)) * 15)) : 0;
+  const sponsorshipScore = sponsorshipFitScore(sponsorshipStatus);
+  const score = Math.min(100, Math.round(skillScore + roleScore + experienceScore + evidenceScore + sponsorshipScore));
+  return {
+    score,
+    matchedSkills,
+    missingSkills,
+    components: {
+      skillScore: Math.round(skillScore),
+      roleScore,
+      experienceScore,
+      evidenceScore,
+      sponsorshipScore
+    }
+  };
 }
