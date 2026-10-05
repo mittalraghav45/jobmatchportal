@@ -42,8 +42,10 @@ try {
     // UK eligibility must be based on explicit location evidence. A populated
     // `nation` field alone is NOT evidence of UK; this prevents Finland (and
     // other international jobs) from being counted as UK merely because the
-    // field exists.
-    const uk = isUkJobLocation(job.location);
+    // field exists. If location is absent, the canonical nation field is used
+    // as the fallback evidence.
+    const locationEvidence = String(job.location || '').trim() || String(job.nation || '').trim();
+    const uk = isUkJobLocation(locationEvidence);
     if (uk) classification.uk += 1;
     else classification.nonUk += 1;
 
