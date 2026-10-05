@@ -27,7 +27,7 @@ function actorPath(actorId) {
 }
 
 function firstUrl(...values) {
-  return values.map(value => String(value || '').trim()).find(value => /^https?:\\/\\/i.test(value)) || '';
+  return values.map(value => String(value || '').trim()).find(value => value.startsWith('http://') || value.startsWith('https://')) || '';
 }
 
 export function isApifyConfigured() {
