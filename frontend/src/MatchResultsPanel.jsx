@@ -36,6 +36,8 @@ export default function MatchResultsPanel() {
   const [busyJob, setBusyJob] = useState('')
   const [fit, setFit] = useState('')
   const [minimumScore, setMinimumScore] = useState(0)
+  const [employerType, setEmployerType] = useState('')
+  const [nation, setNation] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -43,6 +45,8 @@ export default function MatchResultsPanel() {
     try {
       const params = new URLSearchParams({ limit: '50', minimumScore: String(minimumScore) })
       if (fit) params.set('applicationFit', fit)
+      if (employerType) params.set('employerType', employerType)
+      if (nation) params.set('nation', nation)
       const response = await fetch(`${API_BASE_URL}/api/match-results?${params}`)
       const data = await readJson(response)
       if (!response.ok) throw new Error(data.error || data.message || `Request failed (${response.status})`)
@@ -63,7 +67,7 @@ export default function MatchResultsPanel() {
       setError(err.message || 'Unable to load match results')
       setMatches([])
     } finally { setLoading(false) }
-  }, [fit, minimumScore])
+  }, [fit, minimumScore, employerType, nation])
 
   useEffect(() => { load() }, [load])
 
@@ -113,6 +117,8 @@ export default function MatchResultsPanel() {
         <div className="flex gap-2">
           <select value={fit} onChange={e => setFit(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs"><option value="">All fits</option><option value="strong">Strong — sponsorship confirmed</option><option value="strong_unconfirmed_sponsorship">Strong — sponsorship unconfirmed</option><option value="possible">Possible</option><option value="weak">Weak</option></select>
           <select value={minimumScore} onChange={e => setMinimumScore(Number(e.target.value))} className="bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs">{[0,60,70,80,90].map(value => <option key={value} value={value}>{value}+ score</option>)}</select>
+          <select value={employerType} onChange={e => setEmployerType(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs" aria-label="Employer sector"><option value="">All UK employers</option><option value="private">Private</option><option value="councils">Councils</option><option value="universities">Universities</option><option value="nhs">NHS</option><option value="dwp">DWP</option></select>
+          <select value={nation} onChange={e => setNation(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs" aria-label="UK nation"><option value="">All UK</option><option value="England">England</option><option value="Scotland">Scotland</option><option value="Wales">Wales</option><option value="Northern Ireland">Northern Ireland</option><option value="UK-wide">UK-wide</option></select>
           <button onClick={load} className="bg-violet-600 hover:bg-violet-700 text-white rounded px-3 py-1.5 text-xs">Refresh</button>
         </div>
       </div>
