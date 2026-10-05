@@ -46,13 +46,17 @@ function exclusions(job, profile) {
 function experienceFit(job, profile) {
   const years = Number(profile?.yearsExperience ?? 0);
   const title = textFor(job);
-  const senior = /\b(senior|staff|principal|lead|head of|director)\b/.test(title);
-  const earlyCareer = /\b(intern|internship|new grad|graduate|graduate programme|graduate program)\b/.test(title);
-  if (earlyCareer) return { score: 0.15, reason: 'early_career_role_mismatch' };
-  if (!years) return { score: 0.5, reason: null };
-  if (years < 2 && senior) return { score: 0.2, reason: 'experience_gap_for_seniority' };
-  if (years < 4 && senior) return { score: 0.65, reason: 'seniority_caution' };
-  return { score: 1, reason: 'experience_match' };
+  const management = /\b(engineering manager|technology manager|engineering director|director of engineering|head of engineering)\b/.test(title);
+  const principal = /\b(staff|principal|director|head of)\b/.test(title);
+  const lead = /\b(technical lead|engineering lead|tech lead)\b/.test(title);
+  const senior = /\bsenior\b/.test(title);
+  const earlyCareer = /\b(intern|internship|new grad|graduate|graduate programme|graduate program|apprentice|trainee)\b/.test(title);
+
+  if (management || principal || lead) return { score: 0, status: 'far_above_target', reason: 'seniority_above_target' };
+  if (earlyCareer) return { score: 0.15, status: 'below_target', reason: 'early_career_role_mismatch' };
+  if (!years) return { score: senior ? 0.65 : 0.5, status: senior ? 'senior_caution' : 'unknown', reason: senior ? 'seniority_caution' : null };
+  if (years < 4 && senior) return { score: 0.45, status: 'above_target', reason: 'seniority_caution' };
+  return { score: 1, status: senior ? 'above_target' : 'match', reason: 'experience_match' };
 }
 
 export function matchJobToCandidate(job, profile = {}) {
@@ -72,16 +76,18 @@ export function matchJobToCandidate(job, profile = {}) {
   const strongCoreMatch = base.components.title >= 75 && base.components.skills >= 75 && roleCompatibility.score >= 0.7;
   const trustedFreshJob = base.components.verification >= 100 && base.components.freshness >= 80;
   const sponsorshipBlocked = sponsorship.status === 'explicitly_unavailable';
-  const roleMismatch = roleCompatibility.status === 'mismatch';
+  const roleMismatch = ['mismatch', 'specialisation_mismatch'].includes(roleCompatibility.status);
+  const hardSeniorityMismatch = experience.status === 'far_above_target';
   const earlyCareerMismatch = experience.reason === 'early_career_role_mismatch';
 
-  const matchStrength = !roleMismatch && !earlyCareerMismatch && strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65
+  const matchStrength = !roleMismatch && !hardSeniorityMismatch && !earlyCareerMismatch && strongCoreMatch && trustedFreshJob && !sponsorshipBlocked && experience.score >= 0.65
     ? 'strong'
-    : (matchScore >= 65 && !sponsorshipBlocked && !roleMismatch && !earlyCareerMismatch && roleCompatibility.score >= 0.7 ? 'possible' : 'weak');
+    : (matchScore >= 65 && !sponsorshipBlocked && !roleMismatch && !hardSeniorityMismatch && !earlyCareerMismatch && roleCompatibility.score >= 0.7 ? 'possible' : 'weak');
   const strongApplicationCandidate = matchStrength === 'strong' && sponsorship.status === 'confirmed';
 
   if (strongApplicationCandidate) matchScore = Math.max(matchScore, 85);
   if (roleMismatch) matchScore = Math.min(matchScore, 45);
+  if (hardSeniorityMismatch) matchScore = Math.min(matchScore, 30);
   if (earlyCareerMismatch) matchScore = Math.min(matchScore, 45);
   if (excluded) matchScore = Math.min(matchScore, 20);
 
@@ -90,16 +96,18 @@ export function matchJobToCandidate(job, profile = {}) {
   if (experience.reason) reasons.push(experience.reason);
   if (roleCompatibility.status === 'match') reasons.push('role_family_match');
   if (roleCompatibility.status === 'adjacent') reasons.push('role_family_adjacent');
+  if (roleCompatibility.status === 'specialisation_mismatch') reasons.push('role_specialisation_mismatch');
   if (roleCompatibility.status === 'mismatch') reasons.push('role_family_mismatch');
   if (strongCoreMatch) reasons.push('strong_core_match');
   if (matchStrength === 'strong') reasons.push('strong_match');
   if (strongApplicationCandidate) reasons.push('strong_application_candidate');
+  if (hardSeniorityMismatch) reasons.push('seniority_above_target');
   if (excluded) reasons.push(`excluded_keyword:${normalise(excluded)}`);
 
   let applicationFit = matchStrength;
   if (strongApplicationCandidate) applicationFit = 'strong';
   else if (matchStrength === 'strong' && sponsorship.status === 'unconfirmed') applicationFit = 'strong_unconfirmed_sponsorship';
-  if (excluded || sponsorshipBlocked) applicationFit = 'weak';
+  if (excluded || sponsorshipBlocked || hardSeniorityMismatch) applicationFit = 'weak';
 
   return {
     matchScore: Math.max(0, Math.min(100, matchScore)),
@@ -112,9 +120,12 @@ export function matchJobToCandidate(job, profile = {}) {
       roleCompatibilityStatus: roleCompatibility.status,
       roleFamilies: roleCompatibility.jobFamilies,
       candidateRoleFamilies: roleCompatibility.candidateFamilies,
+      roleSpecialisations: roleCompatibility.jobSpecialisations,
+      candidateRoleSpecialisations: roleCompatibility.candidateSpecialisations,
       sponsorship: Math.round(sponsorship.score * 100),
       sponsorshipStatus: sponsorship.status,
-      experience: Math.round(experience.score * 100)
+      experience: Math.round(experience.score * 100),
+      experienceStatus: experience.status
     }
   };
 }
