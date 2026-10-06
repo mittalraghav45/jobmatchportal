@@ -36,6 +36,7 @@ jobs:
           APIFY_TEST_MAX_ITEMS: '10'
           APIFY_MAX_TOTAL_CHARGE_USD: '0.50'
           APIFY_TIMEOUT_MS: '240000'
+          APIFY_MIN_REMAINING_USD: '0.50'
           APIFY_FULL_BATCH_SIZE: '50'
           APIFY_REQUIRE_JOBS: 'true'
         run: node scripts/apifyUnresolvedBatch.js --batch=0 --limit=50
@@ -109,7 +110,7 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 2
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     defaults:
       run:
@@ -130,6 +131,7 @@ jobs:
           APIFY_TEST_MAX_ITEMS: '10'
           APIFY_MAX_TOTAL_CHARGE_USD: '0.50'
           APIFY_TIMEOUT_MS: '240000'
+          APIFY_MIN_REMAINING_USD: '0.50'
           APIFY_FULL_BATCH_SIZE: '100'
         run: node scripts/apifyUnresolvedBatch.js --batch=${{ matrix.batch }} --limit=100 --company-ids='${{ matrix.companyIds }}'
 
