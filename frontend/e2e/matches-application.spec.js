@@ -135,7 +135,7 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'My Matches', exact: true }).click();
 
-  await expect(page.getByRole('heading', { name: 'My Matches' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My Matches' }).first()).toBeVisible();
   await expect(page.getByText('Software Engineer – Query Engines')).toBeVisible();
   await expect(page.getByText('78%')).toBeVisible();
   await expect(page.getByText('unknown')).toBeVisible();
