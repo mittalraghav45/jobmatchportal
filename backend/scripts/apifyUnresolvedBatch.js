@@ -83,6 +83,7 @@ let updated = 0;
 let mismatched = 0;
 
 for (const company of valid) {
+  if (!result.attemptedCompanyIds?.includes(company.companyId)) continue;
   const companyJobs = result.jobs.filter(job => job.companyId === company.companyId);
   const companyError = result.errors.find(error => error.companyId === company.companyId);
   if (companyJobs.length) {
@@ -113,10 +114,11 @@ for (const company of valid) {
 }
 
 const fatalError = result.errors.find(error => error.fatal);
-const summary = { batch, skip, requested: candidates.length, valid: valid.length, rejected: rejected.length, suspicious: suspicious.length, successful, failed, discovered, added, updated, mismatched, errors: result.errors.length, fatalError: fatalError ? { companyId: fatalError.companyId, status: fatalError.status, error: fatalError.error } : null };
+const stoppedOnFailure = result.stoppedOnFailure;
+const summary = { batch, skip, requested: candidates.length, valid: valid.length, rejected: rejected.length, suspicious: suspicious.length, successful, failed, discovered, added, updated, mismatched, errors: result.errors.length, stoppedOnFailure, fatalError: fatalError ? { companyId: fatalError.companyId, status: fatalError.status, error: fatalError.error } : null };
 console.log(JSON.stringify(summary, null, 2));
 
-if (fatalError) throw new Error(`Fatal Apify failure; stopping batch to protect quota: ${fatalError.error}`);
+if (stoppedOnFailure) throw new Error(`Apify stopped the batch after a service, quota, authentication, or capacity failure: ${fatalError?.error || result.errors.at(-1)?.error || 'unknown failure'}`);
 if (mismatched > 0) throw new Error(`Company attribution gate failed: ${mismatched} mismatched jobs`);
 if (result.errors.length > Math.ceil(valid.length * 0.25)) throw new Error(`Apify error rate too high: ${result.errors.length}/${valid.length}`);
 if (requireJobs && discovered === 0) throw new Error('Apify pilot produced zero jobs; refusing to scale to the full corpus');
