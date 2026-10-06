@@ -1,19 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildApifyInput, normalizeApifyJob } from '../services/apifyJobDiscovery.js';
+import { buildApifyInput, buildApifyBatchInput, normalizeApifyJob } from '../services/apifyJobDiscovery.js';
 
-test('builds bounded Apify career-site input for technical roles', () => {
+test('builds input for the configured career-site Actor schema', () => {
   const input = buildApifyInput({
     companyId: 'example',
     companyName: 'Example Council',
     careersUrl: 'https://example.gov.uk/careers'
-  }, { maxItems: 10, includeDescription: false, includeSkills: false });
+  }, { maxItems: 10, includeDescription: true });
 
-  assert.equal(input.startUrls[0].url, 'https://example.gov.uk/careers');
-  assert.equal(input.startUrls[0].userData.companyId, 'example');
-  assert.equal(input.respectRobotsTxtFile, true);
-  assert.equal(typeof input.pageFunction, 'string');
-  assert.match(input.pageFunction, /enqueueRequest/);
+  assert.deepEqual(input.careerSiteUrls, ['https://example.gov.uk/careers']);
+  assert.equal(input.maxItems, 10);
+  assert.equal(input.includeDescription, true);
+  assert.ok(Array.isArray(input.searchTerms));
+  assert.ok(input.searchTerms.includes('software engineer'));
+});
+
+test('builds one bounded batch request for multiple unresolved companies', () => {
+  const input = buildApifyBatchInput([
+    { companyId: 'a', companyName: 'A', careersUrl: 'https://a.example/careers' },
+    { companyId: 'b', companyName: 'B', careersUrl: 'https://b.example/careers' }
+  ], { maxItems: 10 });
+
+  assert.deepEqual(input.careerSiteUrls, [
+    'https://a.example/careers',
+    'https://b.example/careers'
+  ]);
+  assert.equal(input.maxItems, 10);
 });
 
 test('normalizes Apify output into the canonical job shape and classifies UK metadata', () => {
@@ -21,7 +34,7 @@ test('normalizes Apify output into the canonical job shape and classifies UK met
     jobId: '123',
     title: 'Software Engineer',
     location: 'Cardiff, Wales',
-    description: 'Build web applications with TypeScript and React.',
+    descriptionSnippet: 'Build web applications with TypeScript and React.',
     jobUrl: 'https://jobs.example.com/123',
     applyUrl: 'https://jobs.example.com/123/apply',
     ats: 'workday',
