@@ -155,3 +155,8 @@ live + closed + unknown + unverified = total jobs
 ## Updating this document
 
 Do not invent endpoints from memory. Inspect the route definitions and tests, then update the contract from the implementation.
+
+
+## Apify discovery fallback
+
+The unresolved-company discovery worker may call the configured Apify Actor through the Apify HTTP API. The current default is `parseforge/career-site-jobs-scraper`. It accepts `careerSiteUrls` plus bounded technical `searchTerms` and returns structured job rows. `APIFY_KEY` is supplied from the runtime/Actions secret and is never returned by the application.

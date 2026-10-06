@@ -6,6 +6,8 @@ A local UK job-discovery and application-support platform for sponsorship-aware 
 
 ## Current architecture
 
+> Current discovery note: Apify is integrated as a bounded fallback for unresolved career sites. The first 10-company pilot reached Apify successfully but returned 0 jobs, so the Actor/input strategy is not yet proven productive.
+
 ```text
 Frontend (React/Vite)
         |
@@ -73,6 +75,14 @@ A failing test prevents the matcher from running. The workflow is deliberately b
 
 ## Discovery adapters
 
+### Apify fallback
+
+`backend/services/apifyJobDiscovery.js` calls a configurable Apify Actor using `APIFY_KEY`, normalises returned jobs and sends them through the existing canonical ingestion path. It is a fallback only; source-backed verification remains mandatory. The initial 10-company pilot selected 10 unresolved employers and returned 0 jobs from the current Actor, so broader rollout is paused pending Actor/input validation.
+
+### Public-sector filters
+
+Match results now support server-side employer-type filters for private, councils, universities, NHS and DWP, plus nation filters for England, Scotland, Wales, Northern Ireland and UK-wide.
+
 New source families should implement the canonical contract in:
 
 ```text
@@ -112,6 +122,14 @@ Application-level safeguards currently default to:
 The real Serper API smoke test has succeeded in Codespaces. The API key is supplied through the `SERPER_API_KEY` environment secret and must never be committed.
 
 Serper-discovered records still pass through canonical ingestion/deduplication and the existing source-backed verification pipeline before they can become verified-live jobs.
+
+## Apify discovery fallback
+
+The portal can use Apify as a bounded fallback for unresolved company career sources. It reads public career/ATS pages through the configured Apify Actor, normalises returned jobs into the canonical ingestion pipeline, classifies UK nation/employer type, and preserves the source/apply URL. The repository uses the `APIFY_KEY` Actions secret; the Actor is configurable with `APIFY_ACTOR_ID`.
+
+A bounded integration smoke test is available with `npm run test:apify-unresolved -- --limit=10`; it selects distinct unresolved companies with real career/website URLs and persists only UK-classified results through the canonical job repository.
+
+The production discovery path remains source-first: configured ATS/public-sector adapters run first, and Apify is used only when they return no jobs for a company with a usable career URL. Apify does not write directly to MongoDB; all results pass through the existing ingestion and deduplication layer.
 
 ## Job identity and verification
 
@@ -267,6 +285,9 @@ npm run build
 GitHub Actions runs backend tests and frontend builds automatically when relevant code changes.
 
 ## Security rules
+
+- Keep `APIFY_KEY` in GitHub Actions/Codespaces secrets; never commit or print it.
+- Apify output is discovery evidence, not live-job verification.
 
 - Never put OpenAI, Perplexity or MongoDB credentials in source files.
 - Never commit `.env` files.

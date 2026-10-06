@@ -3,6 +3,29 @@
 ## Canonical flow
 
 ```text
+Company/source configuration
+        |
+        +--> direct ATS/public-sector discovery
+        +--> bounded Serper discovery
+        +--> Apify fallback for unresolved career sites
+        |
+        v
+Canonical job records
+        |
+        v
+Fingerprint deduplication/upsert
+        |
+        v
+Source-backed verification
+        |
+        v
+UK + live + verified + technology eligibility
+        |
+        v
+Candidate matching -> API/frontend
+```
+
+```text
 21,516-company protected population
         |
         +--> direct/ATS discovery
@@ -83,6 +106,18 @@ For large runs, company ranges may be processed in parallel. Ranges must not ove
 
 ## Discovery
 
+1. Prefer direct ATS/source adapters.
+2. Use configured public-sector sources where official machine-readable routes exist.
+3. Use Serper only as a bounded discovery aid.
+4. Use Apify as a bounded fallback for employer career/website URLs when primary discovery produces no jobs.
+5. Preserve source/application URLs and canonical identity.
+6. Route all records through canonical ingestion and deduplication.
+7. Verification remains separate from discovery.
+
+### Apify pilot result
+
+The 10-company smoke test selected 10 unresolved employers and reached Apify successfully for all 10, but returned zero jobs. The integration is therefore wired and authenticated, but the current Actor/input combination is not yet demonstrated to produce useful coverage.
+
 1. Prefer direct company careers/ATS sources.
 2. If direct discovery produces no jobs, a Google fallback URL may be recorded as a discovery aid.
 3. The bounded crawler may follow careers pages, recognised ATS boards and individual job links.
@@ -100,6 +135,8 @@ The current script enforces application-level budgets of 2 queries per company a
 Source-page crawling uses the existing careers crawler's structured JobPosting extraction and job-link classification before canonical ingestion. A Serper search result or snippet alone is never considered live-job evidence.
 
 ## Google fallback
+
+Google fallback has been removed from the production nightly discovery workflow after prior zero-yield/429 behaviour. Do not treat Google as the generic production fallback; Apify is the current bounded fallback under evaluation.
 
 A Google fallback URL is stored when direct discovery does not produce a job. It is a discovery aid only.
 

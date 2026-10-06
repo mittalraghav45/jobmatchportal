@@ -13,6 +13,7 @@ npm run jobs:analyse-unknown
 npm run jobs:google-fallback
 npm run jobs:crawl-google-fallback -- --limit=100
 npm run jobs:serper -- --limit=5 --per-query=5 --max-queries=10
+npm run test:apify-unresolved -- --limit=10
 ```
 
 Run expensive network jobs deliberately; do not repeatedly rerun a full population without a reason.
@@ -44,6 +45,16 @@ Default application-level safeguards:
 `--max-queries` and `--max-queries-per-company` are hard application-level caps. They do not change the quota or billing rules enforced by Serper.
 
 The pipeline may crawl retained career/ATS source pages and extract structured `JobPosting` records or individual job links. All discovered records still require canonical ingestion and source-backed verification. Never treat a Serper snippet or generic career page as proof that a vacancy is live.
+
+## Apify unresolved-company pilot
+
+Run the bounded pilot before any wider rollout:
+
+```bash
+npm run test:apify-unresolved -- --limit=10
+```
+
+The workflow supplies `APIFY_KEY` from the GitHub Actions secret and uses `parseforge/career-site-jobs-scraper` by default. The pilot caps results to 10 jobs per run and caps total Apify charge at the configured `APIFY_MAX_TOTAL_CHARGE_USD` value. Results are persisted only when they have a UK nation classification and retain the original job/apply URL. Apify is discovery evidence; source-backed verification still has to run before a job is treated as verified-live. If the pilot yields zero jobs, do not scale it; inspect the selected career URLs and Actor input contract first.
 
 ## Large-scale discovery
 

@@ -33,11 +33,29 @@
 - Add recruiter-readable previews and ATS keyword/evidence views.
 
 ## Phase 6 — Discovery automation
+- Expand ATS/public-sector coverage.
+- Add scheduled scans, change detection and stale-job handling.
+- Keep source verification and timestamps visible.
+- Use Apify as a bounded fallback for unresolved employer career sites.
+- Require a measured pilot with useful jobs before broad Apify rollout.
+- Produce sector/nation-specific application queues.
 - Expand ATS coverage and company discovery.
 - Add scheduled scans, change detection and stale-job handling.
 - Keep source verification and timestamps visible.
 
 ## Current implementation
+- Specialist routing engine added.
+- Commercial and NHS/Public Sector prompt layers separated.
+- Sponsorship evidence model added.
+- Source-backed verification and source-first discovery added.
+- Public-sector nation/employer filters added and tested.
+- Apify API fallback added; first 10-company pilot returned zero jobs, so Actor/input selection remains the active limitation.
+
+### Next priority
+1. Validate/select a productive Apify Actor/input strategy.
+2. Rerun the same 10-company pilot and require useful job yield.
+3. Enable broader Apify discovery only after that pilot passes.
+4. Re-run canonical matching and produce application-ready shortlists.
 - Specialist routing engine added.
 - Commercial All in One and NHS/Public Sector prompt layers separated.
 - Public-sector output includes supporting statement and evidence matrix instructions.

@@ -4,6 +4,7 @@ import { CandidateProfile, DEFAULT_PROFILE_ID } from '../models/CandidateProfile
 import { matchJobToCandidate } from './candidateMatching.js';
 import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
 import { isUkJobLocation } from '../utils/ukJobLocation.js';
+import { buildMatchResultJobFilter, validateMatchResultFilters } from '../utils/matchResultFilters.js';
 
 function activeProfileVersion(profile) {
   return String(profile?.activeVersion || profile?.metadata?.version || 'v1');
@@ -80,6 +81,7 @@ export async function persistJobMatches({ profileId = DEFAULT_PROFILE_ID, jobs }
 }
 
 export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, profileVersion, page = 1, limit = 20, minimumScore = 0, applicationFit, employerType, nation }) {
+  ({ applicationFit, employerType, nation } = validateMatchResultFilters({ applicationFit, employerType, nation }));
   const id = String(profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
   const profile = await CandidateProfile.findOne({ profileId: id }).select('activeVersion metadata.version').lean();
   const selectedProfileVersion = String(profileVersion || profile?.activeVersion || profile?.metadata?.version || 'v1');
@@ -95,8 +97,7 @@ export async function listPersistedMatches({ profileId = DEFAULT_PROFILE_ID, pro
   }
 
   const eligibleJobFilter = buildVerifiedLiveMatchFilter(null);
-  if (employerType) eligibleJobFilter.employerType = employerType;
-  if (nation) eligibleJobFilter.nation = nation;
+  Object.assign(eligibleJobFilter, buildMatchResultJobFilter({ employerType, nation }));
   const eligibleJobs = await Job.find(eligibleJobFilter).select('_id').lean();
   const eligibleJobIds = eligibleJobs.map(job => job._id);
   if (!eligibleJobIds.length) {

@@ -1,8 +1,8 @@
-# Project Status — 2026-10-04
+# Project Status — 2026-10-06
 
 ## Current milestone
 
-Source-backed job verification, frontend-ready filtering, sponsorship-aware filtering and explainable profile-to-job matching are operational. The current development focus is bounded Serper discovery and connecting it safely into the existing source-backed verification pipeline without weakening the evidence contract.
+Source-backed job verification, frontend-ready filtering, sponsorship-aware filtering and explainable profile-to-job matching are operational. The current development focus is bounded unresolved-company discovery through Serper and the Apify fallback, followed by source-backed verification without weakening the evidence contract.
 
 ## Serper discovery checkpoint
 
@@ -85,6 +85,12 @@ Latest targeted matching checkpoint:
 0 failed
 ```
 
+## Apify unresolved-company pilot
+
+The Apify fallback is implemented in `backend/services/apifyJobDiscovery.js` using the normal Apify HTTP API from the Node discovery worker; Apify MCP is not part of the production architecture.
+
+The pilot now executes one Actor run per unresolved company, sequentially. This is deliberate: the Actor's `maxItems` is a run-level output cap, so a shared multi-company run could starve later companies, while per-company execution preserves attribution and surfaces individual failures. The existing matcher is unchanged.
+
 ## Current architecture
 
 ```text
@@ -134,6 +140,7 @@ application workflow
 - Frontend live verified-job integration and recoverable API failure handling.
 - Application dashboard and application lifecycle tooling.
 - Codespaces auto-sync for the active development branch.
+- Bounded Apify fallback with per-company attribution and explicit per-company failure reporting.
 - Durable agent and migration handoff documentation.
 
 ## Known limitations
@@ -152,4 +159,5 @@ application workflow
 3. Add focused relevance tests rather than repeatedly running the full suite.
 4. Complete vacancy → match → application integration.
 5. Run the complete backend suite at integration checkpoints and frontend build after frontend changes.
-6. Reconcile data/status documentation after meaningful discovery or verification changes.
+6. Keep Apify fallback bounded while validating real unresolved-company coverage.
+7. Reconcile data/status documentation after meaningful discovery or verification changes.

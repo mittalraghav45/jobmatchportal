@@ -1,0 +1,38 @@
+name: Match Result Filter Test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend/routes/matchResults.js'
+      - 'backend/services/matchPersistence.js'
+      - 'backend/utils/matchResultFilters.js'
+      - 'backend/scripts/testMatchResultFilters.js'
+      - 'backend/tests/matchResultFilters.test.js'
+      - '.github/workflows/match-filter-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  match-filters:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Run unit filter tests
+        run: npm test
+      - name: Run MongoDB-backed filter tests
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MATCH_PROFILE_ID: default
+        run: npm run test:match-filters
