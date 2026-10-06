@@ -72,13 +72,13 @@ async function main() {
   let ukJobs = 0;
   let persisted = 0;
 
-  let batch;
-  try {
-    batch = await runApifyForCompanies(companies, {
-      maxItems: Math.min(10, Number(process.env.APIFY_TEST_MAX_ITEMS || 10))
-    });
-  } catch (error) {
-    throw new Error(`Apify batch failed: ${error.response?.data?.error?.message || error.message}`);
+  const batch = await runApifyForCompanies(companies, {
+    maxItems: Math.min(10, Number(process.env.APIFY_TEST_MAX_ITEMS || 10))
+  });
+
+  if (batch.errors?.length) {
+    console.error('Apify company errors:');
+    for (const error of batch.errors) console.error(JSON.stringify(error));
   }
 
   for (const company of companies) {

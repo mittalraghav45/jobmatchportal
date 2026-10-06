@@ -91,15 +91,14 @@ The production strategy is source-first. Known ATS/public-sector sources are pre
 
 Apify is implemented in `backend/services/apifyJobDiscovery.js`. It uses `APIFY_KEY`, a configurable Actor ID, normalises dataset records and sends them through canonical ingestion. It never marks a job live/verified and never bypasses deduplication.
 
-The first live 10-company Apify pilot reached the API successfully for all 10 selected unresolved companies but returned zero jobs. This proves authentication/integration, not useful coverage; Actor/input validation is required before scaling.
+The unresolved-company Apify pilot now runs one career site per Actor invocation. `maxItems` is therefore scoped to the individual company run, results are attributed only to the company whose URL was submitted, and per-company Actor failures are retained in the test output. The pilot remains bounded and sequential so concurrent Actor launches do not amplify account-level resource pressure. Apify output still passes through canonical normalisation/upsert and does not imply live/verified status.
 
 The company population is protected at 21,516 companies. Large discovery runs can be split into non-overlapping ranges and executed concurrently. Each range uses a unique run ID and checkpoint state.
 
 Discovery flow:
 
 1. Direct company/ATS discovery.
-2. Google fallback when direct discovery produces no jobs.
-3. Bounded Serper discovery for sponsor-company job search.
+2. Bounded Serper discovery for sponsor-company job search.
 4. When Serper returns a useful career/ATS source page rather than an individual posting, crawl that page for structured `JobPosting` data and job links.
 5. Canonicalisation and fingerprint-based upsert.
 6. Incremental source-backed verification.
