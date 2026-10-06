@@ -90,15 +90,14 @@ export function buildApifyBatchInput(companies = [], {
   };
 }
 
-export async function runApifyForCompanies(companies = [], options = {}) {
+async function runApifyRequest(input, options = {}) {
   const token = apifyToken();
   if (!token) throw new Error('APIFY_KEY (or APIFY_TOKEN) is not configured');
 
   const actorId = options.actorId || process.env.APIFY_ACTOR_ID || DEFAULT_APIFY_ACTOR_ID;
-  const input = options.input || buildApifyBatchInput(companies, options);
   const timeoutMs = Math.max(30000, Number(options.timeoutMs || process.env.APIFY_TIMEOUT_MS || 300000));
-
   const url = `https://api.apify.com/v2/actors/${actorPath(actorId)}/run-sync-get-dataset-items`;
+
   const response = await axios.post(url, input, {
     timeout: timeoutMs,
     headers: {
@@ -115,19 +114,37 @@ export async function runApifyForCompanies(companies = [], options = {}) {
 
   const items = Array.isArray(response.data) ? response.data : response.data?.items;
   if (!Array.isArray(items)) throw new Error('Apify returned no dataset array');
+  return { actorId, items };
+}
 
-  return {
-    actorId,
-    rawCount: items.length,
-    jobs: items.map(item => {
-      const companyId = item.companyId || item.company_id || '';
-      const companyName = item.company || item.companyName || item.company_name || '';
-      const company = companies.find(candidate => String(candidate.companyId) === String(companyId))
-        || companies.find(candidate => String(candidate.companyName).trim().toLowerCase() === String(companyName).trim().toLowerCase())
-        || companies[0];
-      return normalizeApifyJob(item, company);
-    }).filter(Boolean)
-  };
+export async function runApifyForCompanies(companies = [], options = {}) {
+  if (!companies.length) return { actorId: options.actorId || DEFAULT_APIFY_ACTOR_ID, rawCount: 0, jobs: [], errors: [] };
+
+  const jobs = [];
+  const errors = [];
+  let actorId = options.actorId || process.env.APIFY_ACTOR_ID || DEFAULT_APIFY_ACTOR_ID;
+  let rawCount = 0;
+
+  // The Actor's maxItems is a per-run cap. Running one company per Actor run
+  // prevents results from one career site being attributed to another company
+  // and makes individual scraper failures observable.
+  for (const company of companies) {
+    try {
+      const input = buildApifyInput(company, options);
+      const result = await runApifyRequest(input, options);
+      actorId = result.actorId;
+      rawCount += result.items.length;
+      jobs.push(...result.items.map(item => normalizeApifyJob(item, company)).filter(Boolean));
+    } catch (error) {
+      errors.push({
+        companyId: company.companyId,
+        companyName: company.companyName,
+        error: error.response?.data?.error?.message || error.message
+      });
+    }
+  }
+
+  return { actorId, rawCount, jobs, errors };
 }
 
 export function normalizeApifyJob(item = {}, company = {}) {
