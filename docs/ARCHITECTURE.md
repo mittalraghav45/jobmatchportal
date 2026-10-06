@@ -81,6 +81,8 @@ Discovery, verification, eligibility and matching are separate stages. A discove
 | `backend/sponsorRegistry.js` | Sponsorship evidence and status handling |
 | `backend/repositories/jobRepository.js` | Canonical job persistence and fingerprint-based upsert |
 | `backend/scripts/jobDiscoveryGoldenFull.js` | Checkpointed/resumable large-scale discovery |
+| `backend/scripts/apifyUnresolvedBatch.js` | Checkpointed Apify discovery for unresolved-company batches |
+| `backend/services/apifySourceQuality.js` | Rejects obviously invalid/parked/incompatible Apify source URLs |
 | `backend/scripts/` audit/verification tools | Population, URL, duplicate and verification audits |
 | `backend/prompts/` | Specialist optimisation prompts |
 | `backend/tests/` | Automated Node tests |
@@ -91,9 +93,9 @@ The production strategy is source-first. Known ATS/public-sector sources are pre
 
 Apify is implemented in `backend/services/apifyJobDiscovery.js`. It uses `APIFY_KEY`, a configurable Actor ID, normalises dataset records and sends them through canonical ingestion. It never marks a job live/verified and never bypasses deduplication.
 
-The unresolved-company Apify pilot now runs one career site per Actor invocation. `maxItems` is therefore scoped to the individual company run, results are attributed only to the company whose URL was submitted, and per-company Actor failures are retained in the test output. The pilot remains bounded and sequential so concurrent Actor launches do not amplify account-level resource pressure. Apify output still passes through canonical normalisation/upsert and does not imply live/verified status.
+The unresolved-company Apify path runs one career site per Actor invocation. `maxItems` is therefore scoped to the individual company run, results are attributed only to the company whose URL was submitted, and per-company Actor failures are retained. The full workflow adds a source-quality gate, a 50-company pilot, stable company-ID batches, bounded matrix concurrency and checkpoint metadata so completed companies are not reprocessed accidentally. Apify output still passes through canonical normalisation/upsert and does not imply live/verified status. The full crawl is followed by the corpus matcher and backend test suite only after all discovery batches succeed.
 
-The company population is protected at 21,516 companies. Large discovery runs can be split into non-overlapping ranges and executed concurrently. Each range uses a unique run ID and checkpoint state.
+The company population is protected at 21,516 companies. Large discovery runs can be split into non-overlapping ranges and executed concurrently. The full Apify workflow uses stable company-ID batches of 100 with a maximum of four GitHub Actions jobs in parallel; each batch executes its Actor calls sequentially. Company-level completion metadata makes the process resumable without relying on mutable pagination offsets.
 
 Discovery flow:
 
