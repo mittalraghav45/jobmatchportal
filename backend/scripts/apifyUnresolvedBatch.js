@@ -40,7 +40,7 @@ function unresolvedFilter() {
 
 await connectMongo();
 const query = companyIds.length
-  ? { companyId: { $in: companyIds } }
+  ? { $and: [{ companyId: { $in: companyIds } }, { 'metadata.apifyDiscovery.status': { $ne: 'complete' } }] }
   : unresolvedFilter();
 const candidates = await Company.find(query)
   .select('companyId companyName website careersUrl ats employerType metadata')
@@ -111,9 +111,11 @@ for (const company of valid) {
   }
 }
 
-const summary = { batch, skip, requested: candidates.length, valid: valid.length, rejected: rejected.length, suspicious: suspicious.length, successful, failed, discovered, added, updated, mismatched, errors: result.errors.length };
+const fatalError = result.errors.find(error => error.fatal);
+const summary = { batch, skip, requested: candidates.length, valid: valid.length, rejected: rejected.length, suspicious: suspicious.length, successful, failed, discovered, added, updated, mismatched, errors: result.errors.length, fatalError: fatalError ? { companyId: fatalError.companyId, status: fatalError.status, error: fatalError.error } : null };
 console.log(JSON.stringify(summary, null, 2));
 
+if (fatalError) throw new Error(`Fatal Apify failure; stopping batch to protect quota: ${fatalError.error}`);
 if (mismatched > 0) throw new Error(`Company attribution gate failed: ${mismatched} mismatched jobs`);
 if (result.errors.length > Math.ceil(valid.length * 0.25)) throw new Error(`Apify error rate too high: ${result.errors.length}/${valid.length}`);
 if (requireJobs && discovered === 0) throw new Error('Apify pilot produced zero jobs; refusing to scale to the full corpus');
