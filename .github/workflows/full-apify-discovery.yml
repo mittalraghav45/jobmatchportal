@@ -1,0 +1,170 @@
+name: Full Apify Unresolved Discovery
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-apify-unresolved-discovery
+  cancel-in-progress: false
+
+jobs:
+  pilot:
+    if: \${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-full-apify]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Pilot 50 unresolved companies
+        env:
+          MONGODB_URI: \${{ secrets.MONGODB_URI }}
+          APIFY_KEY: \${{ secrets.APIFY_KEY }}
+          APIFY_ACTOR_ID: \${{ vars.APIFY_ACTOR_ID || 'parseforge/career-site-jobs-scraper' }}
+          APIFY_TEST_MAX_ITEMS: '10'
+          APIFY_MAX_TOTAL_CHARGE_USD: '0.50'
+          APIFY_TIMEOUT_MS: '240000'
+          APIFY_FULL_BATCH_SIZE: '50'
+        run: node scripts/apifyUnresolvedBatch.js --batch=0 --limit=50
+
+  plan:
+    needs: pilot
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      matrix: \${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --prefix backend
+      - name: Build stable company-id batches
+        id: plan
+        working-directory: backend
+        env:
+          MONGODB_URI: \${{ secrets.MONGODB_URI }}
+        run: |
+          node --input-type=module <<'NODE'
+          import 'dotenv/config';
+          import mongoose from 'mongoose';
+          import { connectMongo } from './db/mongoose.js';
+          import { Company } from './models/Company.js';
+          import { evaluateApifySource } from './services/apifySourceQuality.js';
+          await connectMongo();
+          const filter = {
+            enabled: true,
+            $and: [
+              { $or: [
+                { ats: { $in: ['', 'unknown', null] } },
+                { 'metadata.resolutionStatus': { $in: ['pending', 'unresolved'] } },
+                { 'metadata.sourceResolutionStatus': { $in: ['pending', 'unresolved'] } }
+              ] },
+              { $or: [
+                { careersUrl: { $regex: /^https?:\/\//i } },
+                { website: { $regex: /^https?:\/\//i } },
+                { 'metadata.careersUrl': { $regex: /^https?:\/\//i } },
+                { 'metadata.website': { $regex: /^https?:\/\//i } }
+              ] },
+              { 'metadata.apifyDiscovery.status': { $ne: 'complete' } }
+            ]
+          };
+          const companies = await Company.find(filter)
+            .select('companyId companyName website careersUrl ats employerType metadata')
+            .sort({ companyId: 1 })
+            .lean();
+          const eligible = companies.filter(company => evaluateApifySource(company).valid);
+          const size = 100;
+          const include = [];
+          for (let i = 0; i < eligible.length; i += size) {
+            include.push({ batch: Math.floor(i / size), companyIds: JSON.stringify(eligible.slice(i, i + size).map(c => c.companyId)) });
+          }
+          const matrix = JSON.stringify({ include });
+          if (matrix.length > 900000) throw new Error('Matrix output is too large');
+          console.log(JSON.stringify({ unresolved: companies.length, eligible: eligible.length, batches: include.length }));
+          console.log(matrix);
+          console.log('matrix=' + matrix);
+          await mongoose.disconnect();
+          NODE
+
+  apify-batches:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: \${{ fromJSON(needs.plan.outputs.matrix) }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Process Apify batch \${{ matrix.batch }}
+        env:
+          MONGODB_URI: \${{ secrets.MONGODB_URI }}
+          APIFY_KEY: \${{ secrets.APIFY_KEY }}
+          APIFY_ACTOR_ID: \${{ vars.APIFY_ACTOR_ID || 'parseforge/career-site-jobs-scraper' }}
+          APIFY_TEST_MAX_ITEMS: '10'
+          APIFY_MAX_TOTAL_CHARGE_USD: '0.50'
+          APIFY_TIMEOUT_MS: '240000'
+          APIFY_FULL_BATCH_SIZE: '100'
+        run: node scripts/apifyUnresolvedBatch.js --batch=\${{ matrix.batch }} --limit=100 --company-ids='\${{ matrix.companyIds }}'
+
+  matching:
+    needs: [pilot, plan, apify-batches]
+    if: \${{ needs.apify-batches.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Run full-corpus matcher
+        env:
+          MONGODB_URI: \${{ secrets.MONGODB_URI }}
+        run: npm run nightly:matching
+      - name: Run backend tests
+        run: npm test
+
+  quality-summary:
+    needs: [pilot, plan, apify-batches, matching]
+    if: \${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report pipeline result
+        run: |
+          echo "Pilot: \${{ needs.pilot.result }}"
+          echo "Plan: \${{ needs.plan.result }}"
+          echo "Apify batches: \${{ needs.apify-batches.result }}"
+          echo "Matching: \${{ needs.matching.result }}"
+          if [ "\${{ needs.apify-batches.result }}" != "success" ] || [ "\${{ needs.matching.result }}" != "success" ]; then
+            exit 1
+          fi
