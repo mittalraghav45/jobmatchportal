@@ -2,7 +2,7 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
-import { runApifyForCompanies, apifyCareerUrl } from '../services/apifyJobDiscovery.js';
+import { runApifyForCompanies, apifyCareerUrl, assertApifyCapacity } from '../services/apifyJobDiscovery.js';
 import { evaluateApifySource } from '../services/apifySourceQuality.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 
@@ -70,6 +70,7 @@ if (!valid.length) {
   process.exit(0);
 }
 
+await assertApifyCapacity();
 const result = await runApifyForCompanies(valid, {
   maxItems: Math.min(10, Number(process.env.APIFY_TEST_MAX_ITEMS || 10))
 });
