@@ -168,3 +168,10 @@ Do not copy MongoDB credentials into source files, documentation, issues or pull
 ## Documentation continuity
 
 After a material architecture, schema, workflow or operational change, update `AGENTS.md` and the relevant `docs/` document. Keep `docs/PROJECT_STATUS.md` and `docs/PROJECT_HANDOFF.md` current enough that a new chat/agent can resume without relying on conversation history.
+
+## Matching/application production path
+
+The production candidate flow is now explicitly staged: verified-live UK technology vacancy -> persisted MatchResult ranking -> candidate-facing pagination -> saved application -> tailoring/application-pack generation. The ranking endpoint prefers persisted full-corpus results so page one represents the best available matches rather than the best matches from an arbitrary page of jobs.
+
+The Apify fallback remains disabled from normal operation until external capacity is available. Paid discovery is not required for the matching/application pipeline to operate.
+
