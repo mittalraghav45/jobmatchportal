@@ -90,6 +90,33 @@ export function buildApifyBatchInput(companies = [], {
   };
 }
 
+function classifyApifyFailure(error) {
+  const status = Number(error?.response?.status || 0);
+  const message = String(error?.response?.data?.error?.message || error?.message || '').toLowerCase();
+  const fatalPatterns = [
+    'insufficient funds',
+    'insufficient balance',
+    'not enough funds',
+    'quota exceeded',
+    'usage limit',
+    'credit limit',
+    'memory limit',
+    'exceed the memory limit',
+    'actor limit',
+    'max total charge',
+    'maximum total charge',
+    'payment required',
+    'invalid token',
+    'invalid api token',
+    'authentication',
+    'unauthorized',
+    'forbidden'
+  ];
+  const fatal = status === 401 || status === 402 || status === 403 || fatalPatterns.some(pattern => message.includes(pattern));
+  const retryable = status === 408 || status === 429 || status >= 500 || /timeout|timed out|econnreset|socket hang up|network/i.test(message);
+  return { fatal, retryable, status, message };
+}
+
 async function runApifyRequest(input, options = {}) {
   const token = apifyToken();
   if (!token) throw new Error('APIFY_KEY (or APIFY_TOKEN) is not configured');
@@ -117,7 +144,7 @@ async function runApifyRequest(input, options = {}) {
   return { actorId, items };
 }
 
-export async function runApifyForCompanies(companies = [], options = {}) {
+export { classifyApifyFailure };\n\nexport async function runApifyForCompanies(companies = [], options = {}) {
   if (!companies.length) return { actorId: options.actorId || DEFAULT_APIFY_ACTOR_ID, rawCount: 0, jobs: [], errors: [] };
 
   const jobs = [];
@@ -136,11 +163,16 @@ export async function runApifyForCompanies(companies = [], options = {}) {
       rawCount += result.items.length;
       jobs.push(...result.items.map(item => normalizeApifyJob(item, company)).filter(Boolean));
     } catch (error) {
+      const failure = classifyApifyFailure(error);
       errors.push({
         companyId: company.companyId,
         companyName: company.companyName,
-        error: error.response?.data?.error?.message || error.message
+        error: failure.message,
+        status: failure.status,
+        fatal: failure.fatal,
+        retryable: failure.retryable
       });
+      if (failure.fatal) break;
     }
   }
 
