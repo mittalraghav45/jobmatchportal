@@ -128,7 +128,7 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
     });
   });
 
-  await page.route('**/api/applications/*', async route => {
+  await page.route('**/api/applications/**', async route => {
     const request = route.request();
     if (request.method() === 'GET') {
       await route.fulfill({
