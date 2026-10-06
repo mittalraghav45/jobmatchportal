@@ -2,7 +2,7 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
-import { apifyCareerUrl, runApifyForCompanies, assertApifyCapacity from '../services/apifyJobDiscovery.js';
+import { apifyCareerUrl, runApifyForCompanies } from '../services/apifyJobDiscovery.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 
 const limit = Math.max(1, Number(process.argv.find(arg => arg.startsWith('--limit='))?.split('=')[1] || 10));
