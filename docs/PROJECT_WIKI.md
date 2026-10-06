@@ -103,6 +103,18 @@ Do not change matcher thresholds because of a single job. First compare the full
 
 ## 8. Discovery architecture
 
+Discovery is source-agnostic at the contract layer. Primary sources include ATS adapters, public-sector connectors and bounded Serper discovery. Apify is now integrated as a fallback for unresolved employer career sites.
+
+### Apify
+
+`backend/services/apifyJobDiscovery.js` uses `APIFY_KEY` and a configurable Actor, normalises returned records and routes them through canonical ingestion. It does not bypass verification.
+
+The first 10-company pilot selected unresolved council/university employers and returned zero jobs from the current Actor. The next step is Actor/input validation, not scaling the current configuration.
+
+### Public-sector filters
+
+The frontend/API support server-side employer-type filters (private, councils, universities, NHS, DWP) and nation filters (England, Scotland, Wales, Northern Ireland, UK-wide).
+
 Discovery is source-agnostic at the contract layer.
 
 `backend/discovery/sourceAdapter.js` defines the canonical `JobSourceAdapter` and normalises discovered jobs into the shared shape. Each record preserves `source`, `sourceKind`, `sourceJobId` and `applyUrl` for provenance and identity.
@@ -205,6 +217,8 @@ Important secrets include:
 Never print secret values into Actions logs.
 
 ## 12. Current project checkpoint
+
+Matcher and discovery infrastructure are functioning. The public-sector filters are covered by unit and MongoDB-backed tests. Apify API integration is functional, but the first 10-company pilot returned zero jobs, so useful Apify coverage is not yet proven. The immediate priority is to validate a productive Actor/input strategy and then rerun the 10-company pilot before broader scheduled use.
 
 Matcher v2 has reached the corpus-evaluation checkpoint. The quality gate is passing. The discovery layer now has a normalized public-sector contract plus a concrete NHS Jobs XML/RSS connector. The next engineering step is to wire the configured NHS feed into the existing ingestion pipeline and run a bounded end-to-end import before enabling it for recurring discovery.
 
