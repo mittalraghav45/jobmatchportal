@@ -1,134 +1,13 @@
 import axios from 'axios';
 import { classifyJob } from '../utils/jobClassification.js';
 
-export const DEFAULT_APIFY_ACTOR_ID = 'apify/playwright-scraper';
+export const DEFAULT_APIFY_ACTOR_ID = 'parseforge/career-site-jobs-scraper';
 
 const TECH_TITLE_FILTER = Object.freeze([
-  'software engineer',
-  'software developer',
-  'frontend',
-  'front end',
-  'full stack',
-  'fullstack',
-  'web developer',
-  'javascript',
-  'typescript',
-  'node',
-  'react',
-  'developer'
+  'software engineer', 'software developer', 'frontend', 'front end',
+  'full stack', 'fullstack', 'web developer', 'javascript',
+  'typescript', 'node', 'react', 'developer'
 ]);
-
-const APIFY_PAGE_FUNCTION = `async function pageFunction(context) {
-  const { page, request } = context;
-  const userData = request.userData || {};
-  const terms = ['software engineer', 'software developer', 'frontend', 'front end', 'full stack', 'fullstack', 'web developer', 'javascript', 'typescript', 'node', 'react', 'developer'];
-
-  if (userData.type !== 'job') {
-    const links = await page.locator('a[href]').evaluateAll((anchors, keywords) => {
-      const baseHost = window.location.hostname;
-      const found = [];
-      for (const anchor of anchors) {
-        const text = String(anchor.innerText || anchor.textContent || '').trim();
-        const href = anchor.href;
-        if (!href || !href.startsWith('http') || text.length < 4) continue;
-        try {
-          if (new URL(href).hostname !== baseHost) continue;
-        } catch {
-          continue;
-        }
-        const signal = (text + ' ' + href).toLowerCase();
-        const looksLikeJob = keywords.some(keyword => signal.includes(keyword))
-          || signal.includes('/job')
-          || signal.includes('/vacan')
-          || signal.includes('/career')
-          || signal.includes('/position')
-          || signal.includes('/opportun');
-        if (looksLikeJob) found.push({ url: href, text });
-      }
-      return Array.from(new Map(found.map(item => [item.url, item])).values()).slice(0, 12);
-    }, terms);
-
-    for (const link of links) {
-      await context.enqueueRequest({
-        url: link.url,
-        userData: { ...userData, type: 'job' }
-      });
-    }
-
-    return { rowType: 'source', url: request.url, companyId: userData.companyId, companyName: userData.companyName, jobCandidates: links.length };
-  }
-
-  const payload = await page.evaluate(() => {
-    const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
-    const candidates = [];
-
-    for (const script of scripts) {
-      try {
-        const parsed = JSON.parse(script.textContent || '');
-        const values = Array.isArray(parsed) ? parsed : [parsed];
-        for (const value of values) {
-          if (!value || typeof value !== 'object') continue;
-          if (value['@type'] === 'JobPosting') candidates.push(value);
-          if (Array.isArray(value['@graph'])) {
-            for (const graphValue of value['@graph']) {
-              if (graphValue && graphValue['@type'] === 'JobPosting') candidates.push(graphValue);
-            }
-          }
-        }
-      } catch {}
-    }
-
-    const jobPosting = candidates[0] || {};
-    const locations = Array.isArray(jobPosting.jobLocation)
-      ? jobPosting.jobLocation.map(item => {
-          const address = item && item.address ? item.address : {};
-          return address.addressLocality || address.addressRegion || address.addressCountry || '';
-        }).filter(Boolean).join(', ')
-      : '';
-
-    const descriptionNode = document.querySelector('[class*="job-description" i], [id*="job-description" i], article, main');
-    return {
-      title: jobPosting.title || (document.querySelector('h1') && document.querySelector('h1').innerText) || document.title || '',
-      description: String(jobPosting.description || (descriptionNode && descriptionNode.innerText) || '').trim(),
-      location: jobPosting.jobLocationType === 'TELECOMMUTE'
-        ? 'Remote'
-        : locations || String((document.querySelector('[class*="location" i], [data-location]') || {}).innerText || '').trim(),
-      employmentType: jobPosting.employmentType || '',
-      postedAt: jobPosting.datePosted || null,
-      closingAt: jobPosting.validThrough || null,
-      externalId: jobPosting.identifier && typeof jobPosting.identifier === 'object'
-        ? jobPosting.identifier.value
-        : jobPosting.identifier || '',
-      companyName: jobPosting.hiringOrganization && jobPosting.hiringOrganization.name
-        ? jobPosting.hiringOrganization.name
-        : '',
-      applyUrl: (document.querySelector('a[href*="apply" i], a[href*="application" i]') || {}).href || window.location.href
-    };
-  });
-
-  const title = String(payload.title || '').trim();
-  if (!title) return { rowType: 'ignored', url: request.url };
-
-  const lowerTitle = title.toLowerCase();
-  if (!terms.some(term => lowerTitle.includes(term))) {
-    return { rowType: 'ignored', url: request.url, title };
-  }
-
-  return {
-    rowType: 'job',
-    url: request.url,
-    applyUrl: payload.applyUrl || request.url,
-    externalId: payload.externalId || request.url,
-    title,
-    description: payload.description || '',
-    location: payload.location || '',
-    employmentType: payload.employmentType || '',
-    postedAt: payload.postedAt || null,
-    closingAt: payload.closingAt || null,
-    companyId: userData.companyId || '',
-    companyName: userData.companyName || payload.companyName || ''
-  };
-}`;
 
 function apifyToken() {
   return String(process.env.APIFY_KEY || process.env.APIFY_TOKEN || '').trim();
@@ -169,82 +48,56 @@ export function apifyCareerUrl(company = {}) {
 
 export function buildApifyInput(company, {
   maxItems = Number(process.env.APIFY_MAX_ITEMS || 50),
-  includeDescription = true
+  includeDescription = true,
+  includeCompensation = false,
+  includeSkills = false,
+  searchTerms = TECH_TITLE_FILTER
 } = {}) {
   const careerUrl = apifyCareerUrl(company);
   if (!careerUrl) throw new Error(`No careers URL or website available for ${company.companyName || company.companyId}`);
   const cap = Math.max(1, Number(maxItems) || 50);
+  const terms = Array.from(new Set(searchTerms.map(term => String(term).trim()).filter(Boolean)));
 
   return {
-    startUrls: [{
-      url: careerUrl,
-      userData: {
-        companyId: company.companyId,
-        companyName: company.companyName,
-        type: 'source'
-      }
-    }],
-    linkSelector: '',
-    respectRobotsTxtFile: true,
-    pageFunction: APIFY_PAGE_FUNCTION,
-    proxyConfiguration: { useApifyProxy: true },
-    maxPagesPerCrawl: cap + 1,
-    maxResultsPerCrawl: cap + 1,
-    maxCrawlingDepth: 1,
-    maxConcurrency: 1,
-    maxRequestRetries: 2,
-    pageLoadTimeoutSecs: 45,
-    pageFunctionTimeoutSecs: 30,
-    waitUntil: 'networkidle',
-    closeCookieModals: true,
-    maxScrollHeightPixels: 8000
+    careerSiteUrls: [careerUrl],
+    searchTerms: terms,
+    maxItems: cap,
+    includeDescription,
+    includeCompensation,
+    includeSkills
   };
 }
 
 export function buildApifyBatchInput(companies = [], {
-  maxItems = Number(process.env.APIFY_MAX_ITEMS || 50)
+  maxItems = Number(process.env.APIFY_MAX_ITEMS || 50),
+  includeDescription = true,
+  includeCompensation = false,
+  includeSkills = false,
+  searchTerms = TECH_TITLE_FILTER
 } = {}) {
   const cap = Math.max(1, Number(maxItems) || 50);
-  const startUrls = companies.map(company => {
-    const url = apifyCareerUrl(company);
-    if (!url) return null;
-    return {
-      url,
-      userData: {
-        companyId: company.companyId,
-        companyName: company.companyName,
-        type: 'source'
-      }
-    };
-  }).filter(Boolean);
+  const terms = Array.from(new Set(searchTerms.map(term => String(term).trim()).filter(Boolean)));
+  const careerSiteUrls = companies.map(apifyCareerUrl).filter(Boolean);
+  if (!careerSiteUrls.length) throw new Error('No usable career URLs were supplied to Apify');
 
   return {
-    startUrls,
-    linkSelector: '',
-    respectRobotsTxtFile: true,
-    pageFunction: APIFY_PAGE_FUNCTION,
-    proxyConfiguration: { useApifyProxy: true },
-    maxPagesPerCrawl: Math.max(startUrls.length, startUrls.length * (cap + 1)),
-    maxResultsPerCrawl: Math.max(startUrls.length, startUrls.length * (cap + 1)),
-    maxCrawlingDepth: 1,
-    maxConcurrency: Math.min(3, Math.max(1, startUrls.length)),
-    maxRequestRetries: 2,
-    pageLoadTimeoutSecs: 45,
-    pageFunctionTimeoutSecs: 30,
-    waitUntil: 'networkidle',
-    closeCookieModals: true,
-    maxScrollHeightPixels: 8000
+    careerSiteUrls,
+    searchTerms: terms,
+    maxItems: cap,
+    includeDescription,
+    includeCompensation,
+    includeSkills
   };
 }
 
 export async function runApifyForCompanies(companies = [], options = {}) {
   const token = apifyToken();
   if (!token) throw new Error('APIFY_KEY (or APIFY_TOKEN) is not configured');
+
   const actorId = options.actorId || process.env.APIFY_ACTOR_ID || DEFAULT_APIFY_ACTOR_ID;
   const input = options.input || buildApifyBatchInput(companies, options);
-  if (!input.startUrls?.length) throw new Error('No usable career URLs were supplied to Apify');
-
   const timeoutMs = Math.max(30000, Number(options.timeoutMs || process.env.APIFY_TIMEOUT_MS || 300000));
+
   const url = `https://api.apify.com/v2/actors/${actorPath(actorId)}/run-sync-get-dataset-items`;
   const response = await axios.post(url, input, {
     timeout: timeoutMs,
@@ -267,24 +120,32 @@ export async function runApifyForCompanies(companies = [], options = {}) {
     actorId,
     rawCount: items.length,
     jobs: items.map(item => {
-      const company = companies.find(candidate => candidate.companyId === item.companyId)
-        || companies.find(candidate => candidate.companyName === item.companyName)
+      const companyId = item.companyId || item.company_id || '';
+      const companyName = item.company || item.companyName || item.company_name || '';
+      const company = companies.find(candidate => String(candidate.companyId) === String(companyId))
+        || companies.find(candidate => String(candidate.companyName).trim().toLowerCase() === String(companyName).trim().toLowerCase())
         || companies[0];
       return normalizeApifyJob(item, company);
     }).filter(Boolean)
   };
 }
 
-export function normalizeApifyJob(item, company) {
-  if (item.rowType === 'company' || item.rowType === 'status' || item.companyStatus || item.status) return null;
-  const applyUrl = firstUrl(item.applyUrl, item.apply_url, item.jobUrl, item.job_url, item.url);
+export function normalizeApifyJob(item = {}, company = {}) {
   const title = String(item.title || item.jobTitle || '').trim();
-  if (!title || !applyUrl) return null;
+  const applyUrl = firstUrl(item.applyUrl, item.apply_url, item.jobUrl, item.job_url, item.url);
+  if (!title || !applyUrl || !company?.companyId) return null;
 
-  const location = String(item.location || item.locations?.join(', ') || item.city || item.region || item.country || '').trim();
+  const locationParts = [
+    item.location,
+    item.city,
+    item.region,
+    item.country
+  ].map(value => String(value || '').trim()).filter(Boolean);
+  const location = locationParts.length ? Array.from(new Set(locationParts)).join(', ') : '';
   const raw = { ...item, apifyActor: process.env.APIFY_ACTOR_ID || DEFAULT_APIFY_ACTOR_ID };
+
   const baseJob = {
-    id: item.jobId || item.job_id || applyUrl,
+    id: item.jobId || item.job_id || item.requisitionId || applyUrl,
     externalId: item.jobId || item.job_id || item.requisitionId || applyUrl,
     companyId: company.companyId,
     companyName: company.companyName,
@@ -295,8 +156,8 @@ export function normalizeApifyJob(item, company) {
     department: item.department || item.team || '',
     applyUrl,
     source: {
-      ats: String(item.ats || 'apify').toLowerCase(),
-      url: applyUrl
+      ats: String(item.ats || item.sourceType || 'apify').toLowerCase(),
+      url: firstUrl(item.jobUrl, item.url, item.applyUrl) || applyUrl
     },
     dates: {
       postedAt: item.datePosted || item.postedAt || item.posted_date || null,
@@ -312,43 +173,11 @@ export function normalizeApifyJob(item, company) {
 }
 
 export async function runApifyForCompany(company, options = {}) {
-  const token = apifyToken();
-  if (!token) throw new Error('APIFY_KEY (or APIFY_TOKEN) is not configured');
-
-  const actorId = options.actorId || process.env.APIFY_ACTOR_ID || DEFAULT_APIFY_ACTOR_ID;
-  const input = options.input || buildApifyInput(company, options);
-  const timeoutMs = Math.max(30000, Number(options.timeoutMs || process.env.APIFY_TIMEOUT_MS || 300000));
-
-  const url = `https://api.apify.com/v2/actors/${actorPath(actorId)}/run-sync-get-dataset-items`;
-  const response = await axios.post(url, input, {
-    timeout: timeoutMs,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    params: {
-      format: 'json',
-      clean: 1,
-      maxTotalChargeUsd: Number(process.env.APIFY_MAX_TOTAL_CHARGE_USD || 2)
-    }
-  });
-
-  const items = Array.isArray(response.data) ? response.data : response.data?.items;
-  if (!Array.isArray(items)) throw new Error('Apify returned no dataset array');
-
-  const jobs = items.map(item => normalizeApifyJob(item, company)).filter(Boolean);
-  return {
-    actorId,
-    careersUrl: apifyCareerUrl(company),
-    rawCount: items.length,
-    jobs
-  };
+  return runApifyForCompanies([company], options);
 }
 
 export async function discoverWithApify(company, options = {}) {
   if (!isApifyConfigured()) return { status: 'unconfigured', jobs: [], rawCount: 0 };
-
   try {
     const result = await runApifyForCompany(company, options);
     return { status: 'ok', ...result };
