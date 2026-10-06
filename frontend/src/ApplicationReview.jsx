@@ -1,5 +1,8 @@
 import React,{useState}from'react';
-const API=(import.meta.env.VITE_API_BASE_URL||'http://localhost:3001').replace(/\/$/,'');
+const configuredApiBase=String(import.meta.env.VITE_API_BASE_URL||'').replace(/\/$/,'');
+const browserHost=typeof window!=='undefined'?window.location.hostname:'';
+const isLocalBrowser=browserHost==='localhost'||browserHost==='127.0.0.1'||browserHost==='::1';
+const API=configuredApiBase&&(!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredApiBase)||isLocalBrowser)?configuredApiBase:'';
 
 export default function ApplicationReview({ application, busy, onClose, onGenerate, onStatus }) {
   const pack = application?.materials?.applicationPack || application?.applicationPack || null;
