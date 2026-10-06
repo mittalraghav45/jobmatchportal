@@ -37,6 +37,7 @@ jobs:
           APIFY_MAX_TOTAL_CHARGE_USD: '0.50'
           APIFY_TIMEOUT_MS: '240000'
           APIFY_FULL_BATCH_SIZE: '50'
+          APIFY_REQUIRE_JOBS: 'true'
         run: node scripts/apifyUnresolvedBatch.js --batch=0 --limit=50
 
   plan:
