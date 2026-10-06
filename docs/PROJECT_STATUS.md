@@ -162,3 +162,19 @@ application workflow
 6. Complete the orchestrated unresolved-company Apify crawl and inspect source-quality/error-rate summaries.
 7. Run the full-corpus matcher and backend suite only after discovery batches pass.
 8. Reconcile data/status documentation after meaningful discovery or verification changes.
+
+## 2026-10-06 pipeline-completion checkpoint
+
+The next production milestone is now the ranked match-to-application path rather than paid discovery. The candidate-facing match API prefers persisted MatchResult rankings before pagination and can create a saved application directly from a verified-live UK technology vacancy. Backend validation now syntax-checks the match/application routes, and PR validation includes a frontend production build.
+
+Apify remains intentionally dormant because the current account has exhausted its usage allowance; this does not block the downstream pipeline.
+
+## Immediate production validation sequence
+
+1. Keep free/source-first discovery and verification running.
+2. Run the nightly matcher from `main` after the candidate profile is present.
+3. Inspect the persisted ranking distribution and top matches.
+4. Promote selected verified-live matches into the application queue.
+5. Generate application packs and progress applications through the lifecycle.
+6. Only revisit paid discovery if free-source coverage becomes the limiting factor.
+
