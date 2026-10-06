@@ -138,7 +138,7 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'My Matches' }).first()).toBeVisible();
   await expect(page.getByText('Software Engineer – Query Engines')).toBeVisible();
   await expect(page.getByText('78%')).toBeVisible();
-  await expect(page.getByText('unknown')).toBeVisible();
+  await expect(page.locator('span.sponsor').filter({ hasText: /^unknown$/ })).toBeVisible();
   await expect(page.getByText('✓ Verified live')).toBeVisible();
   await expect(page.getByText('Application: Not tracked')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Prepare' })).toBeVisible();
