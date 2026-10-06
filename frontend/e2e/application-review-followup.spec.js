@@ -73,7 +73,7 @@ test('application review saves follow-up and records status transition', async (
   await page.goto('/');
   await page.getByRole('button', { name: 'My Matches', exact: true }).click();
   await expect(page.getByText(job.title)).toBeVisible();
-  await page.getByRole('button', { name: 'Prepare application' }).click();
+  await page.getByRole('button', { name: 'Prepare', exact: true }).click();
 
   const modal = page.locator('.application-modal');
   await expect(modal.getByRole('heading', { name: job.title })).toBeVisible();
