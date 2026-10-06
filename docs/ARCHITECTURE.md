@@ -14,6 +14,29 @@ Candidate evidence is the source of truth. The AI optimisation layer must not in
 ## 2. High-level architecture
 
 ```text
+Canonical companies
+       |
+       v
+Source-first discovery
+  +--> ATS adapters
+  +--> public-sector adapters
+  +--> bounded Serper discovery
+  +--> Apify fallback for unresolved career sites
+       |
+       v
+Canonical MongoDB jobs
+       |
+       +--> source-backed verification
+       +--> UK/live/verified/technology eligibility
+       +--> versioned candidate matching
+       |
+       v
+API -> React/Vite -> application workflow
+```
+
+Discovery, verification, eligibility and matching remain separate stages.
+
+```text
 21,516 canonical companies
           |
           v
@@ -58,19 +81,26 @@ Discovery, verification, eligibility and matching are separate stages. A discove
 | `backend/sponsorRegistry.js` | Sponsorship evidence and status handling |
 | `backend/repositories/jobRepository.js` | Canonical job persistence and fingerprint-based upsert |
 | `backend/scripts/jobDiscoveryGoldenFull.js` | Checkpointed/resumable large-scale discovery |
+| `backend/scripts/apifyUnresolvedBatch.js` | Checkpointed Apify discovery for unresolved-company batches |
+| `backend/services/apifySourceQuality.js` | Rejects obviously invalid/parked/incompatible Apify source URLs |
 | `backend/scripts/` audit/verification tools | Population, URL, duplicate and verification audits |
 | `backend/prompts/` | Specialist optimisation prompts |
 | `backend/tests/` | Automated Node tests |
 
 ## 4. Discovery and verification
 
-The company population is protected at 21,516 companies. Large discovery runs can be split into non-overlapping ranges and executed concurrently. Each range uses a unique run ID and checkpoint state.
+The production strategy is source-first. Known ATS/public-sector sources are preferred; bounded Serper discovery is supplementary; Apify is a fallback for configured employer career/website URLs when primary discovery returns no jobs. Google fallback is no longer part of the production nightly workflow.
+
+Apify is implemented in `backend/services/apifyJobDiscovery.js`. It uses `APIFY_KEY`, a configurable Actor ID, normalises dataset records and sends them through canonical ingestion. It never marks a job live/verified and never bypasses deduplication.
+
+The unresolved-company Apify path runs one career site per Actor invocation. `maxItems` is therefore scoped to the individual company run, results are attributed only to the company whose URL was submitted, and per-company Actor failures are retained. The full workflow adds a source-quality gate, a 50-company pilot, stable company-ID batches, bounded matrix concurrency and checkpoint metadata so completed companies are not reprocessed accidentally. Apify output still passes through canonical normalisation/upsert and does not imply live/verified status. The full crawl is followed by the corpus matcher and backend test suite only after all discovery batches succeed.
+
+The company population is protected at 21,516 companies. Large discovery runs can be split into non-overlapping ranges and executed concurrently. The full Apify workflow uses stable company-ID batches of 100 with a maximum of four GitHub Actions jobs in parallel; each batch executes its Actor calls sequentially. Company-level completion metadata makes the process resumable without relying on mutable pagination offsets.
 
 Discovery flow:
 
 1. Direct company/ATS discovery.
-2. Google fallback when direct discovery produces no jobs.
-3. Bounded Serper discovery for sponsor-company job search.
+2. Bounded Serper discovery for sponsor-company job search.
 4. When Serper returns a useful career/ATS source page rather than an individual posting, crawl that page for structured `JobPosting` data and job links.
 5. Canonicalisation and fingerprint-based upsert.
 6. Incremental source-backed verification.
@@ -148,6 +178,8 @@ The GitHub Actions workflow `.github/workflows/matching-quality.yml` is the repr
 The workflow is diagnostic/reproducible automation. It is intentionally not an autonomous code-writing loop.
 
 ## 9. Frontend/API integration
+
+Match-result filtering is server-side. Supported employer types are private, councils, universities, NHS and DWP; supported nations are England, Scotland, Wales, Northern Ireland and UK-wide. The API validates the same values exposed by the frontend.
 
 The frontend consumes `/api/jobs` with server-side pagination and filtering. In Codespaces, the Vite development server proxies `/api` to the backend when no explicit API base URL is configured.
 

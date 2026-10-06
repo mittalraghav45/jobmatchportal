@@ -38,7 +38,9 @@
     "nightly:discovery:full": "node -r dotenv/config scripts/nightlyDiscoveryFull.js",
     "nightly:matching": "node -r dotenv/config scripts/nightlyMatching.js",
     "profile:import:v2": "node -r dotenv/config scripts/importCvProfileV2.js",
-    "profile:migrate-indexes": "node -r dotenv/config scripts/migrateMatchResultProfileVersions.js"
+    "profile:migrate-indexes": "node -r dotenv/config scripts/migrateMatchResultProfileVersions.js",
+    "test:match-filters": "node -r dotenv/config scripts/testMatchResultFilters.js",
+    "test:apify-unresolved": "node -r dotenv/config scripts/testApifyUnresolvedCompanies.js"
   },
   "dependencies": {
     "axios": "^1.20.0",
