@@ -144,7 +144,7 @@ async function runApifyRequest(input, options = {}) {
   return { actorId, items };
 }
 
-export { classifyApifyFailure };\n\n
+export { classifyApifyFailure };
 export async function assertApifyCapacity(options = {}) {
   const token = apifyToken();
   if (!token) throw new Error('APIFY_KEY (or APIFY_TOKEN) is not configured');
