@@ -151,8 +151,8 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await page.getByRole('button', { name: 'Close job details' }).click();
   await page.getByRole('button', { name: 'Prepare' }).click();
 
-  await expect(page.getByRole('heading', { name: match.job.title })).toBeVisible();
-  const statusSelect = page.getByRole('combobox');
+  await expect(page.getByRole('heading', { name: match.job.title }).last()).toBeVisible();
+  const statusSelect = page.getByRole('dialog').getByRole('combobox');
   await expect(statusSelect).toHaveValue('saved');
 
   await statusSelect.selectOption('applied');
