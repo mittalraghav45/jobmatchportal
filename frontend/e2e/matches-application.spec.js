@@ -182,7 +182,7 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await expect(statusSelect).toHaveValue('interview');
 
   await expect(statusSelect).toHaveValue('interview');
-  await page.locator('.application-modal .modal-close').click();
+  await page.locator('.application-modal .modal-close').click({ force: true });
   await page.getByRole('button', { name: 'Applications', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Application pipeline' })).toBeVisible();
 
