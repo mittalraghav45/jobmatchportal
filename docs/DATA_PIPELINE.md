@@ -214,3 +214,10 @@ Unverified:     0
 ```
 
 This is a measured checkpoint, not hard-coded production truth. Ongoing discovery can intentionally increase the job population.
+
+## Candidate-facing ranking contract
+
+Discovery and verification remain upstream of matching. Once a job satisfies UK + live + verified + technology eligibility, nightly matching persists a profile/version-specific MatchResult. The candidate-facing match API sorts those persisted results by match score before applying pagination. This prevents a high-quality match on a later database page from being hidden behind lower-scoring jobs.
+
+The vacancy-to-application bridge rechecks the same eligibility contract before creating an application, so stale or ineligible job records cannot be promoted into the application queue.
+
