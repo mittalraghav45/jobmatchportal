@@ -176,12 +176,15 @@ export async function runApifyForCompanies(companies = [], options = {}) {
   const errors = [];
   let actorId = options.actorId || process.env.APIFY_ACTOR_ID || DEFAULT_APIFY_ACTOR_ID;
   let rawCount = 0;
+  const attemptedCompanyIds = [];
+  let stoppedOnFailure = false;
 
   // The Actor's maxItems is a per-run cap. Running one company per Actor run
   // prevents results from one career site being attributed to another company
   // and makes individual scraper failures observable.
   for (const company of companies) {
     try {
+      attemptedCompanyIds.push(company.companyId);
       const input = buildApifyInput(company, options);
       const result = await runApifyRequest(input, options);
       actorId = result.actorId;
@@ -197,11 +200,14 @@ export async function runApifyForCompanies(companies = [], options = {}) {
         fatal: failure.fatal,
         retryable: failure.retryable
       });
-      if (failure.fatal || failure.retryable) break;
+      if (failure.fatal || failure.retryable) {
+        stoppedOnFailure = true;
+        break;
+      }
     }
   }
 
-  return { actorId, rawCount, jobs, errors };
+  return { actorId, rawCount, jobs, errors, attemptedCompanyIds, stoppedOnFailure };
 }
 
 export function normalizeApifyJob(item = {}, company = {}) {
