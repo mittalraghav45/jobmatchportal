@@ -21,7 +21,7 @@ permissions:
 jobs:
   apify-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend
@@ -37,7 +37,8 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           APIFY_KEY: ${{ secrets.APIFY_KEY }}
-          APIFY_ACTOR_ID: ${{ vars.APIFY_ACTOR_ID || 'apify/playwright-scraper' }}
+          APIFY_ACTOR_ID: ${{ vars.APIFY_ACTOR_ID || 'parseforge/career-site-jobs-scraper' }}
           APIFY_TEST_MAX_ITEMS: '10'
           APIFY_MAX_TOTAL_CHARGE_USD: '2'
+          APIFY_TIMEOUT_MS: '240000'
         run: npm run test:apify-unresolved -- --limit="${{ inputs.limit || '10' }}"
