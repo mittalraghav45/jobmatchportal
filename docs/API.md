@@ -167,3 +167,38 @@ The candidate-facing `POST /api/match/jobs` endpoint ranks the global candidate 
 
 A verified-live vacancy can be converted directly into a saved application with `POST /api/match/jobs/:jobId/application`. The endpoint revalidates UK/live/verified/technology eligibility, calculates the current profile match, prevents duplicate applications for the same profile/job, and creates the application in `saved` state.
 
+
+
+## Application tracking
+
+### `GET /api/applications`
+Returns application records, newest updates first. Optional `profileId`, `status`, and `limit` (1–100, default 50). Response includes `applications` and a status summary.
+
+### `GET /api/applications/summary`
+Returns aggregate application lifecycle counts, optionally filtered by `profileId`.
+
+### `GET /api/applications/follow-ups`
+Returns the active follow-up queue, optionally filtered by `profileId`. Explicit `followUpAt` values override the default seven-day follow-up for applied/interview applications. The response contains `count` and sorted applications with due/stale information.
+
+### `GET /api/applications/:applicationId`
+Returns one application by stable application ID.
+
+### `POST /api/applications`
+Creates a saved application; job title and company are required.
+
+### `PATCH /api/applications/:applicationId/status`
+Transitions an application through its lifecycle. Rejected transitions may include `rejectionReason`; transitions are appended to `statusHistory`.
+
+### `PATCH /api/applications/:applicationId/follow-up`
+Sets or clears `followUpAt`; invalid dates are rejected.
+
+### `PATCH /api/applications/:applicationId/materials`
+Merges application materials.
+
+### `PATCH /api/applications/:applicationId`
+Updates supported metadata: `notes`, `specialist`, `match`, and `profileId`.
+
+### `POST /api/applications/:applicationId/generate-pack`
+Generates and persists an application pack when generation succeeds.
+
+Application persistence also supports recruiter metadata, source, rejection reason, explicit follow-up scheduling and status history. Follow-up queueing is deterministic.
