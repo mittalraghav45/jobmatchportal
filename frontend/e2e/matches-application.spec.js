@@ -168,12 +168,11 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await expect(applyLink).toHaveAttribute('href', match.job.applyUrl);
 
   await page.getByRole('button', { name: 'Close job details' }).click();
-  await page.getByRole('button', { name: 'Save to applications' }).click();
+  await page.getByRole('button', { name: 'Prepare' }).click();
 
-  const matchCard = page.locator('article').filter({ hasText: match.job.title });
-  await expect(matchCard.getByText('Tracked: saved')).toBeVisible();
-
-  const statusSelect = matchCard.getByRole('combobox');
+  const applicationModal = page.locator('.application-modal');
+  await expect(applicationModal.getByRole('heading', { name: match.job.title })).toBeVisible();
+  const statusSelect = applicationModal.getByRole('combobox');
   await expect(statusSelect).toHaveValue('saved');
 
   await statusSelect.selectOption('applied');
