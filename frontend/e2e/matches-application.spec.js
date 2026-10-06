@@ -82,6 +82,25 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
     });
   });
 
+  await page.route('**/api/match/jobs/*/application', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    createCount += 1;
+    if (createCount > 1) {
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Application already exists for this job' })
+      });
+      return;
+    }
+    currentApplication = application('saved');
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ application: currentApplication })
+    });
+  });
+
   await page.route('**/api/applications', async route => {
     if (route.request().method() === 'POST') {
       createCount += 1;
@@ -149,10 +168,12 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await expect(applyLink).toHaveAttribute('href', match.job.applyUrl);
 
   await page.getByRole('button', { name: 'Close job details' }).click();
-  await page.getByRole('button', { name: 'Prepare' }).click();
+  await page.getByRole('button', { name: 'Save to applications' }).click();
 
-  await expect(page.getByRole('heading', { name: match.job.title }).last()).toBeVisible();
-  const statusSelect = page.getByRole('dialog').getByRole('combobox');
+  const matchCard = page.locator('article').filter({ hasText: match.job.title });
+  await expect(matchCard.getByText('Tracked: saved')).toBeVisible();
+
+  const statusSelect = matchCard.getByRole('combobox');
   await expect(statusSelect).toHaveValue('saved');
 
   await statusSelect.selectOption('applied');
