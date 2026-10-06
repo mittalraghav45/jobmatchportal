@@ -14,30 +14,36 @@ function arg(name, fallback) {
 
 const batch = Math.max(0, Number(arg('batch', 0)) || 0);
 const limit = Math.max(1, Number(arg('limit', process.env.APIFY_FULL_BATCH_SIZE || 100)) || 100);
+const companyIds = JSON.parse(arg('company-ids', '[]'));
 const skip = batch * limit;
 
 function unresolvedFilter() {
   return {
     enabled: true,
-    $or: [
-      { ats: { $in: ['', 'unknown', null] } },
-      { 'metadata.resolutionStatus': { $in: ['pending', 'unresolved'] } },
-      { 'metadata.sourceResolutionStatus': { $in: ['pending', 'unresolved'] } }
-    ],
-    $or: [
-      { careersUrl: { $regex: /^https?:\\/\\//i } },
-      { website: { $regex: /^https?:\\/\\//i } },
-      { 'metadata.careersUrl': { $regex: /^https?:\\/\\//i } },
-      { 'metadata.website': { $regex: /^https?:\\/\\//i } }
+    $and: [
+      { $or: [
+        { ats: { $in: ['', 'unknown', null] } },
+        { 'metadata.resolutionStatus': { $in: ['pending', 'unresolved'] } },
+        { 'metadata.sourceResolutionStatus': { $in: ['pending', 'unresolved'] } }
+      ] },
+      { $or: [
+        { careersUrl: { $regex: /^https?:\\/\\//i } },
+        { website: { $regex: /^https?:\\/\\//i } },
+        { 'metadata.careersUrl': { $regex: /^https?:\\/\\//i } },
+        { 'metadata.website': { $regex: /^https?:\\/\\//i } }
+      ] },
+      { 'metadata.apifyDiscovery.status': { $ne: 'complete' } }
     ]
   };
 }
 
 await connectMongo();
-const candidates = await Company.find(unresolvedFilter())
+const query = companyIds.length
+  ? { companyId: { $in: companyIds } }
+  : unresolvedFilter();
+const candidates = await Company.find(query)
   .select('companyId companyName website careersUrl ats employerType metadata')
-  .sort({ updatedAt: 1, companyId: 1 })
-  .skip(skip)
+  .sort({ companyId: 1 })
   .limit(limit)
   .lean();
 
