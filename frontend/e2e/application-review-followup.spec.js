@@ -73,7 +73,7 @@ test('application review saves follow-up and records status transition', async (
   await page.goto('/');
   await page.getByRole('button', { name: 'My Matches', exact: true }).click();
   await expect(page.getByText(job.title)).toBeVisible();
-  await page.getByRole('button', { name: 'Prepare' }).click();
+  await page.getByRole('button', { name: 'Prepare application' }).click();
 
   const modal = page.locator('.application-modal');
   await expect(modal.getByRole('heading', { name: job.title })).toBeVisible();
@@ -108,7 +108,7 @@ test('jobs API failure remains a recoverable frontend state', async ({ page }) =
   );
 
   await page.goto('/');
-  await expect(page.getByText('Job service unavailable')).toBeVisible();
+  await expect(page.getByText('Job service unavailable', { exact: true })).toBeVisible();
   await expect(page.locator('#root')).not.toBeEmpty();
   await expect(page.getByText('JobMatch could not render this page')).toHaveCount(0);
 });
