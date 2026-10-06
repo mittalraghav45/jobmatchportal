@@ -4,7 +4,6 @@ import ProductDashboard from './ProductDashboard.jsx'
 import DiscoveryStatusBar from './DiscoveryStatusBar.jsx'
 import VerifiedJobsStatusBar from './VerifiedJobsStatusBar.jsx'
 import ProfileQuickEdit from './ProfileQuickEdit.jsx'
-import MatchResultsPanel from './MatchResultsPanel.jsx'
 import './index.css'
 import './product-dashboard.css'
 import './discovery-status.css'
@@ -55,7 +54,6 @@ ReactDOM.createRoot(root).render(
     <AppErrorBoundary>
       <DiscoveryStatusBar />
       <VerifiedJobsStatusBar />
-      <MatchResultsPanel />
       <ProductDashboard />
       <ProfileQuickEdit />
     </AppErrorBoundary>
