@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   pilot:
-    if: \${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-full-apify]') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-full-apify]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     defaults:
@@ -30,9 +30,9 @@ jobs:
       - run: npm ci
       - name: Pilot 50 unresolved companies
         env:
-          MONGODB_URI: \${{ secrets.MONGODB_URI }}
-          APIFY_KEY: \${{ secrets.APIFY_KEY }}
-          APIFY_ACTOR_ID: \${{ vars.APIFY_ACTOR_ID || 'parseforge/career-site-jobs-scraper' }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          APIFY_KEY: ${{ secrets.APIFY_KEY }}
+          APIFY_ACTOR_ID: ${{ vars.APIFY_ACTOR_ID || 'parseforge/career-site-jobs-scraper' }}
           APIFY_TEST_MAX_ITEMS: '10'
           APIFY_MAX_TOTAL_CHARGE_USD: '0.50'
           APIFY_TIMEOUT_MS: '240000'
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      matrix: \${{ steps.plan.outputs.matrix }}
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,7 +57,7 @@ jobs:
         id: plan
         working-directory: backend
         env:
-          MONGODB_URI: \${{ secrets.MONGODB_URI }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           node --input-type=module <<'NODE'
           import 'dotenv/config';
@@ -97,7 +97,8 @@ jobs:
           if (matrix.length > 900000) throw new Error('Matrix output is too large');
           console.log(JSON.stringify({ unresolved: companies.length, eligible: eligible.length, batches: include.length }));
           console.log(matrix);
-          console.log('matrix=' + matrix);
+          const fs = await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + matrix + '\\n');
           await mongoose.disconnect();
           NODE
 
@@ -108,7 +109,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 4
-      matrix: \${{ fromJSON(needs.plan.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     defaults:
       run:
         working-directory: backend
@@ -120,20 +121,20 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - name: Process Apify batch \${{ matrix.batch }}
+      - name: Process Apify batch ${{ matrix.batch }}
         env:
-          MONGODB_URI: \${{ secrets.MONGODB_URI }}
-          APIFY_KEY: \${{ secrets.APIFY_KEY }}
-          APIFY_ACTOR_ID: \${{ vars.APIFY_ACTOR_ID || 'parseforge/career-site-jobs-scraper' }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          APIFY_KEY: ${{ secrets.APIFY_KEY }}
+          APIFY_ACTOR_ID: ${{ vars.APIFY_ACTOR_ID || 'parseforge/career-site-jobs-scraper' }}
           APIFY_TEST_MAX_ITEMS: '10'
           APIFY_MAX_TOTAL_CHARGE_USD: '0.50'
           APIFY_TIMEOUT_MS: '240000'
           APIFY_FULL_BATCH_SIZE: '100'
-        run: node scripts/apifyUnresolvedBatch.js --batch=\${{ matrix.batch }} --limit=100 --company-ids='\${{ matrix.companyIds }}'
+        run: node scripts/apifyUnresolvedBatch.js --batch=${{ matrix.batch }} --limit=100 --company-ids='${{ matrix.companyIds }}'
 
   matching:
     needs: [pilot, plan, apify-batches]
-    if: \${{ needs.apify-batches.result == 'success' }}
+    if: ${{ needs.apify-batches.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     defaults:
@@ -149,22 +150,22 @@ jobs:
       - run: npm ci
       - name: Run full-corpus matcher
         env:
-          MONGODB_URI: \${{ secrets.MONGODB_URI }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: npm run nightly:matching
       - name: Run backend tests
         run: npm test
 
   quality-summary:
     needs: [pilot, plan, apify-batches, matching]
-    if: \${{ always() }}
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
       - name: Report pipeline result
         run: |
-          echo "Pilot: \${{ needs.pilot.result }}"
-          echo "Plan: \${{ needs.plan.result }}"
-          echo "Apify batches: \${{ needs.apify-batches.result }}"
-          echo "Matching: \${{ needs.matching.result }}"
-          if [ "\${{ needs.apify-batches.result }}" != "success" ] || [ "\${{ needs.matching.result }}" != "success" ]; then
+          echo "Pilot: ${{ needs.pilot.result }}"
+          echo "Plan: ${{ needs.plan.result }}"
+          echo "Apify batches: ${{ needs.apify-batches.result }}"
+          echo "Matching: ${{ needs.matching.result }}"
+          if [ "${{ needs.apify-batches.result }}" != "success" ] || [ "${{ needs.matching.result }}" != "success" ]; then
             exit 1
           fi
