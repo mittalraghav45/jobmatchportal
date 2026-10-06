@@ -308,6 +308,7 @@ router.post('/jobs/:jobId/application', async (req, res) => {
       },
       specialist: ['nhs', 'dwp', 'council', 'university', 'civil_service'].includes(company?.employerType) ? 'nhs-public-sector' : 'all-in-one',
       status: 'saved',
+      statusHistory: [{ status: 'saved', at: new Date() }],
       materials: {},
       notes: ''
     });

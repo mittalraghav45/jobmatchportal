@@ -5,6 +5,11 @@ export default function ApplicationReview({ application, busy, onClose, onGenera
   const pack = application?.materials?.applicationPack || application?.applicationPack || null;
   const validation = pack?.validation;
   const status = application?.status || 'saved';
+  const [followUpAt,setFollowUpAt]=useState(application?.followUpAt?new Date(application.followUpAt).toISOString().slice(0,16):'');
+  const [followUpBusy,setFollowUpBusy]=useState(false);
+  const [followUpMessage,setFollowUpMessage]=useState('');
+  const [rejectionReason,setRejectionReason]=useState(application?.rejectionReason||'');
+  const saveFollowUp=async()=>{setFollowUpBusy(true);setFollowUpMessage('');try{const response=await fetch(`${API}/api/applications/${application.applicationId}/follow-up`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({followUpAt:followUpAt?new Date(followUpAt).toISOString():null})});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);application.followUpAt=data.followUpAt;setFollowUpMessage('Follow-up saved')}catch(error){setFollowUpMessage(error.message)}finally{setFollowUpBusy(false)}};
   const [ai,setAi]=useState(null);
   const [aiBusy,setAiBusy]=useState(false);
   const [aiError,setAiError]=useState('');
@@ -32,6 +37,11 @@ export default function ApplicationReview({ application, busy, onClose, onGenera
         </div>
 
         <div className="review-actions">
+          <div className="follow-up-controls">
+            <label>Follow up <input type="datetime-local" value={followUpAt} onChange={e=>setFollowUpAt(e.target.value)} /></label>
+            <button disabled={followUpBusy} onClick={saveFollowUp}>{followUpBusy?'Saving…':'Save follow-up'}</button>
+            {followUpMessage&&<span className="muted">{followUpMessage}</span>}
+          </div>
           <button className="primary" disabled={busy} onClick={onGenerate}>
             {busy ? 'Generating…' : pack ? 'Regenerate application pack' : 'Generate application pack'}
           </button>
@@ -41,6 +51,15 @@ export default function ApplicationReview({ application, busy, onClose, onGenera
           </select>
         </div>
 
+        {status==='rejected'&&<div className="review-block">
+          <h3>Rejection reason</h3>
+          <textarea value={rejectionReason} onChange={e=>setRejectionReason(e.target.value)} placeholder="Why was this application rejected?" />
+          <small className="muted">Stored with the application when the rejection status is updated.</small>
+        </div>}
+        {Array.isArray(application.statusHistory)&&application.statusHistory.length>0&&<section className="review-block">
+          <h3>Status history</h3>
+          <div>{application.statusHistory.map((item,i)=><div key={i}>{item.status} · {new Date(item.at).toLocaleString()}</div>)}</div>
+        </section>}
         {aiError&&<div className="validation invalid">AI insight unavailable: {aiError}</div>}
         {ai&&<AIInsight insight={ai}/>} 
 
