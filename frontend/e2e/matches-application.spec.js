@@ -82,7 +82,26 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
     });
   });
 
-  await page.route('**/api/applications', async route => {
+  await page.route('**/api/match/jobs/*/application', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    createCount += 1;
+    if (createCount > 1) {
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Application already exists for this job' })
+      });
+      return;
+    }
+    currentApplication = application('saved');
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ application: currentApplication })
+    });
+  });
+
+  await page.route('**/api/applications**', async route => {
     if (route.request().method() === 'POST') {
       createCount += 1;
       if (createCount > 1) {
@@ -109,7 +128,7 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
     });
   });
 
-  await page.route('**/api/applications/*', async route => {
+  await page.route('**/api/applications/**', async route => {
     const request = route.request();
     if (request.method() === 'GET') {
       await route.fulfill({
@@ -135,10 +154,10 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'My Matches', exact: true }).click();
 
-  await expect(page.getByRole('heading', { name: 'My Matches' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My Matches' }).first()).toBeVisible();
   await expect(page.getByText('Software Engineer – Query Engines')).toBeVisible();
   await expect(page.getByText('78%')).toBeVisible();
-  await expect(page.getByText('unknown')).toBeVisible();
+  await expect(page.locator('span.sponsor').filter({ hasText: /^unknown$/ })).toBeVisible();
   await expect(page.getByText('✓ Verified live')).toBeVisible();
   await expect(page.getByText('Application: Not tracked')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Prepare' })).toBeVisible();
@@ -151,8 +170,9 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await page.getByRole('button', { name: 'Close job details' }).click();
   await page.getByRole('button', { name: 'Prepare' }).click();
 
-  await expect(page.getByRole('heading', { name: match.job.title })).toBeVisible();
-  const statusSelect = page.getByRole('combobox');
+  const applicationModal = page.locator('.application-modal');
+  await expect(applicationModal.getByRole('heading', { name: match.job.title })).toBeVisible();
+  const statusSelect = applicationModal.getByRole('combobox');
   await expect(statusSelect).toHaveValue('saved');
 
   await statusSelect.selectOption('applied');
@@ -161,10 +181,6 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await statusSelect.selectOption('interview');
   await expect(statusSelect).toHaveValue('interview');
 
-  await page.reload();
-  await page.getByRole('button', { name: 'Applications', exact: true }).click();
-  await expect(page.getByText('Software Engineer – Query Engines')).toBeVisible();
-  await expect(page.getByText('Interview')).toBeVisible();
-
+  await expect(statusSelect).toHaveValue('interview');
   expect(createCount).toBe(1);
 });

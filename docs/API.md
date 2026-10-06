@@ -160,3 +160,10 @@ Do not invent endpoints from memory. Inspect the route definitions and tests, th
 ## Apify discovery fallback
 
 The unresolved-company discovery worker may call the configured Apify Actor through the Apify HTTP API. The current default is `parseforge/career-site-jobs-scraper`. It accepts `careerSiteUrls` plus bounded technical `searchTerms` and returns structured job rows. `APIFY_KEY` is supplied from the runtime/Actions secret and is never returned by the application.
+
+## Ranked matching and application bridge
+
+The candidate-facing `POST /api/match/jobs` endpoint ranks the global candidate pool before pagination when persisted `MatchResult` records exist for the requested profile. It falls back to bounded dynamic ranking only when no persisted match corpus is available.
+
+A verified-live vacancy can be converted directly into a saved application with `POST /api/match/jobs/:jobId/application`. The endpoint revalidates UK/live/verified/technology eligibility, calculates the current profile match, prevents duplicate applications for the same profile/job, and creates the application in `saved` state.
+

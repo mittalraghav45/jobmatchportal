@@ -6,7 +6,7 @@ on:
       ref:
         description: 'Git ref to test (branch, tag, or commit SHA)'
         required: true
-        default: 'feat/source-backed-job-verification'
+        default: 'main'
         type: string
   schedule:
     - cron: '15 1 * * *'

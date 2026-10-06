@@ -1,11 +1,15 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { Job } from '../models/Job.js';
 import { Company } from '../models/Company.js';
+import { Application } from '../models/Application.js';
+import { MatchResult } from '../models/MatchResult.js';
 import { matchJobToProfile } from '../profileMatching.js';
 import { DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
 import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
 
 const router = express.Router();
+const MAX_DYNAMIC_MATCH_CANDIDATES = Math.max(500, Number(process.env.MATCH_DYNAMIC_CANDIDATE_LIMIT || 5000));
 
 function resolveSponsorship(value) {
   if (value === undefined || value === '') return null;
@@ -22,6 +26,82 @@ async function companyIdsForSponsorship(sponsorship) {
   if (!sponsorship) return null;
   const companies = await Company.find({ sponsorship }).select('companyId').lean();
   return companies.map(company => String(company.companyId));
+}
+
+function jobIdFilter(jobId) {
+  const value = String(jobId || '').trim();
+  if (!value) return null;
+  const clauses = [{ fingerprint: value }, { externalId: value }];
+  if (mongoose.isValidObjectId(value)) clauses.push({ _id: value });
+  return { $or: clauses };
+}
+
+async function companyMapForJobs(jobs) {
+  const companyIds = [...new Set(jobs.map(job => String(job.companyId || '')).filter(Boolean))];
+  if (!companyIds.length) return new Map();
+  const companies = await Company.find({ companyId: { $in: companyIds } })
+    .select('companyId companyName sponsorship employerType')
+    .lean();
+  return new Map(companies.map(company => [String(company.companyId), company]));
+}
+
+function serialiseMatch(job, company, result) {
+  return {
+    job: {
+      id: String(job._id),
+      companyId: job.companyId,
+      companyName: company?.companyName || job.companyName || 'Unknown company',
+      title: job.title,
+      location: job.location,
+      employmentType: job.employmentType,
+      url: job.source?.url || job.applyUrl || '',
+      ats: job.source?.ats || 'unknown',
+      isLive: job.status?.isLive === true,
+      verification: job.verification?.status || 'unknown',
+      verifiedAt: job.verification?.checkedAt || null,
+      closingAt: job.dates?.closingAt || null
+    },
+    sponsorship: company?.sponsorship || 'unknown',
+    ...result
+  };
+}
+
+async function computeDynamicMatches({ profileId, filter, page, limit }) {
+  const candidates = await Job.find(filter)
+    .sort({ 'dates.lastSeenAt': -1, _id: -1 })
+    .limit(MAX_DYNAMIC_MATCH_CANDIDATES)
+    .lean();
+
+  const companies = await companyMapForJobs(candidates);
+  const matches = [];
+  for (const job of candidates) {
+    const company = companies.get(String(job.companyId));
+    const result = await matchJobToProfile({
+      profileId,
+      job: {
+        ...job,
+        companyName: company?.companyName || '',
+        postedAt: job.dates?.postedAt,
+        closingAt: job.dates?.closingAt,
+        ats: job.source?.ats,
+        source: job.source?.url
+      }
+    });
+    matches.push(serialiseMatch(job, company, result));
+  }
+
+  matches.sort((a, b) => {
+    const score = Number(b.candidateScore?.score || 0) - Number(a.candidateScore?.score || 0);
+    if (score) return score;
+    return String(b.job?.id || '').localeCompare(String(a.job?.id || ''));
+  });
+
+  return {
+    total: matches.length,
+    matches: matches.slice((page - 1) * limit, page * limit),
+    rankingSource: 'dynamic_fallback',
+    rankingLimited: candidates.length >= MAX_DYNAMIC_MATCH_CANDIDATES
+  };
 }
 
 router.post('/', async (req, res) => {
@@ -73,69 +153,175 @@ router.post('/jobs', async (req, res) => {
     const profileId = String(req.body?.profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
     const page = Math.max(1, Number(req.body?.page || 1));
     const limit = Math.min(100, Math.max(1, Number(req.body?.limit || 20)));
-    const skip = (page - 1) * limit;
     const sponsorship = resolveSponsorship(req.body?.sponsorship);
     const sponsorshipCompanyIds = await companyIdsForSponsorship(sponsorship);
     const filter = buildVerifiedLiveMatchFilter(sponsorshipCompanyIds);
 
-    const [jobs, total] = await Promise.all([
-      Job.find(filter).sort({ 'dates.lastSeenAt': -1, _id: -1 }).skip(skip).limit(limit).lean(),
-      Job.countDocuments(filter)
-    ]);
+    const persistedFilter = {
+      profileId,
+      'eligibility.uk': true,
+      'eligibility.live': true,
+      'eligibility.verified': true,
+      'eligibility.technology': true
+    };
+    if (sponsorshipCompanyIds) persistedFilter.companyId = { $in: [] };
 
-    const companyIds = [...new Set(jobs.map(job => String(job.companyId)).filter(Boolean))];
-    const companies = await Company.find({ companyId: { $in: companyIds } }).select('companyId companyName sponsorship').lean();
-    const companyMap = new Map(companies.map(company => [String(company.companyId), company]));
-    const matches = [];
+    if (sponsorshipCompanyIds?.length) {
+      const sponsoredJobs = await Job.find({
+        ...filter,
+        companyId: { $in: sponsorshipCompanyIds }
+      }).select('_id').lean();
+      persistedFilter.jobId = { $in: sponsoredJobs.map(job => job._id) };
+    } else if (sponsorshipCompanyIds) {
+      persistedFilter.jobId = { $in: [] };
+    }
 
-    for (const job of jobs) {
-      const company = companyMap.get(String(job.companyId));
-      const result = await matchJobToProfile({ profileId, job: {
-        ...job,
-        companyName: company?.companyName || '',
-        postedAt: job.dates?.postedAt,
-        closingAt: job.dates?.closingAt,
-        ats: job.source?.ats,
-        source: job.source?.url
-      }});
-      matches.push({
-        job: {
-          id: String(job._id),
-          companyId: job.companyId,
-          companyName: company?.companyName || 'Unknown company',
-          title: job.title,
-          location: job.location,
-          employmentType: job.employmentType,
-          url: job.source?.url || '',
-          ats: job.source?.ats || 'unknown',
-          isLive: job.status?.isLive === true,
-          verification: job.verification?.status || 'unknown',
-          verifiedAt: job.verification?.checkedAt || null,
-          closingAt: job.dates?.closingAt || null
-        },
-        sponsorship: company?.sponsorship || 'unknown',
-        ...result
+    const persistedTotal = await MatchResult.countDocuments(persistedFilter);
+    if (persistedTotal > 0) {
+      const persisted = await MatchResult.find(persistedFilter)
+        .sort({ matchScore: -1, calculatedAt: -1, _id: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean();
+
+      const jobs = await Job.find({ _id: { $in: persisted.map(result => result.jobId) }, ...filter }).lean();
+      const companies = await companyMapForJobs(jobs);
+      const byId = new Map(jobs.map(job => [String(job._id), job]));
+      const matches = persisted
+        .map(result => {
+          const job = byId.get(String(result.jobId));
+          if (!job) return null;
+          const company = companies.get(String(job.companyId));
+          return serialiseMatch(job, company, {
+            candidateScore: {
+              score: result.matchScore,
+              matchedSkills: result.components?.matchedSkills || [],
+              missingSkills: result.components?.missingSkills || [],
+              components: result.components || {}
+            },
+            matchStrength: result.applicationFit,
+            applicationFit: result.applicationFit,
+            reasons: result.reasons || [],
+            persistedMatch: true
+          });
+        })
+        .filter(Boolean);
+
+      return res.json({
+        profileId,
+        page,
+        limit,
+        total: persistedTotal,
+        pages: Math.ceil(persistedTotal / limit),
+        matches,
+        market: 'United Kingdom',
+        roleType: 'Technology',
+        verifiedLiveOnly: true,
+        sponsorshipFilter: sponsorship || 'all',
+        rankingSource: 'persisted_match_results'
       });
     }
 
-    matches.sort((a, b) => Number(b.candidateScore?.score || 0) - Number(a.candidateScore?.score || 0));
+    const dynamic = await computeDynamicMatches({ profileId, filter, page, limit });
     return res.json({
       profileId,
       page,
       limit,
-      total,
-      pages: Math.ceil(total / limit),
-      matches,
+      total: dynamic.total,
+      pages: Math.ceil(dynamic.total / limit),
+      matches: dynamic.matches,
       market: 'United Kingdom',
       roleType: 'Technology',
       verifiedLiveOnly: true,
-      sponsorshipFilter: sponsorship || 'all'
+      sponsorshipFilter: sponsorship || 'all',
+      rankingSource: dynamic.rankingSource,
+      rankingLimited: dynamic.rankingLimited
     });
   } catch (error) {
     if (error.code === 'PROFILE_NOT_FOUND') return res.status(404).json({ error: error.message });
     if (error.code === 'INVALID_SPONSORSHIP_FILTER') return res.status(400).json({ error: error.message });
     console.error('Bulk matching error:', error);
     return res.status(503).json({ error: 'Bulk job matching unavailable', detail: error.message });
+  }
+});
+
+router.post('/jobs/:jobId/application', async (req, res) => {
+  try {
+    const profileId = String(req.body?.profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+    const identity = jobIdFilter(req.params.jobId);
+    if (!identity) return res.status(400).json({ error: 'jobId is required' });
+
+    const filter = {
+      ...buildVerifiedLiveMatchFilter(),
+      ...identity
+    };
+    const job = await Job.findOne(filter).lean();
+    if (!job) return res.status(404).json({ error: 'Verified live UK technology job not found' });
+
+    const company = await Company.findOne({ companyId: String(job.companyId || '') })
+      .select('companyId companyName sponsorship employerType')
+      .lean();
+
+    const result = await matchJobToProfile({
+      profileId,
+      job: {
+        ...job,
+        companyName: company?.companyName || job.companyName || '',
+        postedAt: job.dates?.postedAt,
+        closingAt: job.dates?.closingAt,
+        ats: job.source?.ats,
+        source: job.source?.url
+      }
+    });
+
+    const existing = await Application.findOne({
+      profileId,
+      $or: [
+        { 'job.id': String(job._id) },
+        { 'job.url': job.source?.url || job.applyUrl || '' }
+      ]
+    }).lean();
+
+    if (existing) {
+      return res.status(409).json({
+        error: 'Application already exists for this job',
+        application: existing,
+        match: result
+      });
+    }
+
+    const application = await Application.create({
+      applicationId: `app_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      profileId,
+      job: {
+        id: String(job._id),
+        title: job.title,
+        company: company?.companyName || job.companyName || 'Unknown company',
+        companyId: job.companyId || null,
+        url: job.source?.url || job.applyUrl || null
+      },
+      match: {
+        score: result.candidateScore.score,
+        applicationFit: result.candidateScore.applicationFit || result.applicationFit || null,
+        reasons: result.candidateScore.reasons || result.reasons || [],
+        components: result.candidateScore.components || {}
+      },
+      specialist: ['nhs', 'dwp', 'council', 'university', 'civil_service'].includes(company?.employerType) ? 'nhs-public-sector' : 'all-in-one',
+      status: 'saved',
+      materials: {},
+      notes: ''
+    });
+
+    return res.status(201).json({
+      application: application.toObject(),
+      match: result,
+      next: 'tailoring'
+    });
+  } catch (error) {
+    if (error.code === 'PROFILE_NOT_FOUND') return res.status(404).json({ error: error.message });
+    if (error.code === 11000) return res.status(409).json({ error: 'Application already exists' });
+    console.error('Create application from match error:', error);
+    return res.status(503).json({ error: 'Unable to create application from match', detail: error.message });
   }
 });
 
