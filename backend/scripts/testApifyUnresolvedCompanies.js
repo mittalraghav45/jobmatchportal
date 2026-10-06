@@ -2,7 +2,7 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import { connectMongo } from '../db/mongoose.js';
 import { Company } from '../models/Company.js';
-import { apifyCareerUrl, runApifyForCompanies } from '../services/apifyJobDiscovery.js';
+import { apifyCareerUrl, runApifyForCompanies, assertApifyCapacity from '../services/apifyJobDiscovery.js';
 import { upsertJobs } from '../repositories/jobRepository.js';
 
 const limit = Math.max(1, Number(process.argv.find(arg => arg.startsWith('--limit='))?.split('=')[1] || 10));
@@ -78,7 +78,17 @@ async function main() {
 
   if (batch.errors?.length) {
     console.error('Apify company errors:');
+
     for (const error of batch.errors) console.error(JSON.stringify(error));
+  }
+
+  const capacityBlocked = batch.stoppedOnFailure && batch.errors?.some(error =>
+    error.fatal && /monthly usage hard limit|insufficient funds|insufficient balance|quota exceeded|usage limit|credit limit/i.test(error.error)
+  );
+  if (capacityBlocked) {
+    console.warn('APIFY SMOKE BLOCKED: Apify account capacity/credits are exhausted; no further Actor calls will be attempted.');
+    await mongoose.connection.close();
+    return;
   }
 
   for (const company of companies) {
