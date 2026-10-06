@@ -101,7 +101,7 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
     });
   });
 
-  await page.route('**/api/applications', async route => {
+  await page.route('**/api/applications**', async route => {
     if (route.request().method() === 'POST') {
       createCount += 1;
       if (createCount > 1) {
