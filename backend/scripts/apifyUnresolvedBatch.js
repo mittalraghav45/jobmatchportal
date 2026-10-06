@@ -16,6 +16,7 @@ const batch = Math.max(0, Number(arg('batch', 0)) || 0);
 const limit = Math.max(1, Number(arg('limit', process.env.APIFY_FULL_BATCH_SIZE || 100)) || 100);
 const companyIds = JSON.parse(arg('company-ids', '[]'));
 const skip = batch * limit;
+const requireJobs = String(process.env.APIFY_REQUIRE_JOBS || '').toLowerCase() === 'true';
 
 function unresolvedFilter() {
   return {
@@ -27,10 +28,10 @@ function unresolvedFilter() {
         { 'metadata.sourceResolutionStatus': { $in: ['pending', 'unresolved'] } }
       ] },
       { $or: [
-        { careersUrl: { $regex: /^https?:\\/\\//i } },
-        { website: { $regex: /^https?:\\/\\//i } },
-        { 'metadata.careersUrl': { $regex: /^https?:\\/\\//i } },
-        { 'metadata.website': { $regex: /^https?:\\/\\//i } }
+        { careersUrl: { $regex: /^https?:\/\//i } },
+        { website: { $regex: /^https?:\/\//i } },
+        { 'metadata.careersUrl': { $regex: /^https?:\/\//i } },
+        { 'metadata.website': { $regex: /^https?:\/\//i } }
       ] },
       { 'metadata.apifyDiscovery.status': { $ne: 'complete' } }
     ]
@@ -115,4 +116,5 @@ console.log(JSON.stringify(summary, null, 2));
 
 if (mismatched > 0) throw new Error(`Company attribution gate failed: ${mismatched} mismatched jobs`);
 if (result.errors.length > Math.ceil(valid.length * 0.25)) throw new Error(`Apify error rate too high: ${result.errors.length}/${valid.length}`);
+if (requireJobs && discovered === 0) throw new Error('Apify pilot produced zero jobs; refusing to scale to the full corpus');
 await mongoose.disconnect();
