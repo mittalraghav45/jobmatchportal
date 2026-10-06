@@ -144,7 +144,32 @@ async function runApifyRequest(input, options = {}) {
   return { actorId, items };
 }
 
-export { classifyApifyFailure };\n\nexport async function runApifyForCompanies(companies = [], options = {}) {
+export { classifyApifyFailure };\n\n
+export async function assertApifyCapacity(options = {}) {
+  const token = apifyToken();
+  if (!token) throw new Error('APIFY_KEY (or APIFY_TOKEN) is not configured');
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 30000));
+  const response = await axios.get('https://api.apify.com/v2/users/me/limits', {
+    timeout: timeoutMs,
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+  });
+  const data = response.data?.data;
+  if (!data?.limits || !data?.current) throw new Error('Apify capacity check returned an incomplete response');
+  const remainingUsd = Number(data.limits.maxMonthlyUsageUsd) - Number(data.current.monthlyUsageUsd);
+  const minRemainingUsd = Math.max(0, Number(process.env.APIFY_MIN_REMAINING_USD || 0.50));
+  if (!Number.isFinite(remainingUsd) || remainingUsd < minRemainingUsd) {
+    throw new Error(`Apify monthly usage headroom too low: $\${Math.max(0, remainingUsd).toFixed(2)} remaining`);
+  }
+  if (Number(data.current.activeActorJobCount) >= Number(data.limits.maxConcurrentActorJobs)) {
+    throw new Error('Apify concurrent Actor job limit is currently exhausted');
+  }
+  if (Number(data.current.actorMemoryGbytes) >= Number(data.limits.maxActorMemoryGbytes)) {
+    throw new Error('Apify account Actor memory limit is currently exhausted');
+  }
+  return { remainingUsd, activeActorJobCount: data.current.activeActorJobCount, actorMemoryGbytes: data.current.actorMemoryGbytes };
+}
+
+export async function runApifyForCompanies(companies = [], options = {}) {
   if (!companies.length) return { actorId: options.actorId || DEFAULT_APIFY_ACTOR_ID, rawCount: 0, jobs: [], errors: [] };
 
   const jobs = [];
@@ -172,7 +197,7 @@ export { classifyApifyFailure };\n\nexport async function runApifyForCompanies(c
         fatal: failure.fatal,
         retryable: failure.retryable
       });
-      if (failure.fatal) break;
+      if (failure.fatal || failure.retryable) break;
     }
   }
 
