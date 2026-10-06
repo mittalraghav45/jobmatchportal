@@ -89,7 +89,7 @@ Latest targeted matching checkpoint:
 
 The Apify fallback is implemented in `backend/services/apifyJobDiscovery.js` using the normal Apify HTTP API from the Node discovery worker; Apify MCP is not part of the production architecture.
 
-The pilot now executes one Actor run per unresolved company, sequentially. This is deliberate: the Actor's `maxItems` is a run-level output cap, so a shared multi-company run could starve later companies, while per-company execution preserves attribution and surfaces individual failures. The existing matcher is unchanged.
+The pilot now executes one Actor run per unresolved company, sequentially. The full workflow adds a source-quality gate, a 50-company pilot, stable 100-company batches, a maximum of four concurrent GitHub Actions batch jobs, per-company completion checkpoints and a final full-corpus matcher/test gate. A failed batch does not silently count as success; the workflow remains failed until the batch is rerun successfully. The existing matcher logic is unchanged.
 
 ## Current architecture
 
@@ -159,5 +159,6 @@ application workflow
 3. Add focused relevance tests rather than repeatedly running the full suite.
 4. Complete vacancy → match → application integration.
 5. Run the complete backend suite at integration checkpoints and frontend build after frontend changes.
-6. Keep Apify fallback bounded while validating real unresolved-company coverage.
-7. Reconcile data/status documentation after meaningful discovery or verification changes.
+6. Complete the orchestrated unresolved-company Apify crawl and inspect source-quality/error-rate summaries.
+7. Run the full-corpus matcher and backend suite only after discovery batches pass.
+8. Reconcile data/status documentation after meaningful discovery or verification changes.
