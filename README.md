@@ -6,6 +6,8 @@ A local UK job-discovery and application-support platform for sponsorship-aware 
 
 ## Current architecture
 
+> Current discovery note: Apify is integrated as a bounded fallback for unresolved career sites. The first 10-company pilot reached Apify successfully but returned 0 jobs, so the Actor/input strategy is not yet proven productive.
+
 ```text
 Frontend (React/Vite)
         |
@@ -72,6 +74,14 @@ The report contains corpus health, Strong/Possible/Weak distribution, score buck
 A failing test prevents the matcher from running. The workflow is deliberately bounded/reproducible diagnostic automation, not an autonomous source-code rewriting loop.
 
 ## Discovery adapters
+
+### Apify fallback
+
+`backend/services/apifyJobDiscovery.js` calls a configurable Apify Actor using `APIFY_KEY`, normalises returned jobs and sends them through the existing canonical ingestion path. It is a fallback only; source-backed verification remains mandatory. The initial 10-company pilot selected 10 unresolved employers and returned 0 jobs from the current Actor, so broader rollout is paused pending Actor/input validation.
+
+### Public-sector filters
+
+Match results now support server-side employer-type filters for private, councils, universities, NHS and DWP, plus nation filters for England, Scotland, Wales, Northern Ireland and UK-wide.
 
 New source families should implement the canonical contract in:
 
@@ -275,6 +285,9 @@ npm run build
 GitHub Actions runs backend tests and frontend builds automatically when relevant code changes.
 
 ## Security rules
+
+- Keep `APIFY_KEY` in GitHub Actions/Codespaces secrets; never commit or print it.
+- Apify output is discovery evidence, not live-job verification.
 
 - Never put OpenAI, Perplexity or MongoDB credentials in source files.
 - Never commit `.env` files.
