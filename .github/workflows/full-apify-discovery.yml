@@ -98,7 +98,7 @@ jobs:
           console.log(JSON.stringify({ unresolved: companies.length, eligible: eligible.length, batches: include.length }));
           console.log(matrix);
           const fs = await import('node:fs');
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + matrix + '\\n');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + matrix + String.fromCharCode(10));
           await mongoose.disconnect();
           NODE
 
