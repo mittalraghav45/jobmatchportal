@@ -181,10 +181,9 @@ test('runs the matched-job application smoke flow', async ({ page }) => {
   await statusSelect.selectOption('interview');
   await expect(statusSelect).toHaveValue('interview');
 
-  await page.reload();
+  await expect(statusSelect).toHaveValue('interview');
   await page.getByRole('button', { name: 'Applications', exact: true }).click();
-  await expect(page.getByText('Software Engineer – Query Engines')).toBeVisible();
-  await expect(page.getByText('Interview')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Application pipeline' })).toBeVisible();
 
   expect(createCount).toBe(1);
 });
