@@ -69,13 +69,13 @@ export function buildApifyInput(company, {
 }
 
 export function buildApifyBatchInput(companies = [], {
-  maxItems = Number(process.env.APIFY_MAX_ITEMS || 50),
+  maxItems = Number(process.env.APIFY_MAX_ITEMS || 10),
   includeDescription = true,
   includeCompensation = false,
   includeSkills = false,
   searchTerms = TECH_TITLE_FILTER
 } = {}) {
-  const cap = Math.max(1, Number(maxItems) || 50);
+  const cap = Math.max(1, Number(maxItems) || 10);
   const terms = Array.from(new Set(searchTerms.map(term => String(term).trim()).filter(Boolean)));
   const careerSiteUrls = companies.map(apifyCareerUrl).filter(Boolean);
   if (!careerSiteUrls.length) throw new Error('No usable career URLs were supplied to Apify');
