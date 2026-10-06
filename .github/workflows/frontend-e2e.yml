@@ -2,7 +2,7 @@ name: Frontend E2E
 
 on:
   push:
-    branches: [feat/source-backed-job-verification]
+    branches: [main]
   pull_request:
     branches: [feat/source-backed-job-verification]
 
