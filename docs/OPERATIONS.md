@@ -169,6 +169,18 @@ Do not copy MongoDB credentials into source files, documentation, issues or pull
 
 After a material architecture, schema, workflow or operational change, update `AGENTS.md` and the relevant `docs/` document. Keep `docs/PROJECT_STATUS.md` and `docs/PROJECT_HANDOFF.md` current enough that a new chat/agent can resume without relying on conversation history.
 
+## Frontend E2E validation
+
+The frontend E2E suite runs through the PR validation workflow and can also be run locally from `frontend/`:
+
+```bash
+npm ci
+npx playwright install --with-deps chromium
+npm run e2e
+```
+
+The suite covers dashboard rendering, matched-job application preparation, application-review follow-up scheduling/status transitions, and recoverable job API failures. Keep API calls mocked in these tests so the suite validates frontend behavior without requiring MongoDB or live discovery services.
+
 ## Matching/application production path
 
 The production candidate flow is now explicitly staged: verified-live UK technology vacancy -> persisted MatchResult ranking -> candidate-facing pagination -> saved application -> tailoring/application-pack generation. The ranking endpoint prefers persisted full-corpus results so page one represents the best available matches rather than the best matches from an arbitrary page of jobs.
