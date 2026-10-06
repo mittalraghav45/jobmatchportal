@@ -78,14 +78,10 @@ export default function MatchResultsPanel() {
     setBusyJob(jobId)
     setActionError('')
     try {
-      const response = await fetch(`${API_BASE_URL}/api/applications`, {
+      const response = await fetch(`${API_BASE_URL}/api/match/jobs/${encodeURIComponent(jobId)}/application`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profileId: item.profileId || null,
-          job: { id: jobId, title: job.title, company: job.companyName, companyId: job.companyId, url: job.applyUrl || job.url },
-          match: { score: item.matchScore, applicationFit: item.applicationFit, matchStrength: item.matchStrength, components: item.components, reasons: item.reasons }
-        })
+        body: JSON.stringify({ profileId: item.profileId || null })
       })
       const data = await readJson(response)
       if (!response.ok && response.status !== 409) throw new Error(data.error || `Request failed (${response.status})`)
@@ -145,7 +141,7 @@ export default function MatchResultsPanel() {
               {reasons.length > 0 && <div className="flex flex-wrap gap-1 mt-3">{reasons.filter(reason => !String(reason).startsWith('strong_')).slice(0, 5).map(reason => <span key={reason} className="text-[10px] bg-zinc-800 text-zinc-400 rounded px-1.5 py-0.5">{String(reason).replaceAll('_', ' ')}</span>)}</div>}
               <div className="flex flex-wrap items-center gap-2 mt-4">
                 {(job.applyUrl || job.url) && <a href={job.applyUrl || job.url} target="_blank" rel="noreferrer" className="text-xs text-violet-400 hover:underline">Apply →</a>}
-                {!application && <button disabled={busyJob === jobId} onClick={() => createApplication(item)} className="text-xs bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded px-3 py-1.5">{busyJob === jobId ? 'Saving…' : 'Mark as applied'}</button>}
+                {!application && <button disabled={busyJob === jobId} onClick={() => createApplication(item)} className="text-xs bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded px-3 py-1.5">{busyJob === jobId ? 'Saving…' : 'Save to applications'}</button>}
                 {application && <><span className="text-[10px] bg-green-950 text-green-300 border border-green-900 rounded-full px-2 py-1">Tracked: {application.status}</span><select disabled={busyJob === jobId} value={application.status} onChange={e => updateApplicationStatus(jobId, application.applicationId, e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-xs"><option value="saved">Saved</option><option value="tailoring">Tailoring</option><option value="ready_to_apply">Ready to apply</option><option value="applied">Applied</option><option value="interview">Interview</option><option value="offer">Offer</option><option value="rejected">Rejected</option><option value="withdrawn">Withdrawn</option></select></>}
               </div>
             </article>
