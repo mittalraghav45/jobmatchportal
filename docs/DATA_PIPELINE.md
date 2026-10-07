@@ -221,3 +221,7 @@ Discovery and verification remain upstream of matching. Once a job satisfies UK 
 
 The vacancy-to-application bridge rechecks the same eligibility contract before creating an application, so stale or ineligible job records cannot be promoted into the application queue.
 
+
+## Optional full Apify discovery
+
+Full unresolved-company Apify discovery is an opt-in enrichment stage rather than a prerequisite for candidate-facing matching. Normal pushes intentionally skip the paid full-discovery path; manual dispatch or a `[run-full-apify]` commit explicitly requests it. The workflow summary distinguishes this expected gated skip from a genuine failure after the full path has been requested.
