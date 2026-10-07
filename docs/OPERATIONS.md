@@ -187,3 +187,7 @@ The production candidate flow is now explicitly staged: verified-live UK technol
 
 The Apify fallback remains disabled from normal operation until external capacity is available. Paid discovery is not required for the matching/application pipeline to operate.
 
+
+## Full Apify workflow gating
+
+`Full Apify Unresolved Discovery` is intentionally gated. A normal push to `main` does not spend Apify capacity unless the triggering commit contains `[run-full-apify]`; a manual `workflow_dispatch` also enables the full run. When the gate is not enabled, the pilot, planning, batch, and matching jobs are expected to be skipped and the summary reports that gated skip as a successful no-op. When a full run is requested, failed Apify batches or matching still fail the workflow.
