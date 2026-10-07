@@ -169,6 +169,10 @@ jobs:
           echo "Plan: ${{ needs.plan.result }}"
           echo "Apify batches: ${{ needs.apify-batches.result }}"
           echo "Matching: ${{ needs.matching.result }}"
+          if [ "${{ needs.pilot.result }}" = "skipped" ]; then
+            echo "Full Apify discovery was not requested for this push; treating gated skip as success."
+            exit 0
+          fi
           if [ "${{ needs.apify-batches.result }}" != "success" ] || [ "${{ needs.matching.result }}" != "success" ]; then
             exit 1
           fi
