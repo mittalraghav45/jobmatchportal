@@ -4,7 +4,7 @@ import { Job } from '../models/Job.js';
 import { Company } from '../models/Company.js';
 import { Application } from '../models/Application.js';
 import { MatchResult } from '../models/MatchResult.js';
-import { matchJobToProfile } from '../profileMatching.js';
+import { loadCandidateProfile, matchJobToProfile } from '../profileMatching.js';
 import { DEFAULT_PROFILE_ID } from '../models/CandidateProfile.js';
 import { buildVerifiedLiveMatchFilter } from '../utils/matchFilters.js';
 
@@ -24,7 +24,7 @@ function resolveSponsorship(value) {
 
 async function companyIdsForSponsorship(sponsorship) {
   if (!sponsorship) return null;
-  const companies = await Company.find({ sponsorship }).select('companyId').lean();
+  const companies = await Company.find(sponsorship === 'unknown' ? { sponsorship: { $in: ['verified', 'not-sponsor'] } } : { sponsorship }).select('companyId').lean();
   return companies.map(company => String(company.companyId));
 }
 
@@ -47,6 +47,7 @@ async function companyMapForJobs(jobs) {
 
 function serialiseMatch(job, company, result) {
   return {
+    ...result,
     job: {
       id: String(job._id),
       companyId: job.companyId,
@@ -57,12 +58,13 @@ function serialiseMatch(job, company, result) {
       url: job.source?.url || job.applyUrl || '',
       ats: job.source?.ats || 'unknown',
       isLive: job.status?.isLive === true,
-      verification: job.verification?.status || 'unknown',
+      verification: { status: job.verification?.status || 'unknown', checkedAt: job.verification?.checkedAt || null },
+      status: { isLive: job.status?.isLive === true },
+      applyUrl: job.applyUrl || job.source?.url || '',
       verifiedAt: job.verification?.checkedAt || null,
       closingAt: job.dates?.closingAt || null
     },
-    sponsorship: company?.sponsorship || 'unknown',
-    ...result
+    sponsorship: company?.sponsorship || 'unknown'
   };
 }
 
@@ -155,36 +157,35 @@ router.post('/jobs', async (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.body?.limit || 20)));
     const sponsorship = resolveSponsorship(req.body?.sponsorship);
     const sponsorshipCompanyIds = await companyIdsForSponsorship(sponsorship);
-    const filter = buildVerifiedLiveMatchFilter(sponsorshipCompanyIds);
+    const filter = buildVerifiedLiveMatchFilter(sponsorship === 'unknown' ? null : sponsorshipCompanyIds);
+    if (sponsorship === 'unknown') filter.companyId = { $nin: sponsorshipCompanyIds };
 
+    const profile = await loadCandidateProfile(profileId);
     const persistedFilter = {
       profileId,
+      profileVersion: profile.activeVersion || 'v1',
       'eligibility.uk': true,
       'eligibility.live': true,
       'eligibility.verified': true,
       'eligibility.technology': true
     };
-    if (sponsorshipCompanyIds) persistedFilter.companyId = { $in: [] };
-
-    if (sponsorshipCompanyIds?.length) {
-      const sponsoredJobs = await Job.find({
-        ...filter,
-        companyId: { $in: sponsorshipCompanyIds }
-      }).select('_id').lean();
-      persistedFilter.jobId = { $in: sponsoredJobs.map(job => job._id) };
-    } else if (sponsorshipCompanyIds) {
-      persistedFilter.jobId = { $in: [] };
-    }
-
-    const persistedTotal = await MatchResult.countDocuments(persistedFilter);
+    // Join current job state BEFORE counting/pagination. Closed jobs and stale
+    // eligibility snapshots must not create empty ranked pages or false totals.
+    const eligiblePipeline = [
+      { $match: persistedFilter },
+      { $sort: { matchScore: -1, calculatedAt: -1, _id: -1 } },
+      { $lookup: { from: Job.collection.name, localField: 'jobId', foreignField: '_id', pipeline: [{ $match: filter }], as: 'currentJob' } },
+      { $unwind: '$currentJob' }
+    ];
+    const [count] = await MatchResult.aggregate([...eligiblePipeline, { $count: 'total' }]).allowDiskUse(true);
+    const persistedTotal = count?.total || 0;
     if (persistedTotal > 0) {
-      const persisted = await MatchResult.find(persistedFilter)
-        .sort({ matchScore: -1, calculatedAt: -1, _id: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean();
-
-      const jobs = await Job.find({ _id: { $in: persisted.map(result => result.jobId) }, ...filter }).lean();
+      const persisted = await MatchResult.aggregate([
+        ...eligiblePipeline,
+        { $skip: (page - 1) * limit },
+        { $limit: limit }
+      ]).allowDiskUse(true);
+      const jobs = persisted.map(result => result.currentJob);
       const companies = await companyMapForJobs(jobs);
       const byId = new Map(jobs.map(job => [String(job._id), job]));
       const matches = persisted
@@ -306,7 +307,7 @@ router.post('/jobs/:jobId/application', async (req, res) => {
         reasons: result.candidateScore.reasons || result.reasons || [],
         components: result.candidateScore.components || {}
       },
-      specialist: ['nhs', 'dwp', 'council', 'university', 'civil_service'].includes(company?.employerType) ? 'nhs-public-sector' : 'all-in-one',
+      specialist: ['nhs', 'dwp', 'councils', 'universities', 'civil_service'].includes(company?.employerType) ? 'nhs-public-sector' : 'all-in-one',
       status: 'saved',
       statusHistory: [{ status: 'saved', at: new Date() }],
       materials: {},

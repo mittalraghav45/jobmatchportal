@@ -108,7 +108,7 @@ test('jobs API failure remains a recoverable frontend state', async ({ page }) =
   );
 
   await page.goto('/');
-  await expect(page.getByText('Job service unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Unable to load jobs: Job service unavailable/)).toBeVisible();
   await expect(page.locator('#root')).not.toBeEmpty();
   await expect(page.getByText('JobMatch could not render this page')).toHaveCount(0);
 });

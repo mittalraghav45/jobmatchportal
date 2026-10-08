@@ -202,3 +202,15 @@ Updates supported metadata: `notes`, `specialist`, `match`, and `profileId`.
 Generates and persists an application pack when generation succeeds.
 
 Application persistence also supports recruiter metadata, source, rejection reason, explicit follow-up scheduling and status history. Follow-up queueing is deterministic.
+
+## Combined index filters (8 October 2026)
+
+`GET /api/jobs?city=Belfast&category=frontend&employerType=universities&sponsorship=verified&verifiedLive=true` intersects every supplied filter before counting and paginating. `city` matches a literal whole name in the job's location; it does not infer a vacancy city from employer headquarters. `category` accepts `all`, `frontend`, `backend`, `fullstack`, `software`, `cloud`, `data`, `security`, `qa` and uses title evidence. `verifiedLive=true` is the default and requires both live flags, an application URL and pending/complete processing. `verifiedLive=false` explicitly includes other verification states. Existing `location` and `includeUnverified` clients remain supported. Invalid category/boolean values return 400.
+
+`sponsorship` remains a company-level string (`verified`, `not-sponsor`, `unknown`). Unknown includes unresolved employers. It does not represent vacancy-level sponsorship confirmation. Northern Ireland is UK eligible; Republic of Ireland remains excluded.
+
+`POST /api/match/jobs` preserves job identity/source links, uses the active profile version, joins current eligible job state before persisted-result counting/pagination, and supports licensed-employer filtering without forcing an empty result. Application preparation still requires complete processing and verified live state. Council and university applications route to the public-sector specialist.
+
+### Hosted authentication
+
+When `SERVE_FRONTEND=true`, all application/API routes require HTTP Basic authentication (`PERSONAL_USERNAME` / `PERSONAL_PASSWORD`), with a browser sign-in challenge. `GET /_health` is public and contains no candidate data. Local development remains unchanged when hosting is disabled.

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
+import { personalAccess, serveFrontend } from './services/personalHosting.js';
 import { connectMongo } from './db/mongoose.js';
 import { calculateMatchPercent, getRecommendation, parseCV, generateLatexCV, generateCoverLetter, getMatchBreakdown } from './cvJobMatcher.js';
 import { fetchAllATS, enrichWithDates } from './liveJobsScraper_new.js';
@@ -32,6 +33,11 @@ const OPENAI_KEY = process.env.OPENAI_API_KEY;
 const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
 const ATS_LIST = ['greenhouse','lever','ashby','workday','smartrecruiters','workable','teamtailor','pinpoint','recruitee','bamboohr','nhs'];
 const allowedOrigins = (process.env.FRONTEND_ORIGINS || 'http://localhost:5173,http://localhost:3000,http://localhost:5174,http://localhost:5175').split(',').map(origin => origin.trim()).filter(Boolean);
+
+if (process.env.SERVE_FRONTEND === 'true') {
+  app.use(personalAccess({ username: process.env.PERSONAL_USERNAME, password: process.env.PERSONAL_PASSWORD }));
+}
+app.get('/_health', (req, res) => res.json({ ok: true }));
 
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
@@ -95,6 +101,8 @@ app.post('/api/optimise-application', async (req, res) => {
   catch (error) { console.error('Application optimisation error:', error.message); return res.status(error.name === 'AbortError' ? 504 : 502).json({ error: 'Application optimisation failed', message: error.message }); }
   finally { clearTimeout(timeout); }
 });
+
+if (process.env.SERVE_FRONTEND === 'true') serveFrontend(app, path.resolve(__dirname, '../frontend/dist'));
 
 app.use((error, req, res, next) => { console.error(error); if (res.headersSent) return next(error); res.status(500).json({ error: 'Server error', message: error.message }); });
 export { app };

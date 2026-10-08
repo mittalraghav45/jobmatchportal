@@ -1,0 +1,31 @@
+import { test, expect } from '@playwright/test';
+
+test('real API: filter a verified sponsor job, match, save, apply, reload', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Jobs', exact: true }).click();
+  await page.getByRole('textbox', { name: 'City', exact: true }).fill('Belfast');
+  await page.getByRole('combobox', { name: 'Role category' }).selectOption('frontend');
+  await page.getByLabel('Universities', { exact: true }).check();
+  await page.getByLabel('Verified licensed employers', { exact: true }).check();
+  await expect(page.getByText('1 matching jobs', { exact: true })).toBeVisible();
+  const job = page.locator('article.job');
+  await expect(job).toHaveCount(1);
+  await expect(job.locator('.sponsor').last()).toHaveText('verified');
+  await expect(job.getByRole('link', { name: 'Apply', exact: true })).toHaveAttribute('href', 'https://example.com/jobs/test');
+  await job.getByRole('button', { name: 'View match' }).click();
+  await expect(page.locator('.match-score strong')).not.toHaveText('—%');
+  await page.getByRole('button', { name: 'Prepare application' }).click();
+  const modal = page.locator('.application-modal');
+  await expect(modal).toBeVisible();
+  await expect(modal.getByRole('combobox')).toHaveValue('saved');
+  await modal.getByRole('combobox').selectOption('tailoring');
+  await expect(modal.getByRole('combobox')).toHaveValue('tailoring');
+  await modal.getByRole('combobox').selectOption('ready_to_apply');
+  await expect(modal.getByRole('combobox')).toHaveValue('ready_to_apply');
+  await modal.getByRole('combobox').selectOption('applied');
+  await expect(modal.getByRole('combobox')).toHaveValue('applied');
+  await page.reload();
+  await page.getByRole('button', { name: /^Applications/ }).click();
+  await expect(page.locator('.application-card')).toHaveCount(1);
+  await expect(page.locator('.application-card .sponsor')).toHaveText('Applied');
+});
