@@ -40,7 +40,8 @@
     "profile:import:v2": "node -r dotenv/config scripts/importCvProfileV2.js",
     "profile:migrate-indexes": "node -r dotenv/config scripts/migrateMatchResultProfileVersions.js",
     "test:match-filters": "node -r dotenv/config scripts/testMatchResultFilters.js",
-    "test:apify-unresolved": "node -r dotenv/config scripts/testApifyUnresolvedCompanies.js"
+    "test:apify-unresolved": "node -r dotenv/config scripts/testApifyUnresolvedCompanies.js",
+    "test:integration": "node --test integration/*.test.js"
   },
   "dependencies": {
     "axios": "^1.20.0",
@@ -52,6 +53,7 @@
     "openai": "^4.104.0"
   },
   "devDependencies": {
+    "mongodb-memory-server": "^11.3.0",
     "nodemon": "^3.1.10"
   }
 }

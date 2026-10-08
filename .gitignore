@@ -58,3 +58,7 @@ coverage/
 .idea/
 *.swp
 *.swo
+
+# Playwright runtime output
+**/test-results/
+**/playwright-report/

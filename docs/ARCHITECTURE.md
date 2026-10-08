@@ -279,3 +279,11 @@ Do not treat an isolated smoke test as proof that the complete repository suite 
 7. Scale hardening and end-to-end automation
 
 Current priority within phases 5–7: validate the UK-only full-corpus candidate pool, calibrate explainable matching from representative results, then expand discovery across councils, universities, startups, scale-ups, sponsorship employers and general profile-relevant UK employers.
+
+## Search and ranking correctness (8 October 2026)
+
+The UI normalises string sponsorship from the canonical jobs API. It has no fictional job or local matching-score fallback. Job requests use a sequence token so late responses cannot overwrite newer filters. Role categories are title-based and city search is literal; filtering and pagination remain server-side.
+
+Persisted match ranking selects the active candidate profile version and joins current Job eligibility through the indexed job ID before counting or pagination. It preserves historical MatchResult records while excluding closed or stale eligibility snapshots. Aggregations permit disk use; this is a correctness change, not measured production load certification.
+
+`backend/test-support/isolatedServer.js` seeds a fresh ephemeral MongoDB for integration and real Playwright tests. Synthetic jobs exist only in that isolated test database. Neither path consumes production MongoDB credentials.

@@ -1,6 +1,9 @@
 name: Matching Quality
 
 on:
+  push:
+    # Explicit validation branch: run the requested full-corpus gate on its commits.
+    branches: [fix/job-search-application-evidence]
   workflow_dispatch:
     inputs:
       ref:

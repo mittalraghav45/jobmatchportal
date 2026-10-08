@@ -90,3 +90,7 @@ The full discovery run remains checkpointed and resumable. Completed, unresolved
 8. CV/cover-letter workflow.
 9. Automated refresh scheduling.
 10. End-to-end, performance, security and release hardening.
+
+## 8 October 2026 release work
+
+See `docs/PROJECT_STATUS.md` for the latest verified search/application change. Local unit, isolated MongoDB integration and real browser journeys have passed. Full-corpus Actions evidence and production load/coverage checks are still required; historical corpus totals above are checkpoints.

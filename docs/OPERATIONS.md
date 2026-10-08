@@ -191,3 +191,11 @@ The Apify fallback remains disabled from normal operation until external capacit
 ## Full Apify workflow gating
 
 `Full Apify Unresolved Discovery` is intentionally gated. A normal push to `main` does not spend Apify capacity unless the triggering commit contains `[run-full-apify]`; a manual `workflow_dispatch` also enables the full run. When the gate is not enabled, the pilot, planning, batch, and matching jobs are expected to be skipped and the summary reports that gated skip as a successful no-op. When a full run is requested, failed Apify batches or matching still fail the workflow.
+
+## Isolated release validation (8 October 2026)
+
+Run backend `npm test`, `npm run test:integration`, frontend `npm run build`, `npm run e2e`, and `npm run e2e:real`. The real integration/browser suites require the first-run MongoDB binary download and Chromium installation. MongoDB 7.0.14 is pinned and Unix sockets disabled for container compatibility. Tests fail rather than silently skip when this integration server cannot start.
+
+PR Validation runs isolated MongoDB integration plus both browser suites for main-targeting PRs. Frontend E2E also runs on main-targeting PRs. Dependencies use clean installs with committed lockfiles. Matching Quality additionally triggers on pushes to `fix/job-search-application-evidence` to validate this change against the configured full corpus; its existing manual/scheduled modes remain. That workflow upserts match results using the repository MongoDB secret and must pass before claiming full-corpus validation.
+
+No production-scale readiness claim follows from passing fixture tests. Remaining release checks include live source freshness/coverage, full-corpus workflow evidence, deployment configuration, recovery and measured load behaviour.

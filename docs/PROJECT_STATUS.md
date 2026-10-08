@@ -178,3 +178,7 @@ Apify remains intentionally dormant because the current account has exhausted it
 5. Generate application packs and progress applications through the lifecycle.
 6. Only revisit paid discovery if free-source coverage becomes the limiting factor.
 
+
+## 8 October 2026 validation change
+
+Branch `fix/job-search-application-evidence` starts from main `a7eeac4`. Sponsorship display, fictional fallback jobs, combined city/role/employer/licence/live filtering, persisted sponsorship ranking and job identity preservation are repaired. Local evidence: backend 293 passed / 4 API suites skipped; a separate non-skipping real MongoDB integration journey and a real API Playwright journey pass, alongside five existing/mock browser tests. Build passes. GitHub full-corpus Matching Quality remains pending until observed on the change. These results do not certify production readiness or exhaustive job discovery.

@@ -85,3 +85,7 @@ For large discovery runs, use the checkpointed `jobDiscoveryGoldenFull.js` scrip
 6. Complete vacancy → match → application end-to-end integration.
 7. Run the complete backend test suite and frontend build at integration checkpoints, then keep all documentation synchronized.
 
+
+## Current release branch (8 October 2026)
+
+The requested fixes are on `fix/job-search-application-evidence`, based on latest main `a7eeac4`. Continue validation there without overwriting unrelated branches. Regression coverage includes combined city/category/licensed-employer/live filters, real application lifecycle persistence, stale closed persisted matches, profile version selection and canonical job IDs/source URLs. Tests seed only isolated ephemeral MongoDB; do not seed production. Check the PR and its Matching Quality evidence before declaring release readiness.

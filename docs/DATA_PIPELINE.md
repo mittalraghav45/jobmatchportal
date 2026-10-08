@@ -225,3 +225,7 @@ The vacancy-to-application bridge rechecks the same eligibility contract before 
 ## Optional full Apify discovery
 
 Full unresolved-company Apify discovery is an opt-in enrichment stage rather than a prerequisite for candidate-facing matching. Normal pushes intentionally skip the paid full-discovery path; manual dispatch or a `[run-full-apify]` commit explicitly requests it. The workflow summary distinguishes this expected gated skip from a genuine failure after the full path has been requested.
+
+## Candidate-facing evidence boundary (8 October 2026)
+
+Frontend failures no longer fabricate fallback jobs. Sponsorship comes from the resolved canonical employer and unresolved employers stay unknown. Northern Ireland location evidence is retained as UK eligibility. Persisted matching rechecks current job state and active profile version before pagination rather than trusting historical eligibility flags. All historical company/job/match records are retained.
