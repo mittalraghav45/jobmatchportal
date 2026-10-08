@@ -229,3 +229,7 @@ Full unresolved-company Apify discovery is an opt-in enrichment stage rather tha
 ## Candidate-facing evidence boundary (8 October 2026)
 
 Frontend failures no longer fabricate fallback jobs. Sponsorship comes from the resolved canonical employer and unresolved employers stay unknown. Northern Ireland location evidence is retained as UK eligibility. Persisted matching rechecks current job state and active profile version before pagination rather than trusting historical eligibility flags. All historical company/job/match records are retained.
+
+### Full-corpus release evidence
+
+Matching Quality run 37713026820 on commit `5dec911` processed 15,030 jobs. 518 met its current candidate eligibility contract: 13 strong with unconfirmed sponsorship, two possible and 503 weak. The gate passed with zero critical violations. 7,110 source-processing-incomplete records and other ineligible historical records remain; a successful match run is not exhaustive source coverage.

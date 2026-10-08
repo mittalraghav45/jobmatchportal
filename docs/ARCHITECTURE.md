@@ -287,3 +287,7 @@ The UI normalises string sponsorship from the canonical jobs API. It has no fict
 Persisted match ranking selects the active candidate profile version and joins current Job eligibility through the indexed job ID before counting or pagination. It preserves historical MatchResult records while excluding closed or stale eligibility snapshots. Aggregations permit disk use; this is a correctness change, not measured production load certification.
 
 `backend/test-support/isolatedServer.js` seeds a fresh ephemeral MongoDB for integration and real Playwright tests. Synthetic jobs exist only in that isolated test database. Neither path consumes production MongoDB credentials.
+
+### Personal hosting boundary
+
+Optional single-origin hosting uses Express static files from `frontend/dist` and HTTP Basic authentication over the host's HTTPS connection. Authentication covers UI and API, with only `/_health` public. Missing credentials fail closed when hosting is enabled. Unrecognised API URLs return JSON 404 rather than the SPA. This keeps the existing MongoDB/matching architecture; Sites Workers cannot directly run the raw-TCP MongoDB backend.

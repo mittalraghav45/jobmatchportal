@@ -182,3 +182,7 @@ Apify remains intentionally dormant because the current account has exhausted it
 ## 8 October 2026 validation change
 
 Branch `fix/job-search-application-evidence` starts from main `a7eeac4`. Sponsorship display, fictional fallback jobs, combined city/role/employer/licence/live filtering, persisted sponsorship ranking and job identity preservation are repaired. Local evidence: backend 293 passed / 4 API suites skipped; a separate non-skipping real MongoDB integration journey and a real API Playwright journey pass, alongside five existing/mock browser tests. Build passes. GitHub full-corpus Matching Quality remains pending until observed on the change. These results do not certify production readiness or exhaustive job discovery.
+
+### Confirmed Actions evidence and hosting preparation
+
+All eight relevant Actions runs passed for `5dec911`, including PR Validation and Matching Quality (run 37713026820). The matcher processed 15,030 jobs and found 518 eligible records, including 13 strong-unconfirmed-sponsorship matches with zero critical violations. Personal Render hosting is prepared with authentication and a same-origin frontend/API. Live deployment still needs a connected hosting account and its MongoDB secret; no deployed URL has been verified. New hosting/API smoke checks must pass on the final commit.

@@ -67,6 +67,15 @@ jobs:
           set -o pipefail
           npm run nightly:matching 2>&1 | tee nightly-matching.log
 
+      - name: Build personal frontend for read-only API check
+        run: npm ci --prefix frontend && npm run build --prefix frontend
+
+      - name: Validate authenticated release against persisted data (read only)
+        working-directory: backend
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: node scripts/checkPersonalRelease.js
+
       - name: Render human-readable quality report
         if: always()
         working-directory: backend

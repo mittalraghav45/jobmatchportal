@@ -311,3 +311,7 @@ See `docs/ARCHITECTURE.md`, [`docs/DATA_PIPELINE.md`](docs/DATA_PIPELINE.md) and
 The JobMatch index defaults to verified-live UK technology jobs. Combine city, role category, employer category and licensed-employer filters in Jobs. An employer licence is not a promise of sponsorship for a particular vacancy. API failures show an empty result and a retry message; demo jobs and local fallback match scores are removed.
 
 For free local validation, run `npm ci` in both backend and frontend, then `npm run test:integration` in backend and `npm run e2e:real` in frontend. The latter needs `npx playwright install chromium` first. Both integration paths start their own ephemeral MongoDB 7.0.14 and never connect to your Atlas database. On Windows PowerShell, use `$env:E2E_REAL_API='1'; npm run e2e` for the real browser test.
+
+### Live personal hosting
+
+`render.yaml` deploys the existing React frontend and Express backend together on the free plan, using the release branch. Set `MONGODB_URI` in Render's environment settings; the GitHub secret is not automatically shared with Render. A generated `PERSONAL_PASSWORD` and username `raghav` protect the whole portal with HTTPS browser sign-in. Read the password in your Render environment settings. Only `/_health` is public. Free hosting is for personal/hobby use and can sleep; it is not production-scale certification.

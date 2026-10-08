@@ -89,3 +89,7 @@ For large discovery runs, use the checkpointed `jobDiscoveryGoldenFull.js` scrip
 ## Current release branch (8 October 2026)
 
 The requested fixes are on `fix/job-search-application-evidence`, based on latest main `a7eeac4`. Continue validation there without overwriting unrelated branches. Regression coverage includes combined city/category/licensed-employer/live filters, real application lifecycle persistence, stale closed persisted matches, profile version selection and canonical job IDs/source URLs. Tests seed only isolated ephemeral MongoDB; do not seed production. Check the PR and its Matching Quality evidence before declaring release readiness.
+
+### Deployment resume point
+
+PR #16 contains the fixes and passed CI/full-corpus matching at `5dec911`. Subsequent deployment preparation adds `render.yaml`, fail-closed personal authentication, same-origin static serving and a read-only production-data smoke test. Render was suggested but has not been confirmed connected. Deployment is blocked on that hosting connection, not the GitHub MongoDB secret. Do not claim a live URL until a host reports successful deployment and the journey is checked.
