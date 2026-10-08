@@ -19,3 +19,4 @@ export function buildVerifiedLiveMatchFilter(sponsorshipCompanyIds = null) {
 
   return filter;
 }
+
